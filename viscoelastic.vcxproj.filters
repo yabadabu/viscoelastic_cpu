@@ -84,6 +84,9 @@
     <ClCompile Include="engine\formats\json\json.cpp">
       <Filter>engine\formats\json</Filter>
     </ClCompile>
+    <ClCompile Include="engine\render\primitives.cpp">
+      <Filter>engine\render</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cpu_spatial_subdivision.h" />
@@ -170,6 +173,9 @@
     </ClInclude>
     <ClInclude Include="data\shaders\vertex_types.h">
       <Filter>data\shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\primitives.h">
+      <Filter>engine\render</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

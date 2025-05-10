@@ -2,20 +2,22 @@
 #include "module.h"
 #include "module_render.h"
 #include "render/render.h"
-//#include "render/primitives.h"
+#include "render/primitives.h"
 //#include "render/manager.h"
 #include "render/color.h"
 //#include "formats/mesh/io_mesh.h"
 
 using namespace Render;
 
-IResource* createMesh(const char* name) {
+IResource* createMesh(const std::string& name) {
   Render::Mesh* mesh = new Render::Mesh();
-  //if (sname == "grid.mesh")       createGrid(mesh);
+  if (name == "grid.mesh")       createGrid(mesh);
   //else if (sname == "axis.mesh")  createAxis(mesh);
   //else if (sname == "unit_wired_cube.mesh")  createUnitWiredCube(mesh);
   //else if (sname == "unit_circle_xz.mesh")  createUnitWiredCircleXZ(mesh, 32);
-  //else if (sname == "line.mesh") createLine(mesh);
+  //else 
+  else if (name == "line.mesh") createLine(mesh);
+  else if (name == "unit_quad_xy.mesh") createUnitQuadXY(mesh);
   //else if (sname == "view_volume.mesh") createViewVolume(mesh);
   //else if (sname == "quad_xy_basic.mesh") createQuadXYBasic(mesh);
   //else if (sname == "quad_xz.mesh") createQuadXZ(mesh);
@@ -24,7 +26,7 @@ IResource* createMesh(const char* name) {
   //else if (sname == "cube.mesh") createUnitCube(mesh);
   //else
   //  return nullptr;
-  mesh->setName(name);
+  mesh->setName(name.c_str());
   return mesh;
 }
 
@@ -82,6 +84,9 @@ struct ModuleResources : public Module {
         Render::Buffer* buffer = new Render::Buffer;
         buffer->create(j);
         res = buffer;
+      }
+      else if (jtype == "mesh") {
+        res = createMesh(res_name);
 
       }
       else {

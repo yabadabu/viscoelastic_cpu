@@ -1,5 +1,9 @@
 struct TVtxPos {
   VEC3 position;
+#ifndef PLATFORM_HLSL
+	TVtxPos(VEC3 in_pos) : position(in_pos) {}
+	TVtxPos() = default;
+#endif
 };
 
 struct TVtxPosColor {

@@ -156,6 +156,7 @@
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="engine\render\dx11\render_platform.cpp" />
+    <ClCompile Include="engine\render\primitives.cpp" />
     <ClCompile Include="engine\render\render.cpp" />
     <ClCompile Include="engine\resources\resources_manager.cpp" />
     <ClCompile Include="engine\utils\utils.cpp" />
@@ -195,6 +196,7 @@
     <ClInclude Include="engine\modules\module_render.h" />
     <ClInclude Include="engine\platform.h" />
     <ClInclude Include="engine\render\dx11\render_platform.h" />
+    <ClInclude Include="engine\render\primitives.h" />
     <ClInclude Include="engine\render\render.h" />
     <ClInclude Include="engine\resources\resource.h" />
     <ClInclude Include="engine\utils\utils.h" />

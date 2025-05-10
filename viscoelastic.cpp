@@ -363,4 +363,4 @@ struct ViscoelasticModule : public Module {
 
 };
 
-DECLARE_MODULE(ViscoelasticModule);
+ViscoelasticModule module_viscoelastic;

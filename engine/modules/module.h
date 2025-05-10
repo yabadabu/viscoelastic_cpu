@@ -57,6 +57,3 @@ struct FrameTime {
 };
 ENGINE_API const FrameTime& frameTime();
 
-
-#define DECLARE_MODULE(X)  static X mod_##X
-

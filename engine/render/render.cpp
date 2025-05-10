@@ -200,10 +200,10 @@ namespace Render {
     //draw_particles.drawAll();
     if (!mesh)
       mesh = Resource<Render::Mesh>( "unit_quad_xy.mesh");
-    const Render::PipelineState* pipe = Resource<Render::PipelineState>("sprites.pipeline");
+    const Render::PipelineState* pipe = Resource<Render::PipelineState>("sprites.pso");
     assert(pipe && mesh);
     uint32_t ninstances = (uint32_t)size();
-    auto gpu_data = Resource< Render::Buffer >("sprite_instances.gpu_buffer");
+    auto gpu_data = Resource< Render::Buffer >("sprite_instances.buffer");
     assert(gpu_data);
     //gpu_data->copyCPUtoGPUFrom(data, ninstances * gpu_data->bytes_per_elem);
     //Render::TCmdBuffer cmd;

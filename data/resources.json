@@ -49,7 +49,9 @@
     "type": "pso",
     "name": "sprites",
     "vertex_decl": "Pos",
-    "vs": "VS_Solid",
-    "src": "basic"
+    "src": "sprites",
+    "buffers": [
+      "sprite_instances.buffer"
+    ]
   }
 ]

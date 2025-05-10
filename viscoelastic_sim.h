@@ -18,7 +18,7 @@ struct ViscoelasticSim {
     Update,
     NumSections
   };
-  double times[eSection::NumSections];
+  double times[eSection::NumSections] = { 0.0f };
 
   struct Material {
     float       rest_density = 4.0f;

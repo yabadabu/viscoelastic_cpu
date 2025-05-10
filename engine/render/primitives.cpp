@@ -187,8 +187,6 @@ void createQuadXY(Render::Mesh* mesh, float sz, VEC2 center_at) {
 
 void createUnitQuadXY(Render::Mesh* mesh) {
   std::vector< TVtxPos > vtxs;
-  vtxs.resize(4);
-  auto* v = vtxs.data();
   const float sz = 0.5f;
   vtxs.emplace_back(VEC3(-sz, sz, 0));
   vtxs.emplace_back(VEC3(sz, sz, 0));

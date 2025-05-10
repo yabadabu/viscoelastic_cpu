@@ -50,10 +50,10 @@ IResource* createPlatformTexture(const char* name) {
 //  return Resource<T>(res_name);
 //}
 
-//template<>
-//void load(json j, Render::Buffer const*& buffer) {
-//  buffer = Resource<Render::Buffer>(j);
-//}
+template<>
+void load(json j, Render::Buffer const*& buffer) {
+  buffer = Resource<Render::Buffer>(j);
+}
 
 struct ModuleResources : public Module {
   int getPriority() const override { return 20; }
@@ -77,7 +77,6 @@ struct ModuleResources : public Module {
         Render::PipelineState* pso = new Render::PipelineState;
         pso->create(j);
         res = pso;
-
       }
       else if (jtype == "buffer") {
         Render::Buffer* buffer = new Render::Buffer;

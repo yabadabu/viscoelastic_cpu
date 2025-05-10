@@ -51,7 +51,6 @@ namespace Render {
     return main_encoder;
   }
 
-
   // -------------------------------------------------------
   bool PipelineState::loadCommonConfig(const json& j) {
     const char* rs_cfg_str = j.value("rs", "default");
@@ -70,7 +69,7 @@ namespace Render {
     //  fatal("Invalid depth state config %s\n", depth_cfg_str);
 
     //textures = j.value("textures", textures);
-    //buffers = j.value("buffers", buffers);
+    buffers = j.value("buffers", buffers);
 
     //TStr32 category_name(j.value("category", "solid"));
     //if (category_name == "solid")
@@ -199,13 +198,28 @@ namespace Render {
   void VSpriteInstances::drawAll() {
     //draw_particles.drawAll();
     if (!mesh)
-      mesh = Resource<Render::Mesh>( "unit_quad_xy.mesh");
-    const Render::PipelineState* pipe = Resource<Render::PipelineState>("sprites.pso");
-    assert(pipe && mesh);
+      mesh = Resource<Mesh>( "unit_quad_xy.mesh");
+    const PipelineState* pso = Resource<PipelineState>("sprites.pso");
+    assert(pso && mesh);
     uint32_t ninstances = (uint32_t)size();
-    auto gpu_data = Resource< Render::Buffer >("sprite_instances.buffer");
-    assert(gpu_data);
-    //gpu_data->copyCPUtoGPUFrom(data, ninstances * gpu_data->bytes_per_elem);
+    Buffer* gpu_instances = (Buffer*)(Resource<Buffer>("sprite_instances.buffer"));
+
+    Encoder* encoder = getMainEncoder();
+    assert(encoder);
+    encoder->setRenderPipelineState(pso);
+
+    const u8* bytes = (const u8*)data();
+    uint32_t remaining = ninstances;
+    while (remaining > 0) {
+      uint32_t block = std::min(remaining, gpu_instances->num_instances);
+      uint32_t block_size_bytes = block * gpu_instances->bytes_per_instance;
+      encoder->setBufferContents(gpu_instances, bytes, block_size_bytes);
+      encoder->drawInstancedMesh(mesh, block, 0);
+      remaining -= block;
+      bytes += block_size_bytes;
+    }
+
+
     //Render::TCmdBuffer cmd;
     //cmd.setDepthState(Render::eDepthState::DEFAULT);
     //cmd.setPipelineState(*pipe);

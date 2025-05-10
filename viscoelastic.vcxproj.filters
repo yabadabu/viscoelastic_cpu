@@ -248,5 +248,8 @@
     <FxCompile Include="data\shaders\common.hlsl">
       <Filter>data\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="data\shaders\sprites.hlsl">
+      <Filter>data\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

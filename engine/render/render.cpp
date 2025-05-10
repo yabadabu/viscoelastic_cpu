@@ -51,10 +51,6 @@ namespace Render {
     return main_encoder;
   }
 
-  void drawCameraVolume(const CCamera& camera, VEC4 color) {
-    MAT44 mtx = camera.getViewProjection().inverse();
-    drawPrimitive(Resource<Mesh>("view_volume.mesh"), mtx, color);
-  }
 
   // -------------------------------------------------------
   /*

@@ -219,7 +219,7 @@ namespace Render {
   struct Instance {
     MAT44 world;
     VEC4  color;
-    int   mat_id;
+    int   mat_id = 0;
     VEC3  dummy;
     Instance() {}
     Instance(MAT44 nworld, VEC4 ncolor) : world(nworld), color(ncolor), mat_id(0) {}

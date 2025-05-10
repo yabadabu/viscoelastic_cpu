@@ -2,9 +2,9 @@
 
 struct ParticlesVec {
   std::vector<float> buf;
-  float* x;
-  float* y;
-  float* z;
+  float* x = nullptr;
+  float* y = nullptr;
+  float* z = nullptr;
   inline VEC3 get(int i) const {
     return VEC3(x[i], y[i], z[i]);
   }

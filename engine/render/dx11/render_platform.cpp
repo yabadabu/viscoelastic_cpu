@@ -574,6 +574,7 @@ namespace RenderPlatform {
 	}
 
 	void swapFrames() {
+		PROFILE_SCOPED_NAMED("SwapFrames");
 		ID3D11RenderTargetView* null_rtv = nullptr;
 		ctx->OMSetRenderTargets(1, &null_rtv, nullptr);
 		assert(swap_chain);

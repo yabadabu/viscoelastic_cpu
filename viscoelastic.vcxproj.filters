@@ -87,6 +87,9 @@
     <ClCompile Include="engine\render\primitives.cpp">
       <Filter>engine\render</Filter>
     </ClCompile>
+    <ClCompile Include="engine\profile\profiling.cpp">
+      <Filter>engine\profile</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cpu_spatial_subdivision.h" />
@@ -177,6 +180,9 @@
     <ClInclude Include="engine\render\primitives.h">
       <Filter>engine\render</Filter>
     </ClInclude>
+    <ClInclude Include="engine\profile\profiling.h">
+      <Filter>engine\profile</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="engine">
@@ -220,6 +226,9 @@
     </Filter>
     <Filter Include="data\shaders">
       <UniqueIdentifier>{ed586146-0631-40cd-8178-ca0b29c8586e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\profile">
+      <UniqueIdentifier>{8ff75c5d-6908-4029-ac1e-12108dafa5ff}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -29,18 +29,18 @@
 #include <mutex>
 #include <algorithm>
 
-#ifdef PLATFORM_WINDOWS
+#ifdef IN_PLATFORM_WINDOWS
 #include <direct.h>         // _mkdir
 #endif
 
 // ----------------------------------------
-#ifdef PLATFORM_WINDOWS
+#ifdef IN_PLATFORM_WINDOWS
 #define __ENABLE_PROFILING__
 #else
 #undef __ENABLE_PROFILING__
 #endif
 
-#ifdef PLATFORM_WINDOWS
+#ifdef IN_PLATFORM_WINDOWS
 #define unlink   _unlink
 #define stat     _stat
 #define mkdir    _mkdir

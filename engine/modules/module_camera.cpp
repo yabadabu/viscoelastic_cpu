@@ -39,8 +39,8 @@ struct FlyController : public CameraController {
     if (camera_slow)
       amount_moved *= 0.1f;
 
-    float amount_fwd = ImGui::IsKeyDown(ImGuiKey_W) ? 1.0f : (ImGui::IsKeyDown(ImGuiKey_S) ? -1.0f : 0.0);
-    float amount_left = ImGui::IsKeyDown(ImGuiKey_A) ? 1.0f : (ImGui::IsKeyDown(ImGuiKey_D) ? -1.0f : 0.0);
+    float amount_fwd = ImGui::IsKeyDown(ImGuiKey_W) ? 1.0f : (ImGui::IsKeyDown(ImGuiKey_S) ? -1.0f : 0.0f);
+    float amount_left = ImGui::IsKeyDown(ImGuiKey_A) ? 1.0f : (ImGui::IsKeyDown(ImGuiKey_D) ? -1.0f : 0.0f);
 
     pos += front * amount_moved * amount_fwd;
     pos += left * amount_moved * amount_left;

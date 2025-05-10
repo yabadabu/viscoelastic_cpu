@@ -3,3 +3,5 @@ x64/
 *.pdb
 *.map
 *.lib
+*.exp
+viscoelasticd.*

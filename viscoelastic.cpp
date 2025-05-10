@@ -167,9 +167,12 @@ struct ViscoelasticModule : public Module {
       }
     }
 
-    sprites.drawAll();
-    wired_cells.drawAll();
-    lines.drawAll();
+    {
+      PROFILE_SCOPED_NAMED("Flush");
+      sprites.drawAll();
+      wired_cells.drawAll();
+      lines.drawAll();
+    }
 
     sim.sdf.renderWire();
     sim.saveTime(ViscoelasticSim::eSection::Render, tm);

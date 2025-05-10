@@ -2,11 +2,12 @@
 
 #ifndef ENABLE_PROFILING
 #if defined(IN_PLATFORM_OSX) || defined(IN_PLATFORM_WINDOWS)
-#define ENABLE_PROFILING 0
+#define ENABLE_PROFILING 1
 #else
 #define ENABLE_PROFILING 0
 #endif
 #endif
+
 
 #if !ENABLE_PROFILING
 

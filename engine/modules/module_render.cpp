@@ -62,6 +62,11 @@ void ModuleRender::load() {
   assert(is_ok);
 }
 
+void ModuleRender::renderInMenu() {
+  if (ImGui::SmallButton("Capture"))
+    PROFILE_START_CAPTURING(5);
+}
+
 void ModuleRender::unload() {
   cte_object.destroy();
   cte_camera.destroy();

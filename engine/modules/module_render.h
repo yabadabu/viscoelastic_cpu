@@ -7,6 +7,7 @@ struct ModuleRender : public Module {
   int getPriority() const override { return 10; }
   void load() override;
   void unload() override;
+  void renderInMenu() override;
   void generateFrame( int w, int h );
 };
 

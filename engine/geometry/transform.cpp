@@ -1,5 +1,7 @@
 #include "platform.h"
 #include "transform.h"
+#include "imgui/ImGuizmo.h"
+#include "render/render.h"
 
 void TTransform::interpolateTo(const TTransform& target, float amount_of_target) {
   assert(amount_of_target >= 0 && amount_of_target <= 1.f);
@@ -91,4 +93,94 @@ VEC3 TTransform::transformDir(VEC3 p) const {
 
 void TTransform::setAngles(float new_yaw, float new_pitch, float new_roll) {
   rotation = QUAT::createFromYawPitchRoll(new_yaw, -new_pitch, new_roll);
+}
+
+
+static void initGizmo(int id, CCamera* c) {
+  const TViewport& vp_dock = c->getViewport();
+  auto vp = ImGui::GetMainViewport();
+  auto vp_pos = vp->WorkPos;
+  auto vp_size = vp->WorkSize;
+  //ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
+  ImGuizmo::SetID(id);
+  ImGuizmo::SetRect((vp_dock.TopLeftX + vp_pos.x), (vp_dock.TopLeftY + vp_pos.y), (vp_dock.Width), (vp_dock.Height));
+}
+
+bool TTransform::debugInMenu()
+{
+  CCamera* c = Render::getCurrentRenderCamera();
+  if (!c)
+    return false;
+
+  ImGui::DragFloat3("Position", &position.x, 0.02f, -10.0f, 10.0f);
+
+  static ImGuizmo::OPERATION mCurrentGizmoOperation(ImGuizmo::TRANSLATE);
+  static ImGuizmo::MODE mCurrentGizmoMode(ImGuizmo::WORLD);
+
+  if (ImGui::IsKeyPressed(ImGuiKey_W))
+    mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+  if (ImGui::IsKeyPressed(ImGuiKey_E))
+    mCurrentGizmoOperation = ImGuizmo::ROTATE;
+  if (ImGui::IsKeyPressed(ImGuiKey_R)) // r Key
+    mCurrentGizmoOperation = ImGuizmo::SCALE;
+  if (ImGui::RadioButton("Translate", mCurrentGizmoOperation == ImGuizmo::TRANSLATE))
+    mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+  ImGui::SameLine();
+  if (ImGui::RadioButton("Rotate", mCurrentGizmoOperation == ImGuizmo::ROTATE))
+    mCurrentGizmoOperation = ImGuizmo::ROTATE;
+  ImGui::SameLine();
+  if (ImGui::RadioButton("Scale", mCurrentGizmoOperation == ImGuizmo::SCALE))
+    mCurrentGizmoOperation = ImGuizmo::SCALE;
+  ImGui::SameLine();
+
+  if (mCurrentGizmoOperation != ImGuizmo::SCALE)
+  {
+    if (ImGui::RadioButton("Local", mCurrentGizmoMode == ImGuizmo::LOCAL))
+      mCurrentGizmoMode = ImGuizmo::LOCAL;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("World", mCurrentGizmoMode == ImGuizmo::WORLD))
+      mCurrentGizmoMode = ImGuizmo::WORLD;
+  }
+
+  bool force_update = false;
+
+  ImGui::SameLine();
+  if (ImGui::SmallButton("Reset")) {
+    if (mCurrentGizmoOperation == ImGuizmo::TRANSLATE)
+      setPosition(VEC3::zero);
+    else if (mCurrentGizmoOperation == ImGuizmo::ROTATE)
+      setRotation(QUAT());
+    else if (mCurrentGizmoOperation == ImGuizmo::SCALE)
+      scale = VEC3::ones;
+    force_update = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::SmallButton("All")) {
+    setPosition(VEC3::zero);
+    setRotation(QUAT());
+    scale = VEC3::ones;
+    force_update = true;
+  }
+
+  MAT44 mtx = asMatrix();
+  ImGuiIO& io = ImGui::GetIO();
+  ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+  initGizmo(((std::ptrdiff_t)this) & 0xffffffff, c);
+  ImGuizmo::Manipulate(
+    &c->getView().x.x,
+    &c->getProjection().x.x,
+    mCurrentGizmoOperation,
+    mCurrentGizmoMode,
+    &mtx.x.x
+  );
+
+  fromMatrix(mtx);
+
+  if (isnan(scale.x)) scale.x = 1.0f;
+  if (isnan(scale.y)) scale.y = 1.0f;
+  if (isnan(scale.z)) scale.z = 1.0f;
+  if (isnan(rotation.x)) rotation = QUAT();
+
+  return ImGuizmo::IsUsing() || force_update;
 }

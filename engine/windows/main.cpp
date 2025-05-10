@@ -6,6 +6,7 @@
 #include <windowsx.h>
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx11.h"
+#include "imgui/ImGuizmo.h"
 
 static ModuleRender* render_module = nullptr;
 
@@ -148,6 +149,10 @@ void generateFrame(ModuleRender* render_module) {
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
+	ImGuizmo::BeginFrame();
+
+	PROFILE_BEGIN_FRAME();
+	PROFILE_SCOPED_NAMED("Frame");
 
 		RenderPlatform::beginFrame( ++frame_id );
 		int w,h;
@@ -155,8 +160,9 @@ void generateFrame(ModuleRender* render_module) {
 		render_module->generateFrame( w, h );
 
 		Modules::get().renderInMenu();
-		static bool show_demo_window = true;
-		ImGui::ShowDemoWindow(&show_demo_window);
+
+		//static bool show_demo_window = true;
+		//ImGui::ShowDemoWindow(&show_demo_window);
 
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
@@ -192,8 +198,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
   ModuleRender* render_module = (ModuleRender*)( Modules::get().getModule("render"));
   assert(render_module);
   
-  while (!user_wants_to_exit) {
+  while (true) {
 	  while(processOSMsgs()) { }
+		if (user_wants_to_exit)
+			break;
 
 	  Modules::get().update();
 	  generateFrame( render_module );

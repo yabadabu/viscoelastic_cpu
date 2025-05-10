@@ -24,10 +24,10 @@ namespace Profiling {
 		uint32_t  used;
 		uint32_t  max_entries;
 		uint32_t  thread_id;
-		TStr32    thread_name;
+		char      thread_name[32];
 		uint32_t  index;
 		std::unordered_map<uint32_t, uint32_t> label_ids;
-		Vector<char*> labels;
+		std::vector<char*> labels;
 		TContainer();
 		~TContainer();
 		uint32_t enter(const char* txt);
@@ -40,7 +40,7 @@ namespace Profiling {
 
   __declspec(thread) TContainer data_container;
 
-  static Vector<TContainer*> data_containers;
+  static std::vector<TContainer*> data_containers;
   static std::atomic< uint32_t > num_data_containers = 0;
   static bool is_capturing = false;
   static uint32_t nframes_to_capture = 0;
@@ -70,7 +70,7 @@ namespace Profiling {
     thread_id = tid;
 #endif
 
-    thread_name = "main";
+    strcpy( thread_name, "main" );
   }
 
   TContainer::~TContainer() {
@@ -119,32 +119,13 @@ namespace Profiling {
   uint32_t enterDataDataContainer(const char* txt) {
 	  return getDataContainer().enter(txt);
   }
-  
-  uint32_t enterHashDataDataContainer(const std::string& name) {
-      return getDataContainer().enterHash(name);
-  }
 
   void     exitDataContainer(uint32_t id) {
 	  getDataContainer().exit(id);
   }
 
-  uint32_t TContainer::enterHash(const std::string& txt) {
-    uint32_t hash_id = getID(txt.c_str(), txt.size());
-    uint32_t id = 0;
-    auto it = label_ids.find(hash_id);
-    if (it == label_ids.end()) {
-      id = (uint32_t)labels.size();
-      label_ids.insert(it, std::pair<uint32_t, uint32_t>(hash_id, id));
-      labels.resize(id + 1);
-      labels[id] = strdup(txt.c_str());
-    }
-    else
-      id = it->second;
-    return enter(labels[id]);
-  }
-
   void setCurrentThreadName(const char* new_name) {
-    data_container.thread_name.from(new_name);
+    strcpy( data_container.thread_name, new_name);
   }
 
   void TContainer::reset() {
@@ -190,7 +171,7 @@ namespace Profiling {
       }
       if (dc->used)
         fprintf(f, ",{\"name\": \"thread_name\", \"ph\": \"M\", \"pid\": %d, \"tid\": %d, \"args\": {\"name\":\"%s\" }}\n"
-          , pid, dc->thread_id, dc->thread_name.c_str());
+          , pid, dc->thread_id, dc->thread_name);
     }
     fprintf(f, "]}");
 

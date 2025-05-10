@@ -44,10 +44,11 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IntDir>$(ProjectDir)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <OutDir>$(ProjectDir)\</OutDir>
+    <TargetName>$(ProjectName)d</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(ProjectDir)\$(Platform)\$(ProjectName)\$(Configuration)\</OutDir>
+    <OutDir>$(ProjectDir)</OutDir>
     <IntDir>$(ProjectDir)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -55,7 +56,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;PLATFORM_WINDOWS;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>IN_PLATFORM_WINDOWS;_DEBUG;PLATFORM_WINDOWS;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>engine</AdditionalIncludeDirectories>
@@ -81,7 +82,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;PLATFORM_WINDOWS;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>IN_PLATFORM_WINDOWS;NDEBUG;PLATFORM_WINDOWS;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>engine</AdditionalIncludeDirectories>
@@ -155,6 +156,7 @@
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">platform.h</PrecompiledHeaderFile>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="engine\profile\profiling.cpp" />
     <ClCompile Include="engine\render\dx11\render_platform.cpp" />
     <ClCompile Include="engine\render\primitives.cpp" />
     <ClCompile Include="engine\render\render.cpp" />
@@ -195,6 +197,7 @@
     <ClInclude Include="engine\modules\module.h" />
     <ClInclude Include="engine\modules\module_render.h" />
     <ClInclude Include="engine\platform.h" />
+    <ClInclude Include="engine\profile\profiling.h" />
     <ClInclude Include="engine\render\dx11\render_platform.h" />
     <ClInclude Include="engine\render\primitives.h" />
     <ClInclude Include="engine\render\render.h" />

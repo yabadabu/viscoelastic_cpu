@@ -179,6 +179,11 @@ namespace SDF {
     bool changed = false;
     changed |= ImGui::ColorEdit4("Color", &color.x);
     changed |= ImGui::Checkbox("Enabled", &enabled);
+    if (ImGui::TreeNode("Transform...")) {
+      if (transform.debugInMenu())
+        transformHasChanged();
+      ImGui::TreePop();
+    }
     ImGui::PopID();
     return changed;
   }

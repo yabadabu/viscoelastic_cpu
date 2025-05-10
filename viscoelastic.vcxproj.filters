@@ -1,0 +1,99 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="viscoelastic.cpp" />
+    <ClCompile Include="viscoelastic_sim.cpp" />
+    <ClCompile Include="engine\platform.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\geometry\sdf\sdf.cpp">
+      <Filter>engine\geometry\sdf</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\geometry\angular.cpp">
+      <Filter>engine\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\geometry\geometry.cpp">
+      <Filter>engine\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\geometry\transform.cpp">
+      <Filter>engine\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\utils\utils.cpp">
+      <Filter>engine\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\resources\resources_manager.cpp">
+      <Filter>engine\resources</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\geometry\camera.cpp">
+      <Filter>engine\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\geometry\aabb.cpp">
+      <Filter>engine\geometry</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cpu_spatial_subdivision.h" />
+    <ClInclude Include="thread_pool.h" />
+    <ClInclude Include="viscoelastic_sim.h" />
+    <ClInclude Include="particles_vec.h" />
+    <ClInclude Include="engine\engine_types.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\platform.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\geometry\angular.h">
+      <Filter>engine\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\geometry\geometry.h">
+      <Filter>engine\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\geometry\transform.h">
+      <Filter>engine\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\geometry\vec3.h">
+      <Filter>engine\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\utils\str_id.h">
+      <Filter>engine\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\utils\str_id_consteval.h">
+      <Filter>engine\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\utils\utils.h">
+      <Filter>engine\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\render.h">
+      <Filter>engine\render</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\resources\resource.h">
+      <Filter>engine\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\geometry\camera.h">
+      <Filter>engine\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\geometry\aabb.h">
+      <Filter>engine\geometry</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="engine">
+      <UniqueIdentifier>{f2a4c49b-a639-418a-a4c3-9c00f729e47c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\geometry">
+      <UniqueIdentifier>{0237263c-61a2-4367-9b81-e23d5477c428}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\geometry\sdf">
+      <UniqueIdentifier>{9e97ed74-ec97-46bb-bad7-03242032d12a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\utils">
+      <UniqueIdentifier>{b0c6c6e3-fdd3-4ef9-9e19-445793d59e54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\render">
+      <UniqueIdentifier>{c984f780-8c30-41ec-977c-ad507c769234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\resources">
+      <UniqueIdentifier>{b69a2e67-1882-4271-a4b8-90990acc5aef}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

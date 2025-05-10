@@ -71,7 +71,9 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
     addParticles(512);
+  }
 
+  void load() {
     wired_cells = Render::VInstances("unit_wired_cube.mesh");
     lines = Render::VInstances( "line.mesh" );
   }

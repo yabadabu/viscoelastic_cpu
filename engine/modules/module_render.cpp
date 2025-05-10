@@ -6,7 +6,7 @@
 Render::TypedBuffer<CteCamera> cte_camera;
 Render::TypedBuffer<CteObject> cte_object;
 static constexpr uint32_t max_world_objects = 64;
-static MakeID used_slots = MakeID(max_world_objects);
+static MakeID used_slots(max_world_objects);
 
 CCamera                        g_camera;
 

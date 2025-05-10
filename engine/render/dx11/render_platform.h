@@ -41,9 +41,9 @@ namespace RenderPlatform {
 	private:
 		class CShaderBase {
 		public:
-			char shader_src[64];
-			char shader_fn[64];
-			char shader_profile[64];
+			std::string shader_src;
+			std::string shader_fn;
+			std::string shader_profile;
 
 			struct CShaderReflectionInfo;
 			CShaderReflectionInfo* reflection_info = nullptr;
@@ -55,7 +55,7 @@ namespace RenderPlatform {
 		class CVertexShader : public CShaderBase {
 			ID3D11VertexShader* vs = nullptr;
 			ID3D11InputLayout* vtx_layout = nullptr;
-			char               shader_vtx_type_name[64];
+			std::string        shader_vtx_type_name;
 		public:
 			void destroy();
 			bool compile(

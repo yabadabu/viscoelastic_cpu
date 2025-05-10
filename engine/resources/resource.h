@@ -1,7 +1,7 @@
 #pragma once
 
 struct ENGINE_API IResource {
-	char name[64];
+	char name[64] = { 0x00 };
 	virtual ~IResource() { }
 	virtual void destroy() { }
 	const char* getName() const {

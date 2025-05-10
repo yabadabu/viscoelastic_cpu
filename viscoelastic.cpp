@@ -7,20 +7,12 @@ struct ViscoelasticModule : public Module {
 
   const char* getName() const override { return "viscoelastic"; }
 
-  ViscoelasticSim sim;
-  bool            paused = false;
-  bool            auto_pause = false;
-  float           delta_time = 1.0;
-  float           gravity_direction = -90.0f;
-  float           gravity_amount = 0.1f;
-
-  struct Instance {
-    VEC3  pos;
-    float scale;
-    VEC4  color;
-    Instance() = default;
-    Instance(VEC3 apos, float ascale, VEC4 acolor) : pos(apos), scale(ascale), color(acolor) {}
-  };
+  ViscoelasticSim          sim;
+  bool                     paused = false;
+  bool                     auto_pause = false;
+  float                    delta_time = 1.0;
+  float                    gravity_direction = -90.0f;
+  float                    gravity_amount = 0.1f;
 
   Render::VSpriteInstances sprites;
   Render::VInstances       wired_cells;

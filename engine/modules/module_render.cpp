@@ -65,7 +65,6 @@ void ModuleRender::load() {
 void ModuleRender::unload() {
   cte_object.destroy();
   cte_camera.destroy();
-  destroyAllResources();
 }
 
 void ModuleRender::generateFrame(int w, int h) {
@@ -75,6 +74,8 @@ void ModuleRender::generateFrame(int w, int h) {
 
   RenderPlatform::beginRenderingBackBuffer();
   activateCamera(Render::getCurrentRenderCamera(), w, h);
+
+  Modules::get().onRenderDebug3D();
 
   //renderCategory(camera, Render::CategorySolids, "Solids");
   //renderCategory(camera, Render::CategoryPostFX, "FX");

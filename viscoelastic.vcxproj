@@ -67,8 +67,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>
       </AdditionalLibraryDirectories>
-      <GenerateMapFile>true</GenerateMapFile>
-      <MapExports>true</MapExports>
     </Link>
     <PostBuildEvent>
       <Message>
@@ -103,6 +101,8 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="engine\formats\json\json.cpp" />
+    <ClCompile Include="engine\formats\json\json_file.cpp" />
     <ClCompile Include="engine\geometry\aabb.cpp" />
     <ClCompile Include="engine\geometry\angular.cpp" />
     <ClCompile Include="engine\geometry\camera.cpp" />
@@ -171,7 +171,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cpu_spatial_subdivision.h" />
+    <ClInclude Include="data\shaders\constants.h" />
+    <ClInclude Include="data\shaders\vertex_types.h" />
     <ClInclude Include="engine\engine_types.h" />
+    <ClInclude Include="engine\formats\json\json.h" />
+    <ClInclude Include="engine\formats\json\json_file.h" />
     <ClInclude Include="engine\geometry\aabb.h" />
     <ClInclude Include="engine\geometry\angular.h" />
     <ClInclude Include="engine\geometry\camera.h" />
@@ -200,6 +204,19 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="engine\windows\Icon128.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="data\resources.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="data\shaders\basic.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="data\shaders\common.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

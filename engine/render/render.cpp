@@ -53,46 +53,37 @@ namespace Render {
 
 
   // -------------------------------------------------------
-  /*
   bool PipelineState::loadCommonConfig(const json& j) {
     const char* rs_cfg_str = j.value("rs", "default");
-    rs_cfg = rsConfigs.valueOf(rs_cfg_str);
-    if (rs_cfg == eRSConfig::COUNT)
-      fatal("Invalid rs config %s\n", rs_cfg_str);
+    //rs_cfg = rsConfigs.valueOf(rs_cfg_str);
+    //if (rs_cfg == eRSConfig::COUNT)
+    //  fatal("Invalid rs config %s\n", rs_cfg_str);
 
-    const char* blend_cfg_str = j.value("blending", "default");
-    blend_cfg = blendConfigs.valueOf(blend_cfg_str);
-    if (blend_cfg == eBlendConfig::COUNT)
-      fatal("Invalid blend config %s\n", blend_cfg_str);
+    //const char* blend_cfg_str = j.value("blending", "default");
+    //blend_cfg = blendConfigs.valueOf(blend_cfg_str);
+    //if (blend_cfg == eBlendConfig::COUNT)
+    //  fatal("Invalid blend config %s\n", blend_cfg_str);
 
-    const char* depth_cfg_str = j.value("depth", "default");
-    depth_state = depthStates.valueOf(depth_cfg_str);
-    if (depth_state == eDepthState::COUNT)
-      fatal("Invalid depth state config %s\n", depth_cfg_str);
+    //const char* depth_cfg_str = j.value("depth", "default");
+    //depth_state = depthStates.valueOf(depth_cfg_str);
+    //if (depth_state == eDepthState::COUNT)
+    //  fatal("Invalid depth state config %s\n", depth_cfg_str);
 
-    textures = j.value("textures", textures);
-    buffers = j.value("buffers", buffers);
+    //textures = j.value("textures", textures);
+    //buffers = j.value("buffers", buffers);
 
-    TStr32 category_name(j.value("category", "solid"));
-    if (category_name == "solid")
-      category = CategorySolids;
-    else if (category_name == "shadows")
-      category = CategoryShadowCasters;
-    else if (category_name == "debug3d")
-      category = CategoryDebug3D;
-    else
-      fatal("Invalid category %s\n", category_name.c_str());
-
-    bool cast_shadows = j.value("cast_shadows", true);
-    if (cast_shadows) {
-      assert(vertex_decl);
-      TStr64 shadows_pso_name("shadows_%s.pso", vertex_decl->name);
-      shadows_pso = Resource<PipelineState>(shadows_pso_name);
-    }
+    //TStr32 category_name(j.value("category", "solid"));
+    //if (category_name == "solid")
+    //  category = CategorySolids;
+    //else if (category_name == "shadows")
+    //  category = CategoryShadowCasters;
+    //else if (category_name == "debug3d")
+    //  category = CategoryDebug3D;
+    //else
+    //  fatal("Invalid category %s\n", category_name.c_str());
 
     return true;
   }
-  */
 
   // -------------------------------------------------------
   VertexDecl vdecl_pos(sizeof(TVtxPos), "Pos" );
@@ -128,17 +119,17 @@ namespace Render {
     return nullptr;
   }
 
-  //bool Buffer::create(const json& j) {
-  //  const char* in_name = j.value("name", "");
-  //  slot = j.value("slot", 0);
-  //  bytes_per_instance = j.value("bytes_per_instance", 0);
-  //  num_instances = j.value("num_instances", 1);
-  //  int total_bytes = bytes_per_instance * num_instances;
-  //  if (!create(total_bytes))
-  //    return false;
-  //  setName(in_name);
-  //  return true;
-  //}
+  bool Buffer::create(const json& j) {
+    const char* in_name = j.value("name", "");
+    slot = j.value("slot", 0);
+    bytes_per_instance = j.value("bytes_per_instance", 0);
+    num_instances = j.value("num_instances", 1);
+    int total_bytes = bytes_per_instance * num_instances;
+    if (!create(total_bytes))
+      return false;
+    setName(in_name);
+    return true;
+  }
 
   void frameStarts() {
     if (!gpu_instances)
@@ -203,6 +194,40 @@ namespace Render {
   void drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color, const PipelineState* pso, uint32_t submesh) {
     Instance instance = { world, color };
     drawInstancedPrimitives(mesh, &instance, 1, pso, submesh);
+  }
+
+  void VSpriteInstances::drawAll() {
+    //draw_particles.drawAll();
+    if (!mesh)
+      mesh = Resource<Render::Mesh>( "unit_quad_xy.mesh");
+    const Render::PipelineState* pipe = Resource<Render::PipelineState>("sprites.pipeline");
+    assert(pipe && mesh);
+    uint32_t ninstances = (uint32_t)size();
+    auto gpu_data = Resource< Render::Buffer >("sprite_instances.gpu_buffer");
+    assert(gpu_data);
+    //gpu_data->copyCPUtoGPUFrom(data, ninstances * gpu_data->bytes_per_elem);
+    //Render::TCmdBuffer cmd;
+    //cmd.setDepthState(Render::eDepthState::DEFAULT);
+    //cmd.setPipelineState(*pipe);
+    //cmd.activateMesh(*mesh);
+    //const u8* bytes = (const u8*)data();
+    //uint32_t remaining = ninstances;
+    //while (remaining > 0) {
+    //  uint32_t block = std::min(remaining, gpu_data->num_elems);
+    //  uint32_t block_size_bytes = block * gpu_data->bytes_per_elem;
+    //  if (block < gpu_data->num_elems) {
+    //    // updateBuffer will read block_size_data from data, to avoid 
+    //    // reading from uninitialized memory
+    //    memcpy((void*)gpu_data->cpu_data.data(), bytes, block_size_bytes);
+    //    cmd.updateBuffer(*gpu_data, gpu_data->cpu_data.data());
+    //  }
+    //  else {
+    //    cmd.updateBuffer(*gpu_data, bytes);
+    //  }
+    //  cmd.drawInstanced(*mesh, block);
+    //  remaining -= block;
+    //  bytes += block_size_bytes;
+    //}
   }
 
 }

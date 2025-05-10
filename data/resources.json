@@ -1,0 +1,25 @@
+[
+ {
+	"type": "pso",
+	"name": "basic",
+	"vertex_decl": "PosColor",
+	"blending": "combinative",
+	"src": "basic",
+	"category": "debug3d",
+	"cast_shadows": false
+ },
+ {
+	"type": "pso",
+	"name": "solid",
+	"vertex_decl": "PosN",
+	"vs": "VS_Solid",
+	"src": "basic"
+ },
+ {
+	"type": "buffer",
+	"name": "instances",
+	"slot": 2,
+	"bytes_per_instance": 96,
+	"num_instances": 8192
+ }
+]

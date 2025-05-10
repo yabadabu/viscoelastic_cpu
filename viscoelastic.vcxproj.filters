@@ -78,6 +78,12 @@
     <ClCompile Include="engine\imgui\imgui_tables.cpp">
       <Filter>engine\imgui</Filter>
     </ClCompile>
+    <ClCompile Include="engine\formats\json\json_file.cpp">
+      <Filter>engine\formats\json</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\formats\json\json.cpp">
+      <Filter>engine\formats\json</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cpu_spatial_subdivision.h" />
@@ -153,6 +159,18 @@
     <ClInclude Include="engine\imgui\ImGuizmo.h">
       <Filter>engine\imgui</Filter>
     </ClInclude>
+    <ClInclude Include="engine\formats\json\json.h">
+      <Filter>engine\formats\json</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\formats\json\json_file.h">
+      <Filter>engine\formats\json</Filter>
+    </ClInclude>
+    <ClInclude Include="data\shaders\constants.h">
+      <Filter>data\shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="data\shaders\vertex_types.h">
+      <Filter>data\shaders</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="engine">
@@ -185,10 +203,35 @@
     <Filter Include="engine\imgui">
       <UniqueIdentifier>{c95dee72-b7e4-4553-82ae-379ff4d1bdb6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="data">
+      <UniqueIdentifier>{d664eb74-0fe9-4758-b2c9-26ad9c9e87a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\formats">
+      <UniqueIdentifier>{5406e980-667b-4071-87f7-221fd5f01dca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\formats\json">
+      <UniqueIdentifier>{6bd61b12-02a1-45d5-9a90-b6d6040de747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="data\shaders">
+      <UniqueIdentifier>{ed586146-0631-40cd-8178-ca0b29c8586e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Image Include="engine\windows\Icon128.ico">
       <Filter>engine\windows</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="data\resources.json">
+      <Filter>data</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="data\shaders\basic.hlsl">
+      <Filter>data\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="data\shaders\common.hlsl">
+      <Filter>data\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

@@ -83,10 +83,6 @@ const IResource* getResource(const char* name) {
 	return resources_manager.get(name);
 }
 
-void destroyAllResources() {
-	resources_manager.destroyAll();
-}
-
 void addResourcesFactory(const char* res_typename, ResourceFactoryFn fn) {
 	resources_manager.addFactory( res_typename, fn );
 }

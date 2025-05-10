@@ -59,17 +59,17 @@ struct ModuleResources : public Module {
   bool startsLoaded() const override { return true; }
 
   void load() override {
-    /*
+   
     // Pipelines are created from this file
     JsonFile jfile("data/resources.json");
     json jpso = jfile;
     onEachArr(jpso, [](json j, size_t idx) {
-      TStr32 jtype(j.value("type", ""));
+      std::string jtype(j.value("type", ""));
       if (jtype.empty())
         return;
-      TStr32 in_name(j.value("name", ""));
+      std::string in_name(j.value("name", ""));
 
-      TStr64 res_name("%s.%s", in_name.c_str(), jtype.c_str());
+      std::string res_name = in_name + "." + jtype;
       IResource* res = nullptr;
 
       if (jtype == "pso") {
@@ -77,23 +77,6 @@ struct ModuleResources : public Module {
         pso->create(j);
         res = pso;
 
-      }
-      else if (jtype == "buffer") {
-        Render::Buffer* buffer = new Render::Buffer;
-        buffer->create(j);
-        res = buffer;
-
-      }
-      else if (jtype == "plugin") {
-        emit(AppMsgActionPlugin{ in_name, AppMsgActionPlugin::eLoad });
-        return;
-
-      }
-      else if (jtype == "plugins") {
-        onEachArr(j["names"], [&](const char* in_name, size_t idx) {
-          emit(AppMsgActionPlugin{ in_name, AppMsgActionPlugin::eLoad });
-          });
-        return;
       }
       else if (jtype == "buffer") {
         Render::Buffer* buffer = new Render::Buffer;
@@ -109,7 +92,7 @@ struct ModuleResources : public Module {
       res->setName(res_name.c_str());
       addResource(res);
       });
-*/
+
   }
 
 };

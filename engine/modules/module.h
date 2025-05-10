@@ -12,6 +12,7 @@ struct ENGINE_API Module {
   virtual const char* getName() const = 0;
   virtual bool startsLoaded() const { return false; }
 
+  virtual void onRenderDebug3D() {} 
   virtual void renderInMenu() {}
   virtual void update() { }
 
@@ -33,7 +34,7 @@ class Modules {
 
   // Using a simple array to avoid the global ctor initialization pitfall
   // where the modules are constructed before the Modules manager
-  Module* modules_registered[max_modules] = {};
+  Module*  modules_registered[max_modules] = {};
   int      nmodules_registered = 0;
   bool     modules_running = false;
 
@@ -44,6 +45,7 @@ public:
   void load();
   void update();
   void unload();
+  void onRenderDebug3D();
 
   Module* getModule(const char* mod_name);
 };

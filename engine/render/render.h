@@ -79,7 +79,7 @@ namespace Render {
     uint32_t    bytes_per_vertex = 0;
     const char* name = nullptr;
     VertexDecl() = default;
-    VertexDecl(size_t new_bytes_per_vertex, const char* new_name) : bytes_per_vertex((uint32_t)bytes_per_vertex), name(new_name) {}
+    VertexDecl(size_t new_bytes_per_vertex, const char* new_name) : bytes_per_vertex((uint32_t)new_bytes_per_vertex), name(new_name) {}
   };
 
   // -------------------------------------------------------
@@ -153,6 +153,7 @@ namespace Render {
     uint32_t           bytes_per_instance = 0;
     uint32_t           num_instances = 1;
     bool create( size_t nbytes );
+    bool create(const json& j);
     void destroy() override;
     void setName( const char* new_name ) override;
     void* rawData();
@@ -181,7 +182,7 @@ namespace Render {
 
   // -------------------------------------------------------
   struct ENGINE_API PipelineState : public RenderPlatform::PipelineState, public IResource {
-    const VertexDecl*    vertex_decl = nullptr;
+    const VertexDecl* vertex_decl = nullptr;
     int                  priority = 0;
     uint32_t             category = CategorySolids;
     eDepthState          depth_state = eDepthState::DEFAULT;
@@ -192,9 +193,13 @@ namespace Render {
     std::vector<const Texture*> textures;
     std::vector<const Buffer*> buffers;
 
-    void setName( const char* new_name ) override;
+    bool create(const json& j);
+    void setName(const char* new_name) override;
     void destroy() override;
     bool reloadShaders();
+
+  private:
+    bool loadCommonConfig(const json& j);
 
   };
 
@@ -234,6 +239,7 @@ namespace Render {
 
   template< typename InstanceData >
   class ENGINE_API InstancesData : public std::vector< InstanceData > {
+  protected:
     const Mesh* mesh = nullptr;
     const PipelineState* pso = nullptr;
     const char* mesh_name = nullptr;

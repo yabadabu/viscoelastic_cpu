@@ -671,8 +671,8 @@ namespace RenderPlatform {
 	) {
 
 		// If not given, use the existing one (if any)
-		if (!vertex_type_name && !shader_vtx_type_name)
-			vertex_type_name = shader_vtx_type_name;
+		if (!vertex_type_name && !shader_vtx_type_name.empty())
+			vertex_type_name = shader_vtx_type_name.c_str();
 
 		// A blob is a representation of a buffer in dx, a void pointer + size
 		TBuffer VSBlob;
@@ -711,10 +711,10 @@ namespace RenderPlatform {
 		//}
 		//setDbgName(vtx_layout, decl->name);
 
-		strcpy(shader_src, szFileName);
-		strcpy(shader_fn, szEntryPoint);
-		strcpy(shader_profile, profile);
-		strcpy(shader_vtx_type_name, vertex_type_name);
+		shader_src = szFileName;
+		shader_fn = szEntryPoint;
+		shader_profile = profile;
+		shader_vtx_type_name = vertex_type_name;
 
 		scanResourcesFrom(VSBlob);
 
@@ -760,9 +760,9 @@ namespace RenderPlatform {
 
 		setDbgName(ps, szEntryPoint);
 
-		strcpy( shader_src, szFileName);
-		strcpy( shader_fn, szEntryPoint);
-		strcpy( shader_profile, profile);
+		shader_src = szFileName;
+		shader_fn = szEntryPoint;
+		shader_profile = profile;
 
 		scanResourcesFrom(blob);
 
@@ -1141,37 +1141,37 @@ namespace Render {
 		ctx->UpdateSubresource( buffer->buffer, 0, nullptr, new_data, 0, 0 );
 	}
 
-	//bool PipelineState::create(const json& j) {
-	//	const char* src = j.value("src", "");
-	//	const char* in_name = j.value("name", "");
+	bool PipelineState::create(const json& j) {
+		const std::string src = j.value("src", "");
+		const std::string in_name = j.value("name", "");
 
-	//	TStr256 full_name("data/shaders/%s.hlsl", src);
+		std::string full_name = "data/shaders/" + src + ".hlsl";
 
-	//	// To control which pso should be renderer before others in the render manager
-	//	priority = j.value( "priority", 0 );
+		// To control which pso should be renderer before others in the render manager
+		priority = j.value( "priority", 0 );
 
-	//	vs.shader_fn = j.value("vs", "VS");
-	//	if( !j["ps"].is_null() ) 
-	//		ps.shader_fn = j.value("ps", "PS");
-	//	vs.shader_src = full_name;
-	//	ps.shader_src = full_name;
-	//	const char* vertex_decl_name = j.value("vertex_decl", (const char*) nullptr);
-	//	assert(vertex_decl_name);
-	//	vertex_decl = getVertexDeclByName(vertex_decl_name);
+		vs.shader_fn = j.value("vs", "VS");
+		if( !j["ps"].is_null() ) 
+			ps.shader_fn = j.value("ps", "PS");
+		vs.shader_src = full_name;
+		ps.shader_src = full_name;
+		const char* vertex_decl_name = j.value("vertex_decl", (const char*) nullptr);
+		assert(vertex_decl_name);
+		vertex_decl = getVertexDeclByName(vertex_decl_name);
 
-	//	vs.shader_profile = j.value("vs_profile", "vs_5_0");
-	//	ps.shader_profile = j.value("ps_profile", "ps_5_0");
-	//	if( !reloadShaders() )
-	//		return false;
+		vs.shader_profile = j.value("vs_profile", "vs_5_0");
+		ps.shader_profile = j.value("ps_profile", "ps_5_0");
+		if( !reloadShaders() )
+			return false;
 
-	//	return loadCommonConfig(j);
-	//}
+		return loadCommonConfig(j);
+	}
 
 	bool PipelineState::reloadShaders() {
 		PipelineState prev_pipeline = *this;
-		if (!vs.compile(vs.shader_src, vs.shader_fn, vs.shader_profile, vertex_decl->name))
+		if (!vs.compile(vs.shader_src.c_str(), vs.shader_fn.c_str(), vs.shader_profile.c_str(), vertex_decl->name))
 			return false;
-		if (!ps.compile(ps.shader_src, ps.shader_fn, ps.shader_profile))
+		if (!ps.compile(ps.shader_src.c_str(), ps.shader_fn.c_str(), ps.shader_profile.c_str()))
 			return false;
 		prev_pipeline.destroy();
 		return true;

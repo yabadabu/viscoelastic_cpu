@@ -57,6 +57,7 @@
 #include "resources/resource.h"
 #include "profile/profiling.h"
 #include "memory/buffer.h"
+#include "formats/json/json_file.h"
 #include "time/timer.h"
 #include "modules/module.h"
 

@@ -32,6 +32,12 @@ void Modules::update() {
   frame_time.frame_id++;
   const float max_elapsed_time = 5.0f / 60.0f;
   if(frame_time.elapsed > max_elapsed_time) frame_time.elapsed = max_elapsed_time;
+
+  for (int i = 0; i < nmodules_registered; ++i) {
+    Module* m = modules_registered[i];
+    m->update();
+  }
+
 }
 
 static bool sortByPrioriry( const Module* m1, const Module* m2 ) {
@@ -52,7 +58,6 @@ void Modules::load() {
     dbg( "Loading module %s\n", m->getName());
     modules_registered[i]->setLoaded(true);
   }
-
 }
 
 void Modules::unload() {
@@ -77,4 +82,10 @@ Module* Modules::getModule(const char* mod_name) {
   return nullptr;
 }
 
+void Modules::onRenderDebug3D() {
+  for (int i = 0; i < nmodules_registered; ++i) {
+    Module* m = modules_registered[i];
+    m->onRenderDebug3D();
+  }
+}
 

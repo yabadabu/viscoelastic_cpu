@@ -174,7 +174,19 @@ namespace SDF {
       });
   }
 
+  bool Primitive::renderInMenu() {
+    ImGui::PushID(this);
+    bool changed = false;
+    changed |= ImGui::ColorEdit4("Color", &color.x);
+    changed |= ImGui::Checkbox("Enabled", &enabled);
+    ImGui::PopID();
+    return changed;
+  }
+
   bool sdFunc::renderInMenu() {
-    return false;
+    bool changed = false;
+    for (auto& prim : prims)
+      changed |= prim.renderInMenu();
+    return changed;
   }
 }

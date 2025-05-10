@@ -150,8 +150,8 @@ bool compileShaderFromFile(
 
 namespace RenderPlatform {
 
-	static ID3D11Device* device = nullptr;
-	static ID3D11DeviceContext* ctx = nullptr;
+	ID3D11Device* device = nullptr;
+	ID3D11DeviceContext* ctx = nullptr;
 	static IDXGISwapChain* swap_chain = nullptr;
 	static ID3D11RenderTargetView* backbuffer_rtv = nullptr;
 	static ID3D11Texture2D* depth_stencil = nullptr;
@@ -1352,5 +1352,4 @@ namespace Render {
     assert(encoder);
 		encoder->popGroup();
   }
-
 }

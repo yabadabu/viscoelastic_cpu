@@ -21,6 +21,9 @@ typedef struct HWND__* HWND;
 
 namespace RenderPlatform {
 
+	extern ID3D11Device* device;
+	extern ID3D11DeviceContext* ctx;
+
 	enum eCullMode {
 		eDefault
 	};

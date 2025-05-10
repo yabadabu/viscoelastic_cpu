@@ -52,8 +52,6 @@ void Modules::load() {
 
   for( int i = 0; i<nmodules_registered; ++i ) {
     Module* m = modules_registered[i];
-    if( !m->startsLoaded() )
-      continue;
     PROFILE_SCOPED_NAMED(m->getName());
     dbg( "Loading module %s\n", m->getName());
     modules_registered[i]->setLoaded(true);
@@ -86,6 +84,13 @@ void Modules::onRenderDebug3D() {
   for (int i = 0; i < nmodules_registered; ++i) {
     Module* m = modules_registered[i];
     m->onRenderDebug3D();
+  }
+}
+
+void Modules::renderInMenu() {
+  for (int i = 0; i < nmodules_registered; ++i) {
+    Module* m = modules_registered[i];
+    m->renderInMenu();
   }
 }
 

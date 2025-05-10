@@ -13,7 +13,7 @@ IResource* createMesh(const std::string& name) {
   Render::Mesh* mesh = new Render::Mesh();
   if (name == "grid.mesh")       createGrid(mesh);
   //else if (sname == "axis.mesh")  createAxis(mesh);
-  //else if (sname == "unit_wired_cube.mesh")  createUnitWiredCube(mesh);
+  else if (name == "unit_wired_cube.mesh")  createUnitWiredCube(mesh);
   //else if (sname == "unit_circle_xz.mesh")  createUnitWiredCircleXZ(mesh, 32);
   //else 
   else if (name == "line.mesh") createLine(mesh);
@@ -58,7 +58,6 @@ IResource* createPlatformTexture(const char* name) {
 struct ModuleResources : public Module {
   int getPriority() const override { return 20; }
   const char* getName() const override { return "resources"; }
-  bool startsLoaded() const override { return true; }
 
   void load() override {
    

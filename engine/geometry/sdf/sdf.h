@@ -26,6 +26,8 @@ namespace SDF {
     static Primitive makeSphere(VEC3 center, float rad);
     static Primitive makeBox(VEC3 center, VEC3 sizes);
     static Primitive makePlane(VEC3 center, VEC3 normal);
+
+    bool renderInMenu();
   };
 
   struct ENGINE_API sdFunc {

@@ -4,6 +4,8 @@
 #include "./resource.h"
 #include <windows.h>
 #include <windowsx.h>
+#include "imgui/imgui_impl_win32.h"
+#include "imgui/imgui_impl_dx11.h"
 
 static ModuleRender* render_module = nullptr;
 
@@ -53,29 +55,24 @@ int translateKey(WPARAM winKey) {
 	return 0;
 }
 
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 //-----------------------------------------------------------------------------
 static LRESULT WINAPI MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
+	// Do we have a wndProc installed?
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+		return true;
+
 	switch (msg) {
-	//case WM_KEYDOWN: {
-	//	// Avoid autorepeat and strange keycodes
-	//	int engine_key = translateKey(wParam);
-	//	if (!(lParam & 0x40000000) && engine_key)
-	//		inputSend("key.dw", (float)engine_key, 0.0f);
-	//	break; }
-
-	//case WM_KEYUP: {
-	//	if( int engine_key = translateKey(wParam) )
-	//		inputSend("key.up", (float)engine_key, 0);
-	//	break; }
-
 
 	case WM_SIZE: {
 		UINT width = LOWORD(lParam);
 		UINT height = HIWORD(lParam);
 		if (width && height && !resizing_window) {
 			dbg("Resized to %d x %d\n", width, height);
-			//RenderPlatform::resizeBackBuffer(width, height);
+			RenderPlatform::resizeBackBuffer(width, height);
 		}
 		break; }
 
@@ -89,7 +86,7 @@ static LRESULT WINAPI MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		// which will update the deferred
 		RECT rect;
 		GetClientRect(hWnd, &rect);
-		//RenderPlatform::resizeBackBuffer(rect.right - rect.left, rect.bottom - rect.top);
+		RenderPlatform::resizeBackBuffer(rect.right - rect.left, rect.bottom - rect.top);
 		windows_size.x = (float)(rect.right - rect.left);
 		windows_size.y = (float)(rect.bottom - rect.top);
 		break;
@@ -147,10 +144,24 @@ bool processOSMsgs() {
 
 void generateFrame(ModuleRender* render_module) {
 	static uint32_t frame_id = 0;
-	RenderPlatform::beginFrame( ++frame_id );
-	int w,h;
-	RenderPlatform::getBackBufferSize( &w, &h );
-	render_module->generateFrame( w, h );
+
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+
+		RenderPlatform::beginFrame( ++frame_id );
+		int w,h;
+		RenderPlatform::getBackBufferSize( &w, &h );
+		render_module->generateFrame( w, h );
+
+		Modules::get().renderInMenu();
+		static bool show_demo_window = true;
+		ImGui::ShowDemoWindow(&show_demo_window);
+
+	ImGui::Render();
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+	ImGui::UpdatePlatformWindows();
+	ImGui::RenderPlatformWindowsDefault();
 	RenderPlatform::swapFrames();
 }
 
@@ -163,6 +174,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
   if( !RenderPlatform::create( hWnd ) )
 		return -1;
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+	ImGui::StyleColorsDark();
+	if (!ImGui_ImplWin32_Init(hWnd))
+		return -2;
+	if (!ImGui_ImplDX11_Init(RenderPlatform::device, RenderPlatform::ctx))
+		return -3;
+
   Modules::get().load();
   ModuleRender* render_module = (ModuleRender*)( Modules::get().getModule("render"));
   assert(render_module);

@@ -12,6 +12,10 @@
     "name": "grid"
   },
   {
+    "type": "mesh",
+    "name": "unit_wired_cube"
+  },
+  {
     "type": "pso",
     "name": "basic",
     "vertex_decl": "PosColor",

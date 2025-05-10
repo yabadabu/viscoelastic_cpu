@@ -3,10 +3,9 @@
 #include "render/debug_texts.h"
 #include "viscoelastic_sim.h"
 
-struct ViscoelasticModule : public TModule {
+struct ViscoelasticModule : public Module {
 
   const char* getName() const override { return "viscoelastic"; }
-  bool startsEnabled() const override { return false; }
 
   ViscoelasticSim sim;
   bool            paused = false;
@@ -60,7 +59,6 @@ struct ViscoelasticModule : public TModule {
 
   ViscoelasticModule() {
     dbg("ViscoelasticModule::ViscoelasticModule\n");
-    subscribe(this, &ViscoelasticModule::onRenderDebug3D);
     sim.init();
     sim.in_2d = true;
 
@@ -87,10 +85,6 @@ struct ViscoelasticModule : public TModule {
     updateParticleTypes();
   }
 
-  ~ViscoelasticModule() {
-    unsubscribe(this, &ViscoelasticModule::onRenderDebug3D);
-  }
-
   void drawCell(const CPUSpatialSubdivision::Int3& coords) {
     
     const float inv_world_scale = 1.0f / sim.world_scale;
@@ -111,7 +105,7 @@ struct ViscoelasticModule : public TModule {
     drawCell( cell_info.coords );
   }
 
-  void onRenderDebug3D(MsgAppRenderDebug3D& msg) {
+  void onRenderDebug3D() {
     TTimer tm;
 
     float sim_to_world_factor = 1.0f / sim.world_scale;
@@ -342,7 +336,7 @@ struct ViscoelasticModule : public TModule {
     if (changed)
       updateParticleTypes();
 
-    ::renderObjInMenu(sim.sdf);
+    sim.sdf.renderInMenu();
   }
 
   void update() override {
@@ -356,7 +350,7 @@ struct ViscoelasticModule : public TModule {
       paused = true;
 
     if (CCamera* camera = Render::getCurrentRenderCamera()) {
-      VEC2 mouse = getInput().mouse_pixels;
+      VEC2 mouse; //= ImGui::getInput().mouse_pixels;
       VEC3 dir = camera->getRayDirectionFromViewportCoords(mouse.x, mouse.y);
       float t_hit = -camera->getPosition().x / dir.x;
       VEC3 hit = camera->getPosition() + t_hit * dir;
@@ -371,4 +365,4 @@ struct ViscoelasticModule : public TModule {
 
 };
 
-DECLARE_PLUGIN(ViscoelasticModule);
+DECLARE_MODULE(ViscoelasticModule);

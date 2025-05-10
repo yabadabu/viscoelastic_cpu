@@ -1,6 +1,5 @@
 #include "platform.h"
 
-
 // --------------------------------------------------
 static void outputToStdout( const char* buf ) {
   printf( "%s", buf );

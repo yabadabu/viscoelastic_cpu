@@ -93,7 +93,7 @@
 #include "memory/buffer.h"
 #include "time/timer.h"
 //#include "resources/resources_manager.h"
-//#include "modules/module.h"
+#include "modules/module.h"
 //
 //#define REFLECTOR_API ENGINE_API
 //#define REFLECTOR_NAMESPACE meta

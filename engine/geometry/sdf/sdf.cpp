@@ -112,12 +112,6 @@ namespace SDF {
       eval(VEC3(p.x, p.y + eps, p.z)) - eval(VEC3(p.x, p.y - eps, p.z)),
       eval(VEC3(p.x, p.y, p.z + eps)) - eval(VEC3(p.x, p.y, p.z - eps))
     ).normalized();
-    //float f0 = eval(p);
-    //return VEC3(
-    //  eval(VEC3(p.x + eps, p.y, p.z)) - f0,
-    //  eval(VEC3(p.x, p.y + eps, p.z)) - f0,
-    //  eval(VEC3(p.x, p.y, p.z + eps)) - f0
-    //).Normalized();
   }
 
   void sdFunc::renderWire() const {
@@ -180,4 +174,7 @@ namespace SDF {
       });
   }
 
+  bool sdFunc::renderInMenu() {
+    return false;
+  }
 }

@@ -35,8 +35,6 @@ namespace SDF {
     void renderWire() const;
     uint32_t countPrimitives(Primitive::eType type) const;
 
-    static void registerType();
-
     template< typename Fn >
     void onEachPrimitive(Primitive::eType prim_type, Fn fn) const {
       for (auto& p : prims) {
@@ -89,6 +87,8 @@ namespace SDF {
     void generateCompactStructs();
     float evalCompact(VEC3 p) const;
     VEC3  evalGradCompact(VEC3 p) const;
+    
+    bool renderInMenu();
   };
 
   enum class eSide { INTERIOR, CONTOUR, EXTERIOR };

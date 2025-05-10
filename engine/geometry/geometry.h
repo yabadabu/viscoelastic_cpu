@@ -218,9 +218,8 @@ struct TViewport {
 // ---------------------------------------------------------------------
 #include "angular.h"
 #include "transform.h"
-//#include "camera.h"
+#include "camera.h"
 #include "aabb.h"
-//#include "ease.h"
 
 ENGINE_API extern VEC3 closestPointToSegment(VEC3 src, VEC3 dst, VEC3 p);
 

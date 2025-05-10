@@ -1,6 +1,7 @@
 #pragma once
 
 #include "render/color.h"
+#include "dx11/render_platform.h"
 
 class CCamera;
 
@@ -9,6 +10,40 @@ namespace Render {
   //struct ENGINE_API TMesh : public RenderPlatform::TMesh, public IResource {
   struct ENGINE_API TMesh : public IResource {
   };
+
+  // -------------------------------------------------------
+  //public RenderPlatform::Buffer, 
+  struct ENGINE_API Buffer : public IResource {
+    int                slot = 0;
+    uint32_t           bytes_per_instance = 0;
+    uint32_t           num_instances = 1;
+    bool create(size_t nbytes);
+    void destroy() override;
+    void setName(const char* new_name) override;
+    void* rawData();
+    size_t size() const { return num_instances * bytes_per_instance; }
+  };
+
+  template< typename T >
+  struct ENGINE_API TypedBuffer : public Buffer {
+    bool create(int in_slot, const char* label, uint32_t in_num_instances = 1) {
+      slot = in_slot;
+      num_instances = in_num_instances;
+      bytes_per_instance = sizeof(T);
+      if (!Buffer::create(sizeof(T) * in_num_instances))
+        return false;
+      setName(label);
+      return true;
+    }
+    T* data() {
+      return static_cast<T*>(rawData());
+    }
+    T* data(uint32_t instance_id) {
+      assert(instance_id < num_instances);
+      return data() + instance_id;
+    }
+  };
+
   struct TPipelineState;
 
   void drawLine(VEC3 src, VEC3 target, VEC4 color);
@@ -67,13 +102,6 @@ namespace Render {
 
 
 /*
-#ifdef PLATFORM_WINDOWS
-#include "dx11/render_platform.h"
-#elif PLATFORM_APPLE
-#include "metal/render_platform.h"
-#else
-#error Unsupported render platform.
-#endif
 
 #include "vertex_types.h"
 #include "resources/resource.h"
@@ -255,87 +283,6 @@ namespace Render {
     //}
   };
 
-  // -------------------------------------------------------
-  struct ENGINE_API TTexture : public RenderPlatform::TTexture, public IResource {
-    enum class eFormat {
-      INVALID = -1,
-      BGRA_8UNORM = RenderPlatform::TTexture::FMT_BGRA_8UNORM,
-      RGBA_8UNORM = RenderPlatform::TTexture::FMT_RGBA_8UNORM,
-      R_8UNORM = RenderPlatform::TTexture::FMT_R_8UNORM,
-      PVRTC_RGBA_2BPP = RenderPlatform::TTexture::FMT_PVRTC_RGBA_2BPP,
-      PVRTC_RGBA_4BPP = RenderPlatform::TTexture::FMT_PVRTC_RGBA_4BPP,
-      DEPTH_32F = RenderPlatform::TTexture::FMT_DEPTH_32F,
-      RGBA_32F = RenderPlatform::TTexture::FMT_RGBA_32F,
-      R_32F = RenderPlatform::TTexture::FMT_R_32F
-    };
-    enum class eOptions {
-      TEXTURE2D = 1,
-      RENDER_TARGET = 2,
-      CUBEMAP = 4,
-      COMPUTE_OUTPUT = 8,
-      TEXTURE3D = 16,
-      DYNAMIC = 32
-    };
-    uint32_t width = 0;
-    uint32_t height = 0;
-    uint32_t depth = 0;
-    uint32_t nmipmaps = 0;
-    eFormat  pixel_format = eFormat::INVALID;
-    eOptions options = eOptions::TEXTURE2D;
-
-    void setName(const std::string& new_name) override;
-
-    bool create(uint32_t awidth, uint32_t aheight, eFormat apixel_format, int nmipmaps = 1, uint32_t new_options = 0);
-    bool create(const TBuffer& buf);
-    bool create(const json& j) override;
-    void destroy() override;
-    void updateSlice(const void* data, int width, int height, int total_bytes, int bytes_per_row, int mipmap_level, int slice, int bytes_per_pitch = 0, const void* box = nullptr);
-    bool updateGPUFromCPU(const void* src, size_t nbytes);
-
-    void debugInMenu() override;
-
-  };
-
-  // -------------------------------------------------------
-  struct TMaterialTypeSlot {
-    uint32_t              material_type_id;
-    uint32_t              pass_id = 0;
-    const TPipelineState* pipeline = nullptr;
-    bool operator<(const TMaterialTypeSlot& mts) const {
-      if (material_type_id != mts.material_type_id)
-        return material_type_id < mts.material_type_id;
-      return pass_id < mts.pass_id;
-    }
-  };
-
-  // -------------------------------------------------------
-  struct TMaterial : public IResource {
-    static const uint32_t max_slots = 4;
-    struct TSlot {
-      const TTexture* texture = nullptr;
-      int             slot = 0;
-    };
-    uint16_t     nslots_used = 0;
-    TSlot        slots[max_slots];
-    TStrID       category_id = 0;
-
-    //uint32_t     material_type_id = 0;
-    const TPipelineState* pipeline = nullptr;
-    const TMaterial* shadows_mat = nullptr;
-
-    void add(const TTexture* t, int nslot = -1) {
-      if (nslot == -1) nslot = nslots_used;
-      assert(nslot < max_slots);
-      slots[nslot].texture = t;
-      slots[nslot].slot = nslot;
-      ++nslots_used;
-
-    }
-    const char* getCategoryName() const;
-    void debugInMenu() override;
-    bool create(const json& j) override;
-  };
-  const char* getCategoryName(uint32_t category_id);
 
   // -------------------------------------------------------
   struct ENGINE_API TPipelineState : public RenderPlatform::TPipelineState, public IResource {
@@ -365,15 +312,6 @@ namespace Render {
     void debugInMenu() override;
     void destroy() override;
     void eachUnassignedResource(std::function<void(const char*, uint32_t idx)> resolver) const;
-  };
-
-  // -------------------------------------------------------
-  struct TRenderToTexture : public TTexture, public RenderPlatform::TRenderToTexture {
-    // We are owners of this texture
-    TTexture* depth_texture = nullptr;
-    bool createRT(const char* name, int new_xres, int new_yres, TTexture::eFormat new_clr, TTexture::eFormat new_z);
-    void destroy() override;
-    bool isValid() const override;
   };
 
   // -------------------------------------------------------
@@ -602,19 +540,6 @@ namespace Render {
   ENGINE_API void activateDebugPipeline(const TMesh* mesh);
 
   ENGINE_API bool getClientAreaViewport(TViewport& vp);
-
-  // -------------------------------------------------------
-
-
-
-
-  class ENGINE_API VPointColors : public InstancesData< TVtxPosColor > {
-  public:
-    void drawAll() const;
-  };
-
-
-
 }
 
 #include "primitives.h"

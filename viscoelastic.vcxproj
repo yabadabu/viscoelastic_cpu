@@ -111,14 +111,20 @@
     <ClCompile Include="engine\geometry\geometry.cpp" />
     <ClCompile Include="engine\geometry\sdf\sdf.cpp" />
     <ClCompile Include="engine\geometry\transform.cpp" />
+    <ClCompile Include="engine\modules\module.cpp" />
+    <ClCompile Include="engine\modules\module_camera.cpp" />
+    <ClCompile Include="engine\modules\module_render.cpp" />
+    <ClCompile Include="engine\modules\module_resources.cpp" />
     <ClCompile Include="engine\platform.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">platform.h</PrecompiledHeaderFile>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="engine\render\dx11\render_platform.cpp" />
     <ClCompile Include="engine\resources\resources_manager.cpp" />
     <ClCompile Include="engine\utils\utils.cpp" />
+    <ClCompile Include="engine\windows\main.cpp" />
     <ClCompile Include="viscoelastic.cpp">
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">platform.h</PrecompiledHeaderFile>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
@@ -135,17 +141,22 @@
     <ClInclude Include="engine\geometry\angular.h" />
     <ClInclude Include="engine\geometry\camera.h" />
     <ClInclude Include="engine\geometry\geometry.h" />
+    <ClInclude Include="engine\geometry\sdf\sdf.h" />
     <ClInclude Include="engine\geometry\transform.h" />
     <ClInclude Include="engine\geometry\vec3.h" />
+    <ClInclude Include="engine\modules\module.h" />
+    <ClInclude Include="engine\modules\module_render.h" />
     <ClInclude Include="engine\platform.h" />
+    <ClInclude Include="engine\render\dx11\render_platform.h" />
     <ClInclude Include="engine\render\render.h" />
     <ClInclude Include="engine\resources\resource.h" />
-    <ClInclude Include="engine\utils\str_id.h" />
-    <ClInclude Include="engine\utils\str_id_consteval.h" />
     <ClInclude Include="engine\utils\utils.h" />
     <ClInclude Include="thread_pool.h" />
     <ClInclude Include="particles_vec.h" />
     <ClInclude Include="viscoelastic_sim.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="engine\windows\Icon128.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

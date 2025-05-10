@@ -30,6 +30,24 @@
     <ClCompile Include="engine\geometry\aabb.cpp">
       <Filter>engine\geometry</Filter>
     </ClCompile>
+    <ClCompile Include="engine\modules\module.cpp">
+      <Filter>engine\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\modules\module_camera.cpp">
+      <Filter>engine\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\modules\module_render.cpp">
+      <Filter>engine\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\modules\module_resources.cpp">
+      <Filter>engine\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\windows\main.cpp">
+      <Filter>engine\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\render\dx11\render_platform.cpp">
+      <Filter>engine\render\dx11</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cpu_spatial_subdivision.h" />
@@ -54,12 +72,6 @@
     <ClInclude Include="engine\geometry\vec3.h">
       <Filter>engine\geometry</Filter>
     </ClInclude>
-    <ClInclude Include="engine\utils\str_id.h">
-      <Filter>engine\utils</Filter>
-    </ClInclude>
-    <ClInclude Include="engine\utils\str_id_consteval.h">
-      <Filter>engine\utils</Filter>
-    </ClInclude>
     <ClInclude Include="engine\utils\utils.h">
       <Filter>engine\utils</Filter>
     </ClInclude>
@@ -74,6 +86,18 @@
     </ClInclude>
     <ClInclude Include="engine\geometry\aabb.h">
       <Filter>engine\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\modules\module.h">
+      <Filter>engine\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\modules\module_render.h">
+      <Filter>engine\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\geometry\sdf\sdf.h">
+      <Filter>engine\geometry\sdf</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\dx11\render_platform.h">
+      <Filter>engine\render\dx11</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -95,5 +119,19 @@
     <Filter Include="engine\resources">
       <UniqueIdentifier>{b69a2e67-1882-4271-a4b8-90990acc5aef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="engine\modules">
+      <UniqueIdentifier>{0d2459b4-bbac-4b12-90e8-e9e8f1b1084f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\windows">
+      <UniqueIdentifier>{80b38ab6-6a06-4a02-8a56-f9cbb5e7ba34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\render\dx11">
+      <UniqueIdentifier>{410b2188-3130-43ac-8ed9-bf5199a009e5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="engine\windows\Icon128.ico">
+      <Filter>engine\windows</Filter>
+    </Image>
   </ItemGroup>
 </Project>

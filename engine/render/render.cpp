@@ -196,7 +196,6 @@ namespace Render {
   }
 
   void VSpriteInstances::drawAll() {
-    //draw_particles.drawAll();
     if (!mesh)
       mesh = Resource<Mesh>( "unit_quad_xy.mesh");
     const PipelineState* pso = Resource<PipelineState>("sprites.pso");

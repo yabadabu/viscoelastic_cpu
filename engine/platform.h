@@ -14,8 +14,6 @@
 #define ENGINE_API 
 
 // ----------------------------------------
-#define __ENABLE_PROFILING__
-
 // C++ std
 #include <cstdint>
 #include <cassert>
@@ -35,9 +33,9 @@
 
 // ----------------------------------------
 #ifdef IN_PLATFORM_WINDOWS
-#define __ENABLE_PROFILING__
+#define ENABLE_PROFILING 1
 #else
-#undef __ENABLE_PROFILING__
+#undef ENABLE_PROFILING
 #endif
 
 #ifdef IN_PLATFORM_WINDOWS

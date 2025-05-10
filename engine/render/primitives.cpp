@@ -186,14 +186,16 @@ void createQuadXY(Render::Mesh* mesh, float sz, VEC2 center_at) {
 }
 
 void createUnitQuadXY(Render::Mesh* mesh) {
-  std::vector< TVtxPos > vtxs;
+  std::vector< TVtxPosColor > vtxs;
+  VEC4 color = Color::White;
   const float sz = 0.5f;
-  vtxs.emplace_back(VEC3(-sz, sz, 0));
-  vtxs.emplace_back(VEC3(sz, sz, 0));
-  vtxs.emplace_back(VEC3(-sz, -sz, 0));
-  vtxs.emplace_back(VEC3(sz, -sz, 0));
-  uint16_t indices[6] = { 0,2,1, 1,2,3 };
-  mesh->create(vtxs.data(), (uint32_t)vtxs.size(), Render::eTriangles, indices, 6);
+  vtxs.emplace_back(VEC3(-sz, -sz, 0), color);
+  vtxs.emplace_back(VEC3(-sz, sz, 0), color);
+  vtxs.emplace_back(VEC3(sz, sz, 0), color);
+  vtxs.emplace_back(VEC3(sz, sz, 0), color);
+  vtxs.emplace_back(VEC3(sz, -sz, 0), color);
+  vtxs.emplace_back(VEC3(-sz, -sz, 0), color);
+  mesh->create(vtxs.data(), (uint32_t)vtxs.size(), Render::eTriangles);
 }
 
 // subdivs = 0 => 4 vertices

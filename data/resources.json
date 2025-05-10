@@ -48,7 +48,7 @@
   {
     "type": "pso",
     "name": "sprites",
-    "vertex_decl": "Pos",
+    "vertex_decl": "PosColor",
     "src": "sprites",
     "buffers": [
       "sprite_instances.buffer"

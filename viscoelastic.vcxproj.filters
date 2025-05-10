@@ -96,9 +96,6 @@
     <ClInclude Include="thread_pool.h" />
     <ClInclude Include="viscoelastic_sim.h" />
     <ClInclude Include="particles_vec.h" />
-    <ClInclude Include="engine\engine_types.h">
-      <Filter>engine</Filter>
-    </ClInclude>
     <ClInclude Include="engine\platform.h">
       <Filter>engine</Filter>
     </ClInclude>

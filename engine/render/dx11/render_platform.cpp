@@ -55,10 +55,6 @@ bool compileShaderFromFile(
 	std::string* error_msg_returned = nullptr
 ) {
 	std::string strName(szFileName);
-	//TFileContext fc(strName);
-
-	// cacheName should include file,Fn,SM,defines,timestamp of dependend files
-	std::string cacheName = strName + std::string(TTempStr("_Fn_%s_SM_%s", szEntryPoint, szShaderModel));
 
 	HRESULT hr = S_OK;
 
@@ -91,10 +87,7 @@ bool compileShaderFromFile(
 	ID3DBlob* pBlobOut = nullptr;
 
 	FrameworkInclude appIncludes;
-	TParsedFilename pf(szFileName);
-	appIncludes.paths.push_back(pf.path.c_str());
-	if (pf.path != "data/shaders/")
-		appIncludes.paths.push_back("data/shaders/");
+	appIncludes.paths.push_back("data/shaders/");
 	appIncludes.paths.push_back("./");
 
 	while (true) {
@@ -175,8 +168,8 @@ namespace RenderPlatform {
 
 	static Render::RenderToTexture rt_backbuffer;
 
-	Vector< IDXGIAdapter1* > getAdapters() {
-		Vector< IDXGIAdapter1* > adapters;
+	std::vector< IDXGIAdapter1* > getAdapters() {
+		std::vector< IDXGIAdapter1* > adapters;
 		IDXGIFactory1* factory = nullptr;
 		if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&factory)))
 			return adapters;
@@ -185,10 +178,10 @@ namespace RenderPlatform {
 		for (UINT i = 0; !FAILED(factory->EnumAdapters1(i, &adapter)); ++i) {
 			DXGI_ADAPTER_DESC desc;
 			adapter->GetDesc(&desc);
-			TStr256 name;
-			wcstombs(name.data(), desc.Description, name.capacity());
+			char name[256];
+			wcstombs(name, desc.Description, sizeof(name)-1);
 			int nbits = 20;
-			dbg("Device %d : %s VRAM:%dMB Sys:%dMB Shared:%dMB\n", i, name.c_str(), desc.DedicatedVideoMemory >> nbits, desc.DedicatedSystemMemory >> nbits, desc.SharedSystemMemory >> nbits);
+			dbg("Device %d : %s VRAM:%dMB Sys:%dMB Shared:%dMB\n", i, name, desc.DedicatedVideoMemory >> nbits, desc.DedicatedSystemMemory >> nbits, desc.SharedSystemMemory >> nbits);
 			adapters.push_back(adapter);
 		}
 
@@ -340,76 +333,6 @@ namespace RenderPlatform {
 	}
 
 	// -------------------------------------------------------------------
-	bool createRasterizationStates() {
-		rasterize_states[(int)Render::eRSConfig::DEFAULT] = nullptr;
-
-		auto createState = [&](Render::eRSConfig cfg, const D3D11_RASTERIZER_DESC& desc) {
-			const char* title = Render::rsConfigs.nameOf(cfg);
-			HRESULT hr = device->CreateRasterizerState(&desc, &rasterize_states[(int)cfg]);
-			if (FAILED(hr))
-				return false;
-			setDbgName(rasterize_states[(int)cfg], title);
-			return true;
-		};
-
-		D3D11_RASTERIZER_DESC desc;
-
-		// Depth bias options when rendering the shadows
-		desc = D3D11_RASTERIZER_DESC {
-		  D3D11_FILL_SOLID, // D3D11_FILL_MODE FillMode;
-		  D3D11_CULL_BACK,  // D3D11_CULL_MODE CullMode;
-		  FALSE,            // BOOL FrontCounterClockwise;
-		  13,               // INT DepthBias;
-		  0.0f,             // FLOAT DepthBiasClamp;
-		  2.0f,             // FLOAT SlopeScaledDepthBias;
-		  TRUE,             // BOOL DepthClipEnable;
-		  FALSE,            // BOOL ScissorEnable;
-		  FALSE,            // BOOL MultisampleEnable;
-		  FALSE,            // BOOL AntialiasedLineEnable;
-		};
-		if (!createState(Render::eRSConfig::SHADOWS, desc))
-			return false;
-
-		// --------------------------------------------------
-		// No culling at all
-		desc = D3D11_RASTERIZER_DESC {
-		  D3D11_FILL_SOLID, // D3D11_FILL_MODE FillMode;
-		  D3D11_CULL_NONE,  // D3D11_CULL_MODE CullMode;
-		  FALSE,            // BOOL FrontCounterClockwise;
-		  0,                // INT DepthBias;
-		  0.0f,             // FLOAT DepthBiasClamp;
-		  0.0,              // FLOAT SlopeScaledDepthBias;
-		  TRUE,             // BOOL DepthClipEnable;
-		  FALSE,            // BOOL ScissorEnable;
-		  FALSE,            // BOOL MultisampleEnable;
-		  FALSE,            // BOOL AntialiasedLineEnable;
-		};
-		if (!createState(Render::eRSConfig::CULL_NONE, desc))
-			return false;
-
-		//desc.ScissorEnable = TRUE;
-		//if (!createState(Render::eRSConfig::CULL_NONE_WITH_SCISSORS, desc))
-		//	return false;
-
-		// Culling is reversed. Used when rendering the light volumes
-		//desc.CullMode = D3D11_CULL_FRONT;
-		//if (!createState(Render::eRSConfig::REVERSE_CULLING, desc, "RS_REVERSE_CULLING"))
-		//	return false;
-
-		//// Wireframe and default culling back
-		//desc.FillMode = D3D11_FILL_WIREFRAME;
-		//desc.CullMode = D3D11_CULL_NONE;
-		//if (!createState(Render::eRSConfig::WIREFRAME, desc, "RS_WIREFRAME"))
-		//	return false;
-
-		return true;
-	}
-
-	void destroyRasterizeStates() {
-		for (auto c : rasterize_states)
-			SAFE_RELEASE(c);
-	}
-
 	bool createBlendStates() {
 		blend_states[(int)Render::eBlendConfig::DEFAULT] = nullptr;
 
@@ -668,9 +591,6 @@ namespace RenderPlatform {
 		if (!createBufferOffsetsCtes())
 			return false;
 
-		if (!createRasterizationStates())
-			return false;
-
 		if (!createBlendStates())
 			return false;
 
@@ -688,7 +608,6 @@ namespace RenderPlatform {
 		destroySamplers();
 		destroyDepthStates();
 		destroyBlendStates();
-		destroyRasterizeStates();
 		destroyBackBuffer();
 		destroyDevice();
 	}
@@ -703,7 +622,7 @@ namespace RenderPlatform {
 
 	// Define details of private struct
 	struct PipelineState::CShaderBase::CShaderReflectionInfo {
-		Vector<D3D11_SHADER_INPUT_BIND_DESC> bound_resources;
+		std::vector<D3D11_SHADER_INPUT_BIND_DESC> bound_resources;
 		const D3D11_SHADER_INPUT_BIND_DESC* findBindPoint(const char* name) const;
 	};
 
@@ -729,7 +648,7 @@ namespace RenderPlatform {
 			hr = reflection->GetResourceBindingDesc(i, &sib_desc);
 			if (FAILED(hr))
 				continue;
-			sib_desc.BindCount = getID(sib_desc.Name);
+			sib_desc.BindCount = 0; // getID(sib_desc.Name);
 			// Dupe the returned memory to keep a copy
 			sib_desc.Name = _strdup(sib_desc.Name);
 			reflection_info->bound_resources.push_back(sib_desc);
@@ -752,8 +671,8 @@ namespace RenderPlatform {
 	) {
 
 		// If not given, use the existing one (if any)
-		if (!vertex_type_name && !shader_vtx_type_name.empty())
-			vertex_type_name = shader_vtx_type_name.c_str();
+		if (!vertex_type_name && !shader_vtx_type_name)
+			vertex_type_name = shader_vtx_type_name;
 
 		// A blob is a representation of a buffer in dx, a void pointer + size
 		TBuffer VSBlob;
@@ -772,8 +691,9 @@ namespace RenderPlatform {
 		if (FAILED(hr))
 			return false;
 
-		TStr128 full_name("%s@%s", szEntryPoint, szFileName );
-		setDbgName(vs, full_name.c_str());
+		char full_name[256];
+		snprintf(full_name, 256, "%s@%s", szEntryPoint, szFileName);
+		setDbgName(vs, full_name);
 
 		assert(vertex_type_name);
 		auto decl = Render::getVertexDeclByName(vertex_type_name);
@@ -791,10 +711,10 @@ namespace RenderPlatform {
 		//}
 		//setDbgName(vtx_layout, decl->name);
 
-		shader_src = szFileName;
-		shader_fn = szEntryPoint;
-		shader_profile = profile;
-		shader_vtx_type_name = vertex_type_name;
+		strcpy(shader_src, szFileName);
+		strcpy(shader_fn, szEntryPoint);
+		strcpy(shader_profile, profile);
+		strcpy(shader_vtx_type_name, vertex_type_name);
 
 		scanResourcesFrom(VSBlob);
 
@@ -840,9 +760,9 @@ namespace RenderPlatform {
 
 		setDbgName(ps, szEntryPoint);
 
-		shader_src = szFileName;
-		shader_fn = szEntryPoint;
-		shader_profile = profile;
+		strcpy( shader_src, szFileName);
+		strcpy( shader_fn, szEntryPoint);
+		strcpy( shader_profile, profile);
 
 		scanResourcesFrom(blob);
 
@@ -1035,12 +955,12 @@ namespace Render {
 	}
 
 	bool Texture::decodeFrom(const TBuffer& buffer) {
-		ID3D11Resource* texture2d = nullptr;
-		HRESULT hr = DirectX::CreateDDSTextureFromMemory(device, buffer.data(), buffer.size(), &texture2d, &srv);
-		resource = texture2d;
-		return SUCCEEDED(hr);
+		return false;
+		//ID3D11Resource* texture2d = nullptr;
+		//HRESULT hr = DirectX::CreateDDSTextureFromMemory(device, buffer.data(), buffer.size(), &texture2d, &srv);
+		//resource = texture2d;
+		//return SUCCEEDED(hr);
 	}
-
 
 	bool Texture::create(uint32_t width, uint32_t height, const void* raw_data, eFormat fmt, int num_mips) {
 		
@@ -1221,37 +1141,37 @@ namespace Render {
 		ctx->UpdateSubresource( buffer->buffer, 0, nullptr, new_data, 0, 0 );
 	}
 
-	bool PipelineState::create(const json& j) {
-		const char* src = j.value("src", "");
-		const char* in_name = j.value("name", "");
+	//bool PipelineState::create(const json& j) {
+	//	const char* src = j.value("src", "");
+	//	const char* in_name = j.value("name", "");
 
-		TStr256 full_name("data/shaders/%s.hlsl", src);
+	//	TStr256 full_name("data/shaders/%s.hlsl", src);
 
-		// To control which pso should be renderer before others in the render manager
-		priority = j.value( "priority", 0 );
+	//	// To control which pso should be renderer before others in the render manager
+	//	priority = j.value( "priority", 0 );
 
-		vs.shader_fn = j.value("vs", "VS");
-		if( !j["ps"].is_null() ) 
-			ps.shader_fn = j.value("ps", "PS");
-		vs.shader_src = full_name;
-		ps.shader_src = full_name;
-		const char* vertex_decl_name = j.value("vertex_decl", (const char*) nullptr);
-		assert(vertex_decl_name);
-		vertex_decl = getVertexDeclByName(vertex_decl_name);
+	//	vs.shader_fn = j.value("vs", "VS");
+	//	if( !j["ps"].is_null() ) 
+	//		ps.shader_fn = j.value("ps", "PS");
+	//	vs.shader_src = full_name;
+	//	ps.shader_src = full_name;
+	//	const char* vertex_decl_name = j.value("vertex_decl", (const char*) nullptr);
+	//	assert(vertex_decl_name);
+	//	vertex_decl = getVertexDeclByName(vertex_decl_name);
 
-		vs.shader_profile = j.value("vs_profile", "vs_5_0");
-		ps.shader_profile = j.value("ps_profile", "ps_5_0");
-		if( !reloadShaders() )
-			return false;
+	//	vs.shader_profile = j.value("vs_profile", "vs_5_0");
+	//	ps.shader_profile = j.value("ps_profile", "ps_5_0");
+	//	if( !reloadShaders() )
+	//		return false;
 
-		return loadCommonConfig(j);
-	}
+	//	return loadCommonConfig(j);
+	//}
 
 	bool PipelineState::reloadShaders() {
 		PipelineState prev_pipeline = *this;
-		if (!vs.compile(vs.shader_src.c_str(), vs.shader_fn.c_str(), vs.shader_profile.c_str(), vertex_decl->name))
+		if (!vs.compile(vs.shader_src, vs.shader_fn, vs.shader_profile, vertex_decl->name))
 			return false;
-		if (!ps.compile(ps.shader_src.c_str(), ps.shader_fn.c_str(), ps.shader_profile.c_str()))
+		if (!ps.compile(ps.shader_src, ps.shader_fn, ps.shader_profile))
 			return false;
 		prev_pipeline.destroy();
 		return true;
@@ -1422,7 +1342,7 @@ namespace Render {
     ctx->RSSetViewports(1, &vp);
   
 		if( render_target_view )
-			clearRT(Colors::Black);
+			clearRT(Color::Black);
 		if( depth_stencil_view )
 			clearDepth(1.0f);
   }

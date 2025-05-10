@@ -46,7 +46,6 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)\$(Platform)\$(ProjectName)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
-    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -73,8 +72,8 @@
       <AdditionalLibraryDirectories>$(ProjectDir)../../libs/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>$(SolutionDir)..\common\move_plugin.bat $(TargetPath)  $(ConfigurationName)</Command>
-      <Message>Moving new version of the plugin to the data folder $(TargetPath)</Message>
+      <Message>
+      </Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -100,8 +99,8 @@
       <AdditionalLibraryDirectories>$(ProjectDir)../../libs/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>$(SolutionDir)..\common\move_plugin.bat $(TargetPath) $(ConfigurationName)</Command>
-      <Message>Moving new version of the plugin to the data folder $(TargetPath)</Message>
+      <Message>
+      </Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -111,6 +110,42 @@
     <ClCompile Include="engine\geometry\geometry.cpp" />
     <ClCompile Include="engine\geometry\sdf\sdf.cpp" />
     <ClCompile Include="engine\geometry\transform.cpp" />
+    <ClCompile Include="engine\imgui\imgui.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\ImGuizmo.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_demo.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_draw.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_impl_dx11.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_impl_win32.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_stdlib.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_tables.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_widgets.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="engine\modules\module.cpp" />
     <ClCompile Include="engine\modules\module_camera.cpp" />
     <ClCompile Include="engine\modules\module_render.cpp" />
@@ -122,6 +157,7 @@
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="engine\render\dx11\render_platform.cpp" />
+    <ClCompile Include="engine\render\render.cpp" />
     <ClCompile Include="engine\resources\resources_manager.cpp" />
     <ClCompile Include="engine\utils\utils.cpp" />
     <ClCompile Include="engine\windows\main.cpp" />
@@ -144,6 +180,14 @@
     <ClInclude Include="engine\geometry\sdf\sdf.h" />
     <ClInclude Include="engine\geometry\transform.h" />
     <ClInclude Include="engine\geometry\vec3.h" />
+    <ClInclude Include="engine\imgui\dirent.h" />
+    <ClInclude Include="engine\imgui\icons.h" />
+    <ClInclude Include="engine\imgui\imconfig.h" />
+    <ClInclude Include="engine\imgui\imgui.h" />
+    <ClInclude Include="engine\imgui\ImGuizmo.h" />
+    <ClInclude Include="engine\imgui\imgui_impl_dx11.h" />
+    <ClInclude Include="engine\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="engine\imgui\imgui_stdlib.h" />
     <ClInclude Include="engine\modules\module.h" />
     <ClInclude Include="engine\modules\module_render.h" />
     <ClInclude Include="engine\platform.h" />

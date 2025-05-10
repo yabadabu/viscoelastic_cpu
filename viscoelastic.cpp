@@ -24,6 +24,7 @@ struct ViscoelasticModule : public Module {
 
   Render::VSpriteInstances sprites;
   Render::VInstances       wired_cells;
+  Render::VInstances       lines;
 
   double                   time_render = 0.0f;
   VEC4                     colors[4] = { Color::Red, Color::Green, Color::Blue, Color::White };
@@ -71,7 +72,8 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
     addParticles(512);
 
-    wired_cells = Render::VInstances( "unit_wired_cube.mesh" );
+    wired_cells = Render::VInstances("unit_wired_cube.mesh");
+    lines = Render::VInstances( "line.mesh" );
   }
 
   void addParticles(int num) {
@@ -112,6 +114,7 @@ struct ViscoelasticModule : public Module {
 
     sprites.clear();
     wired_cells.clear();
+    lines.clear();
 
     float radius = 1.0f;
     TRandomSequence rsq;
@@ -146,7 +149,7 @@ struct ViscoelasticModule : public Module {
         });
 
       VEC3 vi = sim.particles_vels.get(i) * 10.0;
-      Render::drawLine(pi * inv_world_scale, ( pi + vi ) * inv_world_scale, Color::White);
+      lines.addLine(pi * inv_world_scale, ( pi + vi ) * inv_world_scale, Color::White);
     }
 
     if (show_cells) {
@@ -172,6 +175,7 @@ struct ViscoelasticModule : public Module {
 
     sprites.drawAll();
     wired_cells.drawAll();
+    lines.drawAll();
 
     sim.sdf.renderWire();
     sim.saveTime(ViscoelasticSim::eSection::Render, tm);

@@ -48,6 +48,36 @@
     <ClCompile Include="engine\render\dx11\render_platform.cpp">
       <Filter>engine\render\dx11</Filter>
     </ClCompile>
+    <ClCompile Include="engine\render\render.cpp">
+      <Filter>engine\render</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_demo.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_draw.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_impl_dx11.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_impl_win32.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_stdlib.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_widgets.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\ImGuizmo.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\imgui\imgui_tables.cpp">
+      <Filter>engine\imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cpu_spatial_subdivision.h" />
@@ -99,6 +129,30 @@
     <ClInclude Include="engine\render\dx11\render_platform.h">
       <Filter>engine\render\dx11</Filter>
     </ClInclude>
+    <ClInclude Include="engine\imgui\dirent.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\imgui\icons.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\imgui\imconfig.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\imgui\imgui.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\imgui\imgui_impl_dx11.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\imgui\imgui_impl_win32.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\imgui\imgui_stdlib.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\imgui\ImGuizmo.h">
+      <Filter>engine\imgui</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="engine">
@@ -127,6 +181,9 @@
     </Filter>
     <Filter Include="engine\render\dx11">
       <UniqueIdentifier>{410b2188-3130-43ac-8ed9-bf5199a009e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\imgui">
+      <UniqueIdentifier>{c95dee72-b7e4-4553-82ae-379ff4d1bdb6}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

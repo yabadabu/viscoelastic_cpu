@@ -66,7 +66,11 @@ struct FlyController : public CameraController {
     else if (pitch < -max_pitch) pitch = -max_pitch;
   }
   void updateCamera(CCamera* camera, float dt) override {
-    Input& input = Input::get();
+    //ImGui::GetIO().iskeIsKeyDown()
+    float rotate_yaw = 0.0f;
+    // 
+    // 
+    //Input& input = Input::get();
     VEC3 pos = camera->getPosition();
     VEC3 left = camera->getLeft();
     VEC3 front = camera->getFront();
@@ -76,20 +80,23 @@ struct FlyController : public CameraController {
     float amount_moved = move_sensitivity * dt;
     float amount_rotated = dt;
 
-    if (input["camera.boost"])
+    bool camera_boost = false; //input["camera.boost"]
+    bool camera_slow = false; // input["camera.slow"];
+
+    if (camera_boost)
       amount_moved *= 4.0f; // input["camera.boost"].value;
-    if (input["camera.slow"])
+    if (camera_slow)
       amount_moved *= 0.1f; // input["camera.slow"].value;
 
-    float amount_fwd = input["forward"];
-    float amount_left = input["left"];
+    float amount_fwd = 0.0f; //input["forward"];
+    float amount_left = 0.0f; //input["left"];
 
     pos += front * amount_moved * amount_fwd;
     pos += left * amount_moved * amount_left;
 
     // Rotation
-    float amount_yaw = input["rotate_yaw"];
-    float amount_pitch = input["rotate_pitch"];
+    float amount_yaw = 0.0f; // input["rotate_yaw"];
+    float amount_pitch = 0.0f; // input["rotate_pitch"];
     addDeltas(amount_yaw * amount_rotated, amount_pitch * amount_rotated);
 
     VEC3 new_front = getVectorFromYawAndPitch(yaw, pitch);
@@ -133,8 +140,9 @@ struct ModuleCamera : public Module {
 
   //}
 
-  void update(AppMsgUpdateModule& msg) {
-    controller->updateCamera(&getMainCamera3D(), msg.elapsed);
+  void update() {
+    float dt = 1.0f / 30.0f;
+    controller->updateCamera(Render::getCurrentRenderCamera(), dt);
   }
 
 };

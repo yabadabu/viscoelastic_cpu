@@ -119,7 +119,7 @@ namespace SDF {
       if (!p.enabled)
         continue;
       if (p.prim_type == Primitive::eType::SPHERE) {
-        const Render::TMesh* circle = Resource<Render::TMesh>("unit_circle_xz.mesh");
+        const Render::Mesh* circle = Resource<Render::Mesh>("unit_circle_xz.mesh");
         MAT44 world = p.transform.asMatrix();
         Render::drawPrimitive(circle, world, Color::Yellow);
         world = MAT44::createFromAxisAngle(VEC3::axis_x, deg2rad(90.0f)) * world;
@@ -128,11 +128,11 @@ namespace SDF {
         Render::drawPrimitive(circle, world, Color::Yellow);
       }
       else if (p.prim_type == Primitive::eType::PLANE) {
-        const Render::TMesh* grid = Resource<Render::TMesh>("grid.mesh");
+        const Render::Mesh* grid = Resource<Render::Mesh>("grid.mesh");
         Render::drawPrimitive(grid, MAT44::createScale(0.025f) * p.transform.asMatrix(), p.color);
       }
       else if (p.prim_type == Primitive::eType::BOX) {
-        const Render::TMesh* mesh = Resource<Render::TMesh>("unit_wired_cube.mesh");
+        const Render::Mesh* mesh = Resource<Render::Mesh>("unit_wired_cube.mesh");
         Render::drawPrimitive(mesh, p.transform.asMatrix(), p.color);
       }
       else {

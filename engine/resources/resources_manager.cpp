@@ -2,17 +2,10 @@
 #include "resource.h"
 #include <unordered_map>
 
-template<>
-struct std::hash<StrId> {
-	std::size_t operator()(const StrId& s) const noexcept {
-		return s.id;
-	}
-};
-
 class ResourcesManager {
 
-	std::unordered_map< StrId, IResource* > resources;
-	std::unordered_map< StrId, ResourceFactoryFn >  factories;
+	std::unordered_map< std::string, IResource* > resources;
+	std::unordered_map< std::string, ResourceFactoryFn >  factories;
 
 public:
 
@@ -30,7 +23,7 @@ public:
 };
 
 const IResource* ResourcesManager::get(const char* name) {
-	uint32_t name_id = getID(name);
+	std::string name_id(name);
 	auto it = resources.find(name_id);
 	if (it != resources.end())
 		return it->second;
@@ -41,7 +34,7 @@ const IResource* ResourcesManager::get(const char* name) {
 		return nullptr;
 	}
 
-	uint32_t res_typeid = getID(ext + 1);
+	std::string res_typeid = std::string(ext + 1);
 	auto fn = factories.find(res_typeid);
 	if (fn == factories.end()) {
 		fatal("Failed to find a factory for resources of type %s, resource name %s\n", ext, name);
@@ -64,14 +57,14 @@ const IResource* ResourcesManager::get(const char* name) {
 void ResourcesManager::addResource(IResource* res) {
 	assert(res);
 	assert(strlen(res->getName()) > 0);
-	uint32_t name_id = getID(res->getName());
+	std::string name_id(res->getName());
 	resources[name_id] = res;
 }
 
 void ResourcesManager::addFactory(const char* res_typename, ResourceFactoryFn fn) {
 	assert(res_typename);
 	assert(fn);
-	uint32_t res_typeid = getID(res_typename);
+	std::string res_typeid(res_typename);
 	factories[res_typeid] = fn;
 }
 
@@ -85,9 +78,6 @@ void ResourcesManager::destroyAll() {
 
 // ------------------------------------------------------------------------------------------------------
 static ResourcesManager resources_manager;
-void onEachResource(jaba::Callback<void(IResource*)>&& fn) {
-	resources_manager.onEach(fn);
-}
 
 const IResource* getResource(const char* name) {
 	return resources_manager.get(name);

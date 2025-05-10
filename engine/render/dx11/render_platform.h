@@ -55,7 +55,7 @@ namespace RenderPlatform {
 		class CVertexShader : public CShaderBase {
 			ID3D11VertexShader* vs = nullptr;
 			ID3D11InputLayout* vtx_layout = nullptr;
-			char						   shader_vtx_type_name[64];
+			char               shader_vtx_type_name[64];
 		public:
 			void destroy();
 			bool compile(

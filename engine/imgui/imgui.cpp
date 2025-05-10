@@ -2156,14 +2156,14 @@ const char* ImStrSkipBlank(const char* str)
 // and setup the wrapper yourself. (FIXME-OPT: Some of our high-level operations such as ImGuiTextBuffer::appendfv() are
 // designed using two-passes worst case, which probably could be improved using the stbsp_vsprintfcb() function.)
 #ifdef IMGUI_USE_STB_SPRINTF
-#ifndef IMGUI_DISABLE_STB_SPRINTF_IMPLEMENTATION
-#define STB_SPRINTF_IMPLEMENTATION
-#endif
-#ifdef IMGUI_STB_SPRINTF_FILENAME
-#include IMGUI_STB_SPRINTF_FILENAME
-#else
-#include "stb_sprintf.h"
-#endif
+//#ifndef IMGUI_DISABLE_STB_SPRINTF_IMPLEMENTATION
+//#define STB_SPRINTF_IMPLEMENTATION
+//#endif
+//#ifdef IMGUI_STB_SPRINTF_FILENAME
+//#include IMGUI_STB_SPRINTF_FILENAME
+//#else
+//#include "stb_sprintf.h"
+//#endif
 #endif // #ifdef IMGUI_USE_STB_SPRINTF
 
 #if defined(_MSC_VER) && !defined(vsnprintf)
@@ -2976,11 +2976,11 @@ bool ImGuiTextFilter::PassFilter(const char* text, const char* text_end) const
 // On some platform vsnprintf() takes va_list by reference and modifies it.
 // va_copy is the 'correct' way to copy a va_list but Visual Studio prior to 2013 doesn't have it.
 #ifndef va_copy
-#if defined(__GNUC__) || defined(__clang__)
-#define va_copy(dest, src) __builtin_va_copy(dest, src)
-#else
-#define va_copy(dest, src) (dest = src)
-#endif
+//#if defined(__GNUC__) || defined(__clang__)
+//#define va_copy(dest, src) __builtin_va_copy(dest, src)
+//#else
+//#define va_copy(dest, src) (dest = src)
+//#endif
 #endif
 
 char ImGuiTextBuffer::EmptyString[1] = { 0 };

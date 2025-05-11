@@ -104,7 +104,6 @@
   <ItemGroup>
     <ClCompile Include="engine\formats\json\json.cpp" />
     <ClCompile Include="engine\formats\json\json_file.cpp" />
-    <ClCompile Include="engine\geometry\aabb.cpp" />
     <ClCompile Include="engine\geometry\angular.cpp" />
     <ClCompile Include="engine\geometry\camera.cpp" />
     <ClCompile Include="engine\geometry\geometry.cpp" />
@@ -206,6 +205,7 @@
     <ClInclude Include="engine\render\vertex_declarations.h" />
     <ClInclude Include="engine\render\vertex_types.h" />
     <ClInclude Include="engine\resources\resource.h" />
+    <ClInclude Include="engine\utils\randoms.h" />
     <ClInclude Include="engine\utils\utils.h" />
     <ClInclude Include="thread_pool.h" />
     <ClInclude Include="particles_vec.h" />

@@ -21,109 +21,109 @@ typedef struct HWND__* HWND;
 
 namespace RenderPlatform {
 
-	extern ID3D11Device* device;
-	extern ID3D11DeviceContext* ctx;
+  extern ID3D11Device* device;
+  extern ID3D11DeviceContext* ctx;
 
-	enum eCullMode {
-		eDefault
-	};
+  enum eCullMode {
+    eDefault
+  };
 
-	struct VertexDecl {
-		void* elems = nullptr;
-		size_t num_elems = 0;
-	};
+  struct VertexDecl {
+    void* elems = nullptr;
+    size_t num_elems = 0;
+  };
 
-	struct Mesh {
-		ID3D11Buffer* vb = nullptr;
-		ID3D11ShaderResourceView* srv = nullptr;
-		ID3D11Buffer* ib = nullptr;
-	};
+  struct Mesh {
+    ID3D11Buffer* vb = nullptr;
+    ID3D11ShaderResourceView* srv = nullptr;
+    ID3D11Buffer* ib = nullptr;
+  };
 
-	struct PipelineState {
+  struct PipelineState {
 
-	private:
-		class CShaderBase {
-		public:
-			std::string shader_src;
-			std::string shader_fn;
-			std::string shader_profile;
+  private:
+    class CShaderBase {
+    public:
+      std::string shader_src;
+      std::string shader_fn;
+      std::string shader_profile;
 
-			struct CShaderReflectionInfo;
-			CShaderReflectionInfo* reflection_info = nullptr;
+      struct CShaderReflectionInfo;
+      CShaderReflectionInfo* reflection_info = nullptr;
 
-			bool scanResourcesFrom(const TBuffer& Blob);
-		};
+      bool scanResourcesFrom(const TBuffer& Blob);
+    };
 
-		// -----------------------------------------
-		class CVertexShader : public CShaderBase {
-			ID3D11VertexShader* vs = nullptr;
-			ID3D11InputLayout* vtx_layout = nullptr;
-			std::string        shader_vtx_type_name;
-		public:
-			void destroy();
-			bool compile(
-				const char* szFileName
-				, const char* szEntryPoint
-				, const char* profile
-				, const char* vertex_type_name
-			);
-			void activate() const;
-			bool isValid() const { return vs != nullptr; }
-		};
+    // -----------------------------------------
+    class CVertexShader : public CShaderBase {
+      ID3D11VertexShader* vs = nullptr;
+      ID3D11InputLayout*  vtx_layout = nullptr;
+      std::string         shader_vtx_type_name;
+    public:
+      void destroy();
+      bool compile(
+        const char* szFileName
+        , const char* szEntryPoint
+        , const char* profile
+        , const char* vertex_type_name
+      );
+      void activate() const;
+      bool isValid() const { return vs != nullptr; }
+    };
 
-		// -----------------------------------------
-		class CPixelShader : public CShaderBase {
-			ID3D11PixelShader* ps = nullptr;
-		public:
-			void destroy();
-			bool compile(
-				const char* szFileName
-				, const char* szEntryPoint
-				, const char* profile
-			);
-			void activate() const;
-			bool isValid() const { return ps != nullptr; }
-		};
+    // -----------------------------------------
+    class CPixelShader : public CShaderBase {
+      ID3D11PixelShader* ps = nullptr;
+    public:
+      void destroy();
+      bool compile(
+        const char* szFileName
+        , const char* szEntryPoint
+        , const char* profile
+      );
+      void activate() const;
+      bool isValid() const { return ps != nullptr; }
+    };
 
-	public:
+  public:
 
-		CVertexShader         vs;
-		CPixelShader          ps;
+    CVertexShader         vs;
+    CPixelShader          ps;
 
-	};
+  };
 
-	struct Buffer {
-		ID3D11Buffer*             buffer = nullptr;
-		ID3D11ShaderResourceView* srv = nullptr;
-		TBuffer                   cpu_buffer;
-		bool                      dirty = false;
-	};
+  struct Buffer {
+    ID3D11Buffer* buffer = nullptr;
+    ID3D11ShaderResourceView* srv = nullptr;
+    TBuffer                   cpu_buffer;
+    bool                      dirty = false;
+  };
 
-	struct Texture {
-		ID3D11Resource*           resource = nullptr;
-		ID3D11ShaderResourceView* srv = nullptr;
-	};
+  struct Texture {
+    ID3D11Resource*           resource = nullptr;
+    ID3D11ShaderResourceView* srv = nullptr;
+  };
 
-	// -----------------------------------------
-	struct RenderToTexture {
-		ID3D11RenderTargetView*   render_target_view = nullptr;
-		ID3D11DepthStencilView*   depth_stencil_view = nullptr;
-		ID3D11ShaderResourceView* depth_srv = nullptr;
-		void destroyRT();
-		void clearRT(VEC4 color);
-		void clearDepth(float clearDepthValue = 1.0f);
-	};
+  // -----------------------------------------
+  struct RenderToTexture {
+    ID3D11RenderTargetView*   render_target_view = nullptr;
+    ID3D11DepthStencilView*   depth_stencil_view = nullptr;
+    ID3D11ShaderResourceView* depth_srv = nullptr;
+    void destroyRT();
+    void clearRT(VEC4 color);
+    void clearDepth(float clearDepthValue = 1.0f);
+  };
 
-	struct Encoder {
-		ID3D11DeviceContext* ctx = nullptr;
-	};
+  struct Encoder {
+    ID3D11DeviceContext* ctx = nullptr;
+  };
 
-	bool create( HWND hWnd );
-	void destroy();
-	bool resizeBackBuffer(int new_width, int new_height);
-	void getBackBufferSize( int* width, int* height );
-	void beginFrame( uint32_t frame_id );
-	void swapFrames();
+  bool create(HWND hWnd);
+  void destroy();
+  bool resizeBackBuffer(int new_width, int new_height);
+  void getBackBufferSize(int* width, int* height);
+  void beginFrame(uint32_t frame_id);
+  void swapFrames();
   void beginRenderingBackBuffer();
   void endRenderingBackBuffer();
 

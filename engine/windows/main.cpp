@@ -1,7 +1,7 @@
 #include "platform.h"
 #include "render/render.h"
 #include "modules/module_render.h"
-#include "./resource.h"
+#include "resource.h"
 #include <windows.h>
 #include <windowsx.h>
 #include "imgui/imgui_impl_win32.h"
@@ -15,7 +15,6 @@ static DWORD window_style = WS_OVERLAPPEDWINDOW;
 HWND hWnd;
 bool user_wants_to_exit = false;
 bool resizing_window = false;
-bool timer_installed = false;
 VEC2 windows_size;
 
 void resizeAppWindow(int w, int h) {
@@ -41,19 +40,6 @@ void myFatalHandler(const char* txt) {
   if (MessageBox(nullptr, txt, "Error", MB_RETRYCANCEL) == IDCANCEL) {
     __debugbreak();
   }
-}
-
-int translateKey(WPARAM winKey) {
-	//if( winKey >= ' ' && winKey <= 'Z' )
-	//	return (int)winKey;
-	//switch( winKey ) {
-	//case VK_SHIFT: return KeyShift;
-	//case VK_CONTROL: return KeyControl;
-	//case VK_ESCAPE: return KeyEsc;
-	//default:
-	//	break;
-	//}
-	return 0;
 }
 
 // Forward declare message handler from imgui_impl_win32.cpp
@@ -99,7 +85,6 @@ static LRESULT WINAPI MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	}
 	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
-
 
 void createWindow() {
 
@@ -155,11 +140,6 @@ void generateFrame(ModuleRender* render_module) {
 		int w,h;
 		RenderPlatform::getBackBufferSize( &w, &h );
 		render_module->generateFrame( w, h );
-
-		Modules::get().renderInMenu();
-
-		//static bool show_demo_window = true;
-		//ImGui::ShowDemoWindow(&show_demo_window);
 
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

@@ -84,7 +84,7 @@ namespace Render {
   }
 
   // -------------------------------------------------------
-  VertexDecl vdecl_pos(sizeof(TVtxPos), "Pos" );
+  VertexDecl vdecl_pos(sizeof(TVtxPos), "Pos");
   VertexDecl vdecl_pos_color(sizeof(TVtxPosColor), "PosColor");
   VertexDecl vdecl_pos_normal(sizeof(TVtxPosN), "PosN");
   VertexDecl vdecl_pos_normal_uv(sizeof(TVtxPosNUv), "PosNUv");
@@ -167,6 +167,11 @@ namespace Render {
 
   }
 
+  void drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color, const PipelineState* pso, uint32_t submesh) {
+    Instance instance = { world, color };
+    drawInstancedPrimitives(mesh, &instance, 1, pso, submesh);
+  }
+
   void VInstances::addLine(VEC3 src, VEC3 dst, VEC4 color) {
     emplace_back(MAT44::createLine(src, dst), color);
   }
@@ -179,14 +184,9 @@ namespace Render {
     emplace_back(aabb.asMatrix() * transform, color);
   }
 
-  void drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color, const PipelineState* pso, uint32_t submesh) {
-    Instance instance = { world, color };
-    drawInstancedPrimitives(mesh, &instance, 1, pso, submesh);
-  }
-
   void VSpriteInstances::drawAll() {
     if (!mesh)
-      mesh = Resource<Mesh>( "unit_quad_xy.mesh");
+      mesh = Resource<Mesh>("unit_quad_xy.mesh");
     if (!pso)
       pso = Resource<PipelineState>("sprites.pso");
     assert(pso && mesh && pso->buffers.size() == 1);

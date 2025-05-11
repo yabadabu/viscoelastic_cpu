@@ -4,8 +4,10 @@
 
 class ResourcesManager {
 
-	std::unordered_map< std::string, IResource* > resources;
-	std::unordered_map< std::string, ResourceFactoryFn >  factories;
+	using KeyType = std::string;
+
+	std::unordered_map< KeyType, IResource* > resources;
+	std::unordered_map< KeyType, ResourceFactoryFn >  factories;
 
 public:
 
@@ -23,7 +25,7 @@ public:
 };
 
 const IResource* ResourcesManager::get(const char* name) {
-	std::string name_id(name);
+	KeyType name_id(name);
 	auto it = resources.find(name_id);
 	if (it != resources.end())
 		return it->second;
@@ -34,7 +36,7 @@ const IResource* ResourcesManager::get(const char* name) {
 		return nullptr;
 	}
 
-	std::string res_typeid = std::string(ext + 1);
+	KeyType res_typeid(ext + 1);
 	auto fn = factories.find(res_typeid);
 	if (fn == factories.end()) {
 		fatal("Failed to find a factory for resources of type %s, resource name %s\n", ext, name);

@@ -4,7 +4,6 @@ typedef unsigned char u8;
 typedef unsigned long long u64;
 typedef unsigned int uint32_t;
 typedef uint32_t u32;                       // This is just what we need from <cstdint>
-static constexpr u32 invalid_id = ~0;
 
 // --------------------------------------------------
 void dbg(const char* fmt, ...);
@@ -15,4 +14,3 @@ TSysOutputHandler setDebugHandler(TSysOutputHandler new_handler);
 TSysOutputHandler setFatalHandler(TSysOutputHandler new_handler);
 
 #include "randoms.h"
-#include "make_id.h"

@@ -31,7 +31,7 @@ void Modules::update() {
   frame_time.now += frame_time.elapsed;
   frame_time.frame_id++;
   const float max_elapsed_time = 5.0f / 60.0f;
-  if(frame_time.elapsed > max_elapsed_time) frame_time.elapsed = max_elapsed_time;
+  if (frame_time.elapsed > max_elapsed_time) frame_time.elapsed = max_elapsed_time;
 
   for (int i = 0; i < nmodules_registered; ++i) {
     Module* m = modules_registered[i];
@@ -40,7 +40,7 @@ void Modules::update() {
 
 }
 
-static bool sortByPrioriry( const Module* m1, const Module* m2 ) {
+static bool sortByPrioriry(const Module* m1, const Module* m2) {
   return m1->getPriority() < m2->getPriority();
 }
 
@@ -48,35 +48,35 @@ void Modules::load() {
   PROFILE_SCOPED_NAMED("Modules::Load");
   modules_running = true;
 
-  std::sort( modules_registered, modules_registered + nmodules_registered, sortByPrioriry );
+  std::sort(modules_registered, modules_registered + nmodules_registered, sortByPrioriry);
 
-  for( int i = 0; i<nmodules_registered; ++i ) {
+  for (int i = 0; i < nmodules_registered; ++i) {
     Module* m = modules_registered[i];
     PROFILE_SCOPED_NAMED(m->getName());
-    dbg( "Loading module %s\n", m->getName());
+    dbg("Loading module %s\n", m->getName());
     modules_registered[i]->setLoaded(true);
   }
 }
 
 void Modules::unload() {
-  dbg( "There are %d modules registered\n", nmodules_registered);
+  dbg("There are %d modules registered\n", nmodules_registered);
   // Process the events in reverse order
-  for( int i = 0; i<nmodules_registered; ++i ) {
-    assert( nmodules_registered - 1 - i >= 0 );
+  for (int i = 0; i < nmodules_registered; ++i) {
+    assert(nmodules_registered - 1 - i >= 0);
     Module* m = modules_registered[nmodules_registered - 1 - i];
-    dbg( "Unloading module %s\n", m->getName());
+    dbg("Unloading module %s\n", m->getName());
     modules_registered[i]->setLoaded(false);
   }
-  dbg( "Modules::unload completed\n");
+  dbg("Modules::unload completed\n");
 }
 
 Module* Modules::getModule(const char* mod_name) {
-  for( int i = 0; i<nmodules_registered; ++i ) {
+  for (int i = 0; i < nmodules_registered; ++i) {
     Module* m = modules_registered[i];
-    if( strcmp( m->getName(), mod_name ) == 0 )
+    if (strcmp(m->getName(), mod_name) == 0)
       return m;
   }
-  fatal( "Failed to find module '%s'\n", mod_name );
+  fatal("Failed to find module '%s'\n", mod_name);
   return nullptr;
 }
 

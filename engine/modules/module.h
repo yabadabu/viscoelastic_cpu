@@ -1,27 +1,25 @@
 #pragma once
 
-struct TBuffer;
-
 // -------------------------------------------------------
 struct Module {
   bool is_loaded = false;
   Module();
-  virtual void load() { }
-  virtual void unload() { }
+  virtual void load() {}
+  virtual void unload() {}
   virtual int getPriority() const { return 50; }
   virtual const char* getName() const = 0;
 
   virtual void onRender3D() {}
   virtual void renderInMenu() {}
-  virtual void update() { }
+  virtual void update() {}
 
-  void setLoaded(bool new_is_loaded ) {
+  void setLoaded(bool new_is_loaded) {
     if (is_loaded == new_is_loaded)
       return;
     is_loaded = new_is_loaded;
-    if (new_is_loaded) 
+    if (new_is_loaded)
       load();
-    else 
+    else
       unload();
   }
 };
@@ -39,7 +37,7 @@ class Modules {
 
 public:
   void registerModule(Module* new_module);
-  
+
   static Modules& get();
   void load();
   void update();

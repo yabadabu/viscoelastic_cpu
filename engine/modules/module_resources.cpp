@@ -3,9 +3,7 @@
 #include "module_render.h"
 #include "render/render.h"
 #include "render/primitives.h"
-//#include "render/manager.h"
 #include "render/color.h"
-//#include "formats/mesh/io_mesh.h"
 
 using namespace Render;
 
@@ -24,31 +22,11 @@ IResource* createMesh(const std::string& name) {
   //else if (sname == "quad_xy_01.mesh") createQuadXY(mesh, 1.0f, VEC2(0.5f, 0.5f));
   //else if (sname == "quad_xy_01_textured.mesh") createQuadXYTextured(mesh, 1.0f, 2, VEC2(0.5f, 0.5f));
   //else if (sname == "cube.mesh") createUnitCube(mesh);
-  //else
-  //  return nullptr;
+  else
+    return nullptr;
   mesh->setName(name.c_str());
   return mesh;
 }
-
-IResource* createPlatformTexture(const char* name) {
-  TBuffer ibuf;
-  if (!ibuf.load(name))
-    return nullptr;
-  Render::Texture* obj = new Render::Texture();
-  if (!obj->decodeFrom(ibuf)) {
-    delete obj;
-    return nullptr;
-  }
-  obj->setName(name);
-  return obj;
-}
-
-//template< typename T>
-//const T* readResource(const json& j, const char* attr_name, const char* default_value = nullptr) {
-//  const char* res_name = j.value(attr_name, default_value);
-//  if (!res_name) return nullptr;
-//  return Resource<T>(res_name);
-//}
 
 template<>
 void load(json j, Render::Buffer const*& buffer) {
@@ -96,6 +74,10 @@ struct ModuleResources : public Module {
       addResource(res);
       });
 
+  }
+
+  void unload() override {
+    destroyAllResources();
   }
 
 };

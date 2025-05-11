@@ -90,3 +90,7 @@ void addResourcesFactory(const char* res_typename, ResourceFactoryFn fn) {
 void addResource(IResource* res) {
 	resources_manager.addResource( res );
 }
+
+void destroyAllResources() {
+	resources_manager.destroyAll();
+}

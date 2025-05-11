@@ -174,7 +174,10 @@ struct ViscoelasticModule : public Module {
       lines.drawAll();
     }
 
-    sim.sdf.renderWire();
+    {
+      PROFILE_SCOPED_NAMED("SDFs");
+      sim.sdf.renderWire();
+    }
     sim.saveTime(ViscoelasticSim::eSection::Render, tm);
   }
 
@@ -295,6 +298,7 @@ struct ViscoelasticModule : public Module {
       num_particles_m0 = 8192;
       num_particles_m1 = 8192;
       num_particles_m2 = 8192;
+      sim.using_parallel = true;
       sim.num_particles = 0;
       sim.sdf.prims[3].transform.setPosition(VEC3(0, 0, -5.0));
       sim.sdf.prims[3].transformHasChanged();

@@ -81,15 +81,19 @@ Module* Modules::getModule(const char* mod_name) {
 }
 
 void Modules::onRender3D() {
+  PROFILE_SCOPED_NAMED("onRender3D");
   for (int i = 0; i < nmodules_registered; ++i) {
     Module* m = modules_registered[i];
+    PROFILE_SCOPED_NAMED(m->getName());
     m->onRender3D();
   }
 }
 
 void Modules::renderInMenu() {
+  PROFILE_SCOPED_NAMED("ImGui");
   for (int i = 0; i < nmodules_registered; ++i) {
     Module* m = modules_registered[i];
+    PROFILE_SCOPED_NAMED(m->getName());
     m->renderInMenu();
   }
 }

@@ -131,20 +131,26 @@ bool processOSMsgs() {
 void generateFrame(ModuleRender* render_module) {
 	static uint32_t frame_id = 0;
 
-	ImGui_ImplDX11_NewFrame();
-	ImGui_ImplWin32_NewFrame();
-	ImGui::NewFrame();
-	ImGuizmo::BeginFrame();
+	{
+		PROFILE_SCOPED_NAMED("ImGui.Beg");
+		ImGui_ImplDX11_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+		ImGuizmo::BeginFrame();
+	}
 
-		RenderPlatform::beginFrame( ++frame_id );
-		int w,h;
-		RenderPlatform::getBackBufferSize( &w, &h );
-		render_module->generateFrame( w, h );
+	RenderPlatform::beginFrame( ++frame_id );
+	int w,h;
+	RenderPlatform::getBackBufferSize( &w, &h );
+	render_module->generateFrame( w, h );
 
-	ImGui::Render();
-	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-	ImGui::UpdatePlatformWindows();
-	ImGui::RenderPlatformWindowsDefault();
+	{
+		PROFILE_SCOPED_NAMED("ImGui.End");
+		ImGui::Render();
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
 	RenderPlatform::swapFrames();
 }
 
@@ -176,9 +182,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
   assert(render_module);
   
   while (true) {
-	  while(processOSMsgs()) { }
-		if (user_wants_to_exit)
-			break;
+		{
+			PROFILE_SCOPED_NAMED("OS");
+			while (processOSMsgs()) {}
+			if (user_wants_to_exit)
+				break;
+		}
 
 		PROFILE_BEGIN_FRAME();
 		PROFILE_SCOPED_NAMED("Frame");

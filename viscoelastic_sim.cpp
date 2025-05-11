@@ -421,12 +421,18 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
     float near_density = 0.0f;
     int num_nears = 0;
 
+    // Iterate over all 27 non-empty surrounding cells
     using u32 = uint32_t;
     for (u32 r = 0; r < near_ranges.n && num_nears < max_nears; ++r) {
+
+      // All the particles in a cell are stored in continuous range
       u32 first = near_ranges.ranges[r].first;
       u32 last = near_ranges.ranges[r].last;
       for (u32 j = first; j < last && num_nears < max_nears; j += 8) {
+
         int count = last - j;
+        // We process particles in blocks of 8.
+        // If the block is smaller than 8, pass a mask to discard those particles slots
         int mask_range = (1 << std::min(8, count)) - 1;
         collect_neighbors_block(
           ppos,
@@ -517,59 +523,58 @@ void ViscoelasticSim::updateStep(float dt) {
   // Apply external forces
   {
     TTimer tm;
-    {
-      PROFILE_SCOPED_NAMED("velocities");
-      VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
-      simd_add_velocity_scaled_by_type(particles_vels, particles_type, masses, delta_velocity, num_particles);
-      saveTime(eSection::VelocitiesUpdate, tm);
-    }
+    PROFILE_SCOPED_NAMED("velocities");
+    VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
+    simd_add_velocity_scaled_by_type(particles_vels, particles_type, masses, delta_velocity, num_particles);
+    saveTime(eSection::VelocitiesUpdate, tm);
+  }
 
-    {
-      PROFILE_SCOPED_NAMED("ext forces");
-      float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
-      attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
-      float ar_non_zero = attrack_repel != 0.0f;
-      if (ar_non_zero || drag) {
-        for (int i = 0; i < num_particles; ++i) {
-          VEC3 delta = particles_pos.get(i) - mouse;
-          float dist_sq = delta.lengthSquared();
-          if (dist_sq > 100000 || dist_sq < 0.1)
-            continue;
-          if (ar_non_zero) {
-            const float dist = sqrtf(dist_sq);
-            const float inv_dist = 1.0f / dist;
-            delta *= inv_dist;
-            particles_vels.add(i, attrack_repel * (-delta));
-          }
-          else
-            particles_vels.add(i, mouse_drag);
-        }
-      }
-    }
-
-    {
-      TTimer tm;
-      PROFILE_SCOPED_NAMED("predict position");
-      particles_prev_pos.copyFrom(particles_pos, num_particles);
-      simd_update_positions(particles_pos, particles_vels, dt, num_particles);
-      saveTime(eSection::PredictPositions, tm);
-    }
-
-    {
-      PROFILE_SCOPED_NAMED("freeze_positions");
-      particles_frozen_pos.copyFrom(particles_pos, num_particles);
-    }
-
-    if (in_2d) {
+  {
+    PROFILE_SCOPED_NAMED("ext forces");
+    float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
+    attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
+    float ar_non_zero = attrack_repel != 0.0f;
+    if (ar_non_zero || drag) {
       for (int i = 0; i < num_particles; ++i) {
-        particles_pos.x[i] = 0.01f;
-        particles_vels.x[i] = 0.0;
+        VEC3 delta = particles_pos.get(i) - mouse;
+        float dist_sq = delta.lengthSquared();
+        if (dist_sq > 100000 || dist_sq < 0.1)
+          continue;
+        if (ar_non_zero) {
+          const float dist = sqrtf(dist_sq);
+          const float inv_dist = 1.0f / dist;
+          delta *= inv_dist;
+          particles_vels.add(i, attrack_repel * (-delta));
+        }
+        else
+          particles_vels.add(i, mouse_drag);
       }
     }
   }
 
   {
     TTimer tm;
+    PROFILE_SCOPED_NAMED("predict position");
+    particles_prev_pos.copyFrom(particles_pos, num_particles);
+    simd_update_positions(particles_pos, particles_vels, dt, num_particles);
+    saveTime(eSection::PredictPositions, tm);
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("freeze_positions");
+    particles_frozen_pos.copyFrom(particles_pos, num_particles);
+  }
+
+  if (in_2d) {
+    for (int i = 0; i < num_particles; ++i) {
+      particles_pos.x[i] = 0.01f;
+      particles_vels.x[i] = 0.0;
+    }
+  }
+
+  {
+    TTimer tm;
+    PROFILE_SCOPED_NAMED("relaxation");
     if (using_parallel)
       doubleDensityRelaxationPara(dt, *pool);
     else
@@ -579,6 +584,7 @@ void ViscoelasticSim::updateStep(float dt) {
 
   {
     TTimer tm;
+    PROFILE_SCOPED_NAMED("collisions");
     runInParallel(num_particles, num_threads * 3, [&](int start, int end, int job_id) {
       resolveCollisions(dt, start, end);
       });

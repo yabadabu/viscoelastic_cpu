@@ -135,18 +135,6 @@ namespace Render {
       gpu_instances = (Buffer*)Resource<Buffer>("instances.buffer");
   }
 
-  void allocInstancedPrimitives(const Instance* instances_data, uint32_t ninstances) {
-    if (!ninstances)
-      return;
-    assert(instances_data);
-    Encoder* encoder = getMainEncoder();
-    assert(encoder);
-    assert(gpu_instances);
-    assert(ninstances * sizeof(Instance) <= gpu_instances->size());
-    assert(sizeof(Instance) == gpu_instances->bytes_per_instance);
-    encoder->setBufferContents(gpu_instances, instances_data, ninstances * gpu_instances->bytes_per_instance);
-  }
-
   void drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const Render::PipelineState* pso, uint32_t submesh) {
 
     if (!data || !ninstances)

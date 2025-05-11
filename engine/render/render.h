@@ -188,7 +188,6 @@ namespace Render {
     eDepthState          depth_state = eDepthState::DEFAULT;
     eRSConfig            rs_cfg = eRSConfig::DEFAULT;
     eBlendConfig         blend_cfg = eBlendConfig::DEFAULT;
-    const PipelineState* shadows_pso = nullptr;
 
     std::vector<const Texture*> textures;
     std::vector<const Buffer*> buffers;
@@ -234,7 +233,6 @@ namespace Render {
   // -------------------------------------------------------
   void drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const PipelineState* pso = nullptr, uint32_t submesh = 0);
   void drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color = VEC4(1,1,1,1), const PipelineState* pso = nullptr, uint32_t submesh = 0);
-  void allocInstancedPrimitives(const Instance* instances_data, uint32_t ninstances);
   void frameStarts();
 
   template< typename InstanceData >
@@ -260,10 +258,6 @@ namespace Render {
       drawInstancedPrimitives(mesh, std::vector< InstanceData >::data(), (uint32_t)std::vector< InstanceData >::size(), in_pso ? in_pso : pso );
     }
     const Mesh* getMesh() const { return mesh; }
-    void drawAsShadowCasters( ) const {
-      if( pso && pso->shadows_pso )
-        drawAll( pso->shadows_pso );
-    }
   };
 
   class VInstances : public InstancesData< Instance > {

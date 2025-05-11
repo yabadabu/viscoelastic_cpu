@@ -12,7 +12,3 @@ struct ModuleRender : public Module {
 };
 
 #include "../../data/shaders/constants.h"
-
-CteObject* getCteObjectsData(uint32_t idx = 0 );
-uint32_t allocCteObjects( uint32_t count );
-void      freeCteObjects( uint32_t first, uint32_t count );

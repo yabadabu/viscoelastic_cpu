@@ -72,7 +72,7 @@ struct VEC4 {
   VEC4() : x(0), y(0), z(0), w(0) {}
   VEC4(float k) : x(k), y(k), z(k), w(k) {}
   VEC4(const VEC3& xyz, float new_w);
-  VEC4(float ax, float ay, float az, float aw) : x(ax), y(ay), z(az), w(aw) {}
+  constexpr VEC4(float ax, float ay, float az, float aw) : x(ax), y(ay), z(az), w(aw) {}
   VEC4 operator-() const { return VEC4(-x, -y, -z, -w); }
   float length() const { return sqrtf(x * x + y * y + z * z + w * w); }
   float dot(const VEC4 b) const { return x * b.x + y * b.y + z * b.z + w * b.w; }

@@ -101,7 +101,7 @@ struct ViscoelasticModule : public Module {
     drawCell( cell_info.coords );
   }
 
-  void onRenderDebug3D() {
+  void onRender3D() {
     TTimer tm;
 
     float sim_to_world_factor = 1.0f / sim.world_scale;

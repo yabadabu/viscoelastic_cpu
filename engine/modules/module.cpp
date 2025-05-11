@@ -80,10 +80,10 @@ Module* Modules::getModule(const char* mod_name) {
   return nullptr;
 }
 
-void Modules::onRenderDebug3D() {
+void Modules::onRender3D() {
   for (int i = 0; i < nmodules_registered; ++i) {
     Module* m = modules_registered[i];
-    m->onRenderDebug3D();
+    m->onRender3D();
   }
 }
 

@@ -198,10 +198,11 @@ namespace Render {
   void VSpriteInstances::drawAll() {
     if (!mesh)
       mesh = Resource<Mesh>( "unit_quad_xy.mesh");
-    const PipelineState* pso = Resource<PipelineState>("sprites.pso");
-    assert(pso && mesh);
+    if (!pso)
+      pso = Resource<PipelineState>("sprites.pso");
+    assert(pso && mesh && pso->buffers.size() == 1);
     uint32_t ninstances = (uint32_t)size();
-    Buffer* gpu_instances = (Buffer*)(Resource<Buffer>("sprite_instances.buffer"));
+    Buffer* gpu_instances = (Buffer*)pso->buffers[0];
 
     Encoder* encoder = getMainEncoder();
     assert(encoder);
@@ -218,29 +219,6 @@ namespace Render {
       bytes += block_size_bytes;
     }
 
-
-    //Render::TCmdBuffer cmd;
-    //cmd.setDepthState(Render::eDepthState::DEFAULT);
-    //cmd.setPipelineState(*pipe);
-    //cmd.activateMesh(*mesh);
-    //const u8* bytes = (const u8*)data();
-    //uint32_t remaining = ninstances;
-    //while (remaining > 0) {
-    //  uint32_t block = std::min(remaining, gpu_data->num_elems);
-    //  uint32_t block_size_bytes = block * gpu_data->bytes_per_elem;
-    //  if (block < gpu_data->num_elems) {
-    //    // updateBuffer will read block_size_data from data, to avoid 
-    //    // reading from uninitialized memory
-    //    memcpy((void*)gpu_data->cpu_data.data(), bytes, block_size_bytes);
-    //    cmd.updateBuffer(*gpu_data, gpu_data->cpu_data.data());
-    //  }
-    //  else {
-    //    cmd.updateBuffer(*gpu_data, bytes);
-    //  }
-    //  cmd.drawInstanced(*mesh, block);
-    //  remaining -= block;
-    //  bytes += block_size_bytes;
-    //}
   }
 
 }

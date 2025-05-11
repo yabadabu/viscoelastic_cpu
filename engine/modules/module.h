@@ -11,7 +11,7 @@ struct ENGINE_API Module {
   virtual int getPriority() const { return 50; }
   virtual const char* getName() const = 0;
 
-  virtual void onRenderDebug3D() {} 
+  virtual void onRender3D() {}
   virtual void renderInMenu() {}
   virtual void update() { }
 
@@ -44,7 +44,7 @@ public:
   void load();
   void update();
   void unload();
-  void onRenderDebug3D();
+  void onRender3D();
   void renderInMenu();
 
   Module* getModule(const char* mod_name);

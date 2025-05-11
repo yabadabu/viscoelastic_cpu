@@ -80,7 +80,7 @@ void ModuleRender::generateFrame(int w, int h) {
   RenderPlatform::beginRenderingBackBuffer();
   activateCamera(Render::getCurrentRenderCamera(), w, h);
 
-  Modules::get().onRenderDebug3D();
+  Modules::get().onRender3D();
 
   //renderCategory(camera, Render::CategorySolids, "Solids");
   //renderCategory(camera, Render::CategoryPostFX, "FX");

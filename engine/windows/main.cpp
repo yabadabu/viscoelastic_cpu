@@ -151,9 +151,6 @@ void generateFrame(ModuleRender* render_module) {
 	ImGui::NewFrame();
 	ImGuizmo::BeginFrame();
 
-	PROFILE_BEGIN_FRAME();
-	PROFILE_SCOPED_NAMED("Frame");
-
 		RenderPlatform::beginFrame( ++frame_id );
 		int w,h;
 		RenderPlatform::getBackBufferSize( &w, &h );
@@ -203,6 +200,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		if (user_wants_to_exit)
 			break;
 
+		PROFILE_BEGIN_FRAME();
+		PROFILE_SCOPED_NAMED("Frame");
 	  Modules::get().update();
 	  generateFrame( render_module );
   }

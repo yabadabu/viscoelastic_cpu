@@ -579,7 +579,7 @@ void ViscoelasticSim::updateStep(float dt) {
 
   {
     TTimer tm;
-    runInParallel(num_particles, num_threads * 6, [&](int start, int end, int job_id) {
+    runInParallel(num_particles, num_threads * 3, [&](int start, int end, int job_id) {
       resolveCollisions(dt, start, end);
       });
     saveTime(eSection::Collisions, tm);

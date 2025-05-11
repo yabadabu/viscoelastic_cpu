@@ -5,13 +5,11 @@
 class ResourcesManager {
 
 	std::unordered_map< std::string, IResource* > resources;
-	std::unordered_map< std::string, ResourceFactoryFn >  factories;
 
 public:
 
 	const IResource* get(const char* name);
 	void addResource(IResource* res);
-	void addFactory(const char* res_typename, ResourceFactoryFn fn);
 	void destroyAll();
 
 	template< typename Fn>
@@ -27,31 +25,8 @@ const IResource* ResourcesManager::get(const char* name) {
 	auto it = resources.find(name_id);
 	if (it != resources.end())
 		return it->second;
-
-	const char* ext = strrchr(name, '.');		// .mesh
-	if (!ext) {
-		fatal("Failed to identify extension in resource: '%s'\n", name);
-		return nullptr;
-	}
-
-	std::string res_typeid = std::string(ext + 1);
-	auto fn = factories.find(res_typeid);
-	if (fn == factories.end()) {
-		fatal("Failed to find a factory for resources of type %s, resource name %s\n", ext, name);
-		return nullptr;
-	}
-	assert(fn != factories.end());
-
-	IResource* new_res = (*fn->second)(name);
-	if (!new_res) {
-		fatal("Failed to create resource '%s' using factory of type %s\n", name, ext);
-		return nullptr;
-	}
-
-	new_res->setName(name);
-	dbg("Adding resource %s\n", name);
-	addResource(new_res);
-	return new_res;
+	fatal("Failed to find resource %s", name);
+	return nullptr;
 }
 
 void ResourcesManager::addResource(IResource* res) {
@@ -59,13 +34,6 @@ void ResourcesManager::addResource(IResource* res) {
 	assert(strlen(res->getName()) > 0);
 	std::string name_id(res->getName());
 	resources[name_id] = res;
-}
-
-void ResourcesManager::addFactory(const char* res_typename, ResourceFactoryFn fn) {
-	assert(res_typename);
-	assert(fn);
-	std::string res_typeid(res_typename);
-	factories[res_typeid] = fn;
 }
 
 void ResourcesManager::destroyAll() {
@@ -81,10 +49,6 @@ static ResourcesManager resources_manager;
 
 const IResource* getResource(const char* name) {
 	return resources_manager.get(name);
-}
-
-void addResourcesFactory(const char* res_typename, ResourceFactoryFn fn) {
-	resources_manager.addFactory( res_typename, fn );
 }
 
 void addResource(IResource* res) {

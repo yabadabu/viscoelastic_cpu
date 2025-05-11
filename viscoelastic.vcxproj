@@ -104,7 +104,6 @@
   <ItemGroup>
     <ClCompile Include="engine\formats\json\json.cpp" />
     <ClCompile Include="engine\formats\json\json_file.cpp" />
-    <ClCompile Include="engine\geometry\aabb.cpp" />
     <ClCompile Include="engine\geometry\angular.cpp" />
     <ClCompile Include="engine\geometry\camera.cpp" />
     <ClCompile Include="engine\geometry\geometry.cpp" />

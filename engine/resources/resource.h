@@ -17,14 +17,10 @@ struct IResource {
 	}
 };
 
-using ResourceFactoryFn = IResource * (*)(const char*);
 
 const IResource* getResource(const char* name);
 void destroyAllResources();
-void addResourcesFactory(const char* res_typename, ResourceFactoryFn fn);
 void addResource(IResource* res);
-
-//void onEachResource(jaba::Callback<void(IResource*)>&& fn);
 
 template< typename T >
 const T* Resource(const char* res_name) {

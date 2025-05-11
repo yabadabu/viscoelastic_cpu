@@ -6,7 +6,7 @@ namespace SDF {
   float sdBox(VEC3 p, VEC3 radius, float softness);
   float sdPlane(VEC3 p, VEC3 n, float h);
 
-  struct ENGINE_API Primitive {
+  struct Primitive {
     enum class eType {
       SPHERE,
       BOX,
@@ -30,7 +30,7 @@ namespace SDF {
     bool renderInMenu();
   };
 
-  struct ENGINE_API sdFunc {
+  struct sdFunc {
     std::vector< Primitive > prims;
     float eval(VEC3 p) const;
     VEC3  evalGrad(VEC3 p) const;
@@ -95,6 +95,6 @@ namespace SDF {
 
   enum class eSide { INTERIOR, CONTOUR, EXTERIOR };
 
-  struct ENGINE_API Image;
+  struct Image;
 }
 

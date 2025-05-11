@@ -1,6 +1,6 @@
 #pragma once
 
-struct ENGINE_API IResource {
+struct IResource {
 	char name[64] = { 0x00 };
 	virtual ~IResource() { }
 	virtual void destroy() { }
@@ -19,10 +19,10 @@ struct ENGINE_API IResource {
 
 using ResourceFactoryFn = IResource * (*)(const char*);
 
-ENGINE_API const IResource* getResource(const char* name);
-ENGINE_API void destroyAllResources();
-ENGINE_API void addResourcesFactory(const char* res_typename, ResourceFactoryFn fn);
-ENGINE_API void addResource(IResource* res);
+const IResource* getResource(const char* name);
+void destroyAllResources();
+void addResourcesFactory(const char* res_typename, ResourceFactoryFn fn);
+void addResource(IResource* res);
 
 //void onEachResource(jaba::Callback<void(IResource*)>&& fn);
 

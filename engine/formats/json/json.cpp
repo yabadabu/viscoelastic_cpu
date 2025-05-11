@@ -563,25 +563,25 @@ const JObj *JObj::TArray::at(size_t n) const {
 
 // -------------------------------------------------------------------------------------
 template<>
-ENGINE_API void load(json j, float& v) {
+void load(json j, float& v) {
 	assert(j.isLiteral());
   v =(float)atof(j.obj->literal.text);
 }
 
 template<>
-ENGINE_API void load(json j, double& v) {
+void load(json j, double& v) {
   assert(j.isLiteral());
   v = atof(j.obj->literal.text);
 }
 
 template<>
-ENGINE_API void load(json j, int& v) {
+void load(json j, int& v) {
 	assert(j.isLiteral());
 	v = (int)atol(j.obj->literal.text);
 }
 
 template<>
-ENGINE_API void load(json j, bool& v) {
+void load(json j, bool& v) {
 	assert(j.isLiteral());
 	const JObj* jv = j.obj;
 	if (jv->literal.type == JObj::LITERAL_BOOL_FALSE)

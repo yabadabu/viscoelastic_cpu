@@ -6,12 +6,12 @@ class json;
 struct JObj;
 
 template< typename T>
-ENGINE_API void load(json j, T& t);
+void load(json j, T& t);
 
 template< typename T>
 void tryLoad(json j, T& t);
 
-class ENGINE_API json {
+class json {
 
 	const JObj* obj = nullptr;
 	friend class JsonParser;

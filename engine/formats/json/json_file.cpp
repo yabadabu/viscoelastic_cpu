@@ -1,7 +1,7 @@
 #include "platform.h"
 #include "json_file.h"
 
-template <> ENGINE_API void load(json j, VEC2& v) {
+template <> void load(json j, VEC2& v) {
   if (j.isArray()) {
     v.x = j[(size_t)0];
     v.y = j[(size_t)1];
@@ -16,7 +16,7 @@ template <> ENGINE_API void load(json j, VEC2& v) {
     v = VEC2(0, 0);
 }
 
-template <> ENGINE_API void load(json j, VEC3& v) {
+template <> void load(json j, VEC3& v) {
   if (j.isArray()) {
     v.x = j[(size_t)0];
     v.y = j[(size_t)1];
@@ -32,7 +32,7 @@ template <> ENGINE_API void load(json j, VEC3& v) {
     v = VEC3(0, 0, 0);
 }
 
-template <> ENGINE_API void load(json j, VEC4& v) {
+template <> void load(json j, VEC4& v) {
   if (j.isArray()) {
     v.x = j[(size_t)0];
     v.y = j[(size_t)1];
@@ -49,7 +49,7 @@ template <> ENGINE_API void load(json j, VEC4& v) {
     v = VEC4(0, 0, 0, 0);
 }
 
-template <> ENGINE_API void load(json j, QUAT& v) {
+template <> void load(json j, QUAT& v) {
   if (!j.is_string()) {
     v = QUAT();
     return;

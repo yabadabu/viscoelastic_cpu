@@ -83,7 +83,7 @@ namespace Render {
   };
 
   // -------------------------------------------------------
-  struct ENGINE_API Mesh : public RenderPlatform::Mesh, public IResource {
+  struct Mesh : public RenderPlatform::Mesh, public IResource {
     uint32_t           nvertices = 0;
     uint32_t           nindices = 0;
     ePrimitiveType     primitive_type = ePrimitiveType::eInvalidPrimitiveType;
@@ -127,7 +127,7 @@ namespace Render {
   };
 
   // -------------------------------------------------------
-  struct ENGINE_API Texture : public RenderPlatform::Texture, public IResource {
+  struct Texture : public RenderPlatform::Texture, public IResource {
     bool create(uint32_t width, uint32_t height, const void* raw_data, eFormat fmt, int num_mips);
     bool decodeFrom(const TBuffer& buffer);
     void destroy() override;
@@ -135,7 +135,7 @@ namespace Render {
   };
 
   // -------------------------------------------------------
-  struct ENGINE_API RenderToTexture : public Texture, public RenderPlatform::RenderToTexture {
+  struct RenderToTexture : public Texture, public RenderPlatform::RenderToTexture {
       // We are owners of this texture
       Texture*                  depth_texture = nullptr;
       int                       width = 0;
@@ -148,7 +148,7 @@ namespace Render {
   };
 
   // -------------------------------------------------------
-  struct ENGINE_API Buffer : public RenderPlatform::Buffer, public IResource {
+  struct Buffer : public RenderPlatform::Buffer, public IResource {
     int                slot = 0;
     uint32_t           bytes_per_instance = 0;
     uint32_t           num_instances = 1;
@@ -161,7 +161,7 @@ namespace Render {
   };
 
   template< typename T > 
-  struct ENGINE_API TypedBuffer : public Buffer {
+  struct TypedBuffer : public Buffer {
     bool create( int in_slot, const char* label, uint32_t in_num_instances = 1) {
       slot = in_slot;
       num_instances = in_num_instances;
@@ -181,7 +181,7 @@ namespace Render {
   };
 
   // -------------------------------------------------------
-  struct ENGINE_API PipelineState : public RenderPlatform::PipelineState, public IResource {
+  struct PipelineState : public RenderPlatform::PipelineState, public IResource {
     const VertexDecl* vertex_decl = nullptr;
     int                  priority = 0;
     uint32_t             category = CategorySolids;
@@ -204,7 +204,7 @@ namespace Render {
   };
 
   // -------------------------------------------------------
-  struct ENGINE_API Encoder : public RenderPlatform::Encoder {
+  struct Encoder : public RenderPlatform::Encoder {
     void drawMesh( const Mesh* mesh, uint32_t submesh = 0 );
     void drawInstancedMesh( const Mesh* mesh, int ninstances, uint32_t submesh = 0 );
     void setRenderPipelineState( const PipelineState* in_pipeline );
@@ -217,7 +217,7 @@ namespace Render {
   };
   
   void setMainEncoder( Encoder* in_encoder );
-  ENGINE_API Encoder* getMainEncoder( );
+  Encoder* getMainEncoder( );
   
   // -------------------------------------------------------
   // To render in a single batch
@@ -232,13 +232,13 @@ namespace Render {
   };
 
   // -------------------------------------------------------
-  void ENGINE_API drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const PipelineState* pso = nullptr, uint32_t submesh = 0);
-  void ENGINE_API drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color = VEC4(1,1,1,1), const PipelineState* pso = nullptr, uint32_t submesh = 0);
-  void ENGINE_API allocInstancedPrimitives(const Instance* instances_data, uint32_t ninstances);
+  void drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const PipelineState* pso = nullptr, uint32_t submesh = 0);
+  void drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color = VEC4(1,1,1,1), const PipelineState* pso = nullptr, uint32_t submesh = 0);
+  void allocInstancedPrimitives(const Instance* instances_data, uint32_t ninstances);
   void frameStarts();
 
   template< typename InstanceData >
-  class ENGINE_API InstancesData : public std::vector< InstanceData > {
+  class InstancesData : public std::vector< InstanceData > {
   protected:
     const Mesh* mesh = nullptr;
     const PipelineState* pso = nullptr;
@@ -266,7 +266,7 @@ namespace Render {
     }
   };
 
-  class ENGINE_API VInstances : public InstancesData< Instance > {
+  class VInstances : public InstancesData< Instance > {
   public:
     VInstances() = default;
     VInstances(const char* in_mesh_name, const char* in_pso_name = nullptr) : InstancesData< Instance >( in_mesh_name, in_pso_name ) {} ;
@@ -284,14 +284,14 @@ namespace Render {
     SpriteInstance(VEC3 apos, float ascale, VEC4 acolor) : pos(apos), scale(ascale), color(acolor) {}
   };
 
-  class ENGINE_API VSpriteInstances : public InstancesData< SpriteInstance > {
+  class VSpriteInstances : public InstancesData< SpriteInstance > {
   public:
     void drawAll();
   };
 
   // ---------------------------------------------------------------------
-  ENGINE_API void drawCameraVolume(const CCamera& camera, VEC4 color);
-  ENGINE_API CCamera* getCurrentRenderCamera();
+  void drawCameraVolume(const CCamera& camera, VEC4 color);
+  CCamera* getCurrentRenderCamera();
 }
 
 

@@ -3,7 +3,7 @@
 #include "json.h"
 #include "memory/buffer.h"
 
-struct ENGINE_API JsonFile {
+struct JsonFile {
 
   TBuffer     buf;
   JsonParser* parser = nullptr;

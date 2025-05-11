@@ -28,11 +28,11 @@ namespace Profiling {
   void start();
   void stop();
   bool isCapturing();
-  void ENGINE_API triggerCapture(uint32_t nframes);
-  void ENGINE_API frameBegins();
-  void ENGINE_API setCurrentThreadName(const char* new_name);
+  void triggerCapture(uint32_t nframes);
+  void frameBegins();
+  void setCurrentThreadName(const char* new_name);
 
-  struct ENGINE_API TScoped {
+  struct TScoped {
     uint32_t n;
     TScoped(const char* txt) {
       n = enterDataDataContainer(txt);

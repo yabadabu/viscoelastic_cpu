@@ -3,7 +3,7 @@
 struct MAT44;
 
 // ---------------------------------------------------------------------
-struct ENGINE_API VEC3 {
+struct VEC3 {
   float x, y, z;
   VEC3() : x(0), y(0), z(0) {}
   VEC3(float ax, float ay, float az) : x(ax), y(ay), z(az) {}
@@ -55,11 +55,11 @@ struct ENGINE_API VEC3 {
   static VEC3 Min(VEC3 a, VEC3 b);
   static VEC3 Max(VEC3 a, VEC3 b);
 };
-ENGINE_API extern VEC3 operator-(const VEC3& a, const VEC3& b);
-ENGINE_API extern VEC3 operator+(const VEC3& a, const VEC3& b);
-ENGINE_API extern VEC3 operator*(const VEC3& a, float scale);
-ENGINE_API extern VEC3 operator*(float scale, const VEC3& a);
-ENGINE_API extern VEC3 operator*(const VEC3 a, const VEC3 b);
-ENGINE_API extern VEC3 operator/(float numerator, const VEC3& a);
-ENGINE_API bool operator!=(const VEC3& v1, const VEC3& v2);
+extern VEC3 operator-(const VEC3& a, const VEC3& b);
+extern VEC3 operator+(const VEC3& a, const VEC3& b);
+extern VEC3 operator*(const VEC3& a, float scale);
+extern VEC3 operator*(float scale, const VEC3& a);
+extern VEC3 operator*(const VEC3 a, const VEC3 b);
+extern VEC3 operator/(float numerator, const VEC3& a);
+bool operator!=(const VEC3& v1, const VEC3& v2);
 

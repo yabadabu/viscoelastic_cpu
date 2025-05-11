@@ -25,7 +25,7 @@ namespace Math {
 #endif
 
 // ---------------------------------------------------------------------
-struct ENGINE_API VEC2 {
+struct VEC2 {
   float x, y;
   VEC2() : x(0), y(0) {}
   VEC2(float ax, float ay) : x(ax), y(ay) {}
@@ -57,17 +57,17 @@ struct ENGINE_API VEC2 {
   static VEC2 Min(VEC2 a, VEC2 b);
   static VEC2 Max(VEC2 a, VEC2 b);
 };
-ENGINE_API extern VEC2 operator-(const VEC2& a, const VEC2& b);
-ENGINE_API extern VEC2 operator+(const VEC2& a, const VEC2& b);
-ENGINE_API extern VEC2 operator*(const VEC2& a, const VEC2& b);
-ENGINE_API extern VEC2 operator*(const VEC2& a, float scalar);
-ENGINE_API extern bool operator==(const VEC3& v1, const VEC3& v2);
-ENGINE_API bool operator!=(const VEC2& v1, const VEC2& v2);
+extern VEC2 operator-(const VEC2& a, const VEC2& b);
+extern VEC2 operator+(const VEC2& a, const VEC2& b);
+extern VEC2 operator*(const VEC2& a, const VEC2& b);
+extern VEC2 operator*(const VEC2& a, float scalar);
+extern bool operator==(const VEC3& v1, const VEC3& v2);
+bool operator!=(const VEC2& v1, const VEC2& v2);
 
 #include "vec3.h"
 
 // ---------------------------------------------------------------------
-struct ENGINE_API VEC4 {
+struct VEC4 {
   float x, y, z, w;
   VEC4() : x(0), y(0), z(0), w(0) {}
   VEC4(float k) : x(k), y(k), z(k), w(k) {}
@@ -96,15 +96,15 @@ struct ENGINE_API VEC4 {
   }
   VEC3 xyz() const { return VEC3(x, y, z); }
 };
-ENGINE_API extern VEC4 operator-(const VEC4& a, const VEC4& b);
-ENGINE_API extern VEC4 operator+(const VEC4& a, const VEC4& b);
-ENGINE_API extern VEC4 operator*(const VEC4& a, float scalar);
-ENGINE_API extern VEC4 operator*(float scalar, const VEC4& a);
-ENGINE_API extern VEC4 operator*(const VEC4& a, const VEC4& b);
-ENGINE_API bool operator!=(const VEC4& v1, const VEC4& v2);
+extern VEC4 operator-(const VEC4& a, const VEC4& b);
+extern VEC4 operator+(const VEC4& a, const VEC4& b);
+extern VEC4 operator*(const VEC4& a, float scalar);
+extern VEC4 operator*(float scalar, const VEC4& a);
+extern VEC4 operator*(const VEC4& a, const VEC4& b);
+bool operator!=(const VEC4& v1, const VEC4& v2);
 
 // ---------------------------------------------------------------------
-struct ENGINE_API MAT44 {
+struct MAT44 {
   VEC4 x, y, z, w;
   MAT44() = default;
   MAT44(float sc);
@@ -146,11 +146,11 @@ struct ENGINE_API MAT44 {
   static MAT44 createLine(VEC3 source, VEC3 target);
 };
 
-ENGINE_API extern MAT44 operator*(const MAT44& a, const MAT44& b);
-ENGINE_API extern VEC3 operator*(const VEC3& a, const MAT44& b);
+extern MAT44 operator*(const MAT44& a, const MAT44& b);
+extern VEC3 operator*(const VEC3& a, const MAT44& b);
 
 // ---------------------------------------------------------------------
-struct ENGINE_API MAT33 {
+struct MAT33 {
   VEC3 x, y, z;
   float& operator()(int i, int j) {
     return *(&x.x + i * 3 + j);
@@ -163,7 +163,7 @@ struct ENGINE_API MAT33 {
 };
 
 // ---------------------------------------------------------------------
-struct ENGINE_API QUAT {
+struct QUAT {
   float x, y, z, w;
   QUAT() : x(0.f), y(0.f), z(0.f), w(1.f) { }
   QUAT(float ax, float ay, float az, float aw) : x(ax), y(ay), z(az), w(aw) { }
@@ -187,14 +187,14 @@ struct ENGINE_API QUAT {
 
 };
 
-ENGINE_API extern QUAT operator*(const QUAT& q1, const QUAT& q2);
-ENGINE_API extern QUAT operator-(const QUAT& q1, const QUAT& q2);
-ENGINE_API extern QUAT operator+(const QUAT& q1, const QUAT& q2);
-ENGINE_API extern QUAT operator*(const QUAT& a, float scale);
-ENGINE_API extern bool operator!=(const QUAT& v1, const QUAT& v2);
+extern QUAT operator*(const QUAT& q1, const QUAT& q2);
+extern QUAT operator-(const QUAT& q1, const QUAT& q2);
+extern QUAT operator+(const QUAT& q1, const QUAT& q2);
+extern QUAT operator*(const QUAT& a, float scale);
+extern bool operator!=(const QUAT& v1, const QUAT& v2);
 
 // ---------------------------------------------------------------------
-struct ENGINE_API TRay {
+struct TRay {
 
   VEC3 position;
   VEC3 direction;
@@ -221,6 +221,6 @@ struct TViewport {
 #include "camera.h"
 #include "aabb.h"
 
-ENGINE_API extern VEC3 closestPointToSegment(VEC3 src, VEC3 dst, VEC3 p);
+extern VEC3 closestPointToSegment(VEC3 src, VEC3 dst, VEC3 p);
 
 

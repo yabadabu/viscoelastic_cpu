@@ -3,7 +3,7 @@
 struct TBuffer;
 
 // -------------------------------------------------------
-struct ENGINE_API Module {
+struct Module {
   bool is_loaded = false;
   Module();
   virtual void load() { }
@@ -55,5 +55,5 @@ struct FrameTime {
   double now = 0.0f;
   size_t frame_id = 1;
 };
-ENGINE_API const FrameTime& frameTime();
+const FrameTime& frameTime();
 

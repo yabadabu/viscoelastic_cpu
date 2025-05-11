@@ -1,7 +1,7 @@
 #pragma once
 
 // ----------------------------------------
-struct ENGINE_API TTransform {     // 1
+struct TTransform {     // 1
   QUAT  rotation;
   VEC3  position;
   VEC3  scale = VEC3(1,1,1);

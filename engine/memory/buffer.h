@@ -13,7 +13,7 @@
 #include <cstdint>
 #include "memory_data_provider.h"
 
-struct ENGINE_API TBuffer : public std::vector< uint8_t > {
+struct TBuffer : public std::vector< uint8_t > {
 
   TBuffer() = default;
   TBuffer(size_t nbytes) {

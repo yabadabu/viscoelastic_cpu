@@ -3,7 +3,7 @@
 
 #include "geometry.h"
 
-struct ENGINE_API TAABB {
+struct TAABB {
   VEC3 center;
   VEC3 half;
 

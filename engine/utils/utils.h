@@ -7,8 +7,8 @@ typedef uint32_t u32;                       // This is just what we need from <c
 static constexpr u32 invalid_id = ~0;
 
 // --------------------------------------------------
-void ENGINE_API dbg(const char* fmt, ...);
-int ENGINE_API fatal(const char* fmt, ...);
+void dbg(const char* fmt, ...);
+int fatal(const char* fmt, ...);
 
 typedef void(*TSysOutputHandler)(const char* error);
 TSysOutputHandler setDebugHandler(TSysOutputHandler new_handler);

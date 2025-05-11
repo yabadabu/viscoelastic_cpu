@@ -32,10 +32,10 @@ namespace Profiling {
 		~TContainer();
 		uint32_t enter(const char* txt);
 		void exit(uint32_t n);
-		uint32_t ENGINE_API enterHash(const std::string& txt);
+		uint32_t enterHash(const std::string& txt);
 		void reset();
-		void ENGINE_API allocEntries();
-		void ENGINE_API freeEntries();
+		void allocEntries();
+		void freeEntries();
 	};
 
   __declspec(thread) TContainer data_container;

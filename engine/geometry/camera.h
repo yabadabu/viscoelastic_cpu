@@ -2,7 +2,7 @@
 
 #include "geometry.h"
 
-class ENGINE_API CCamera {
+class CCamera {
 
 protected:
 

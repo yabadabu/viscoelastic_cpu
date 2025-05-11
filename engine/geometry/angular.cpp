@@ -41,7 +41,7 @@ float wrapAngle(float rad) {
   return rad;
 }
 
-VEC2 ENGINE_API vogelDiskSample(int sampleIndex, int samplesCount, float phi)
+VEC2 vogelDiskSample(int sampleIndex, int samplesCount, float phi)
 {
   const float golden_angle = 2.4f;
 

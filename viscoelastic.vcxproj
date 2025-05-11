@@ -197,9 +197,14 @@
     <ClInclude Include="engine\modules\module_render.h" />
     <ClInclude Include="engine\platform.h" />
     <ClInclude Include="engine\profile\profiling.h" />
+    <ClInclude Include="engine\render\color.h" />
+    <ClInclude Include="engine\render\debug_texts.h" />
     <ClInclude Include="engine\render\dx11\render_platform.h" />
+    <ClInclude Include="engine\render\gpu_trace.h" />
     <ClInclude Include="engine\render\primitives.h" />
     <ClInclude Include="engine\render\render.h" />
+    <ClInclude Include="engine\render\vertex_declarations.h" />
+    <ClInclude Include="engine\render\vertex_types.h" />
     <ClInclude Include="engine\resources\resource.h" />
     <ClInclude Include="engine\utils\utils.h" />
     <ClInclude Include="thread_pool.h" />

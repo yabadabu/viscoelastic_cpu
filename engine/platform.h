@@ -11,8 +11,6 @@
 #define OS_NAME  "windows"
 #include <windows.h>
 
-#define ENGINE_API 
-
 // ----------------------------------------
 // C++ std
 #include <cstdint>

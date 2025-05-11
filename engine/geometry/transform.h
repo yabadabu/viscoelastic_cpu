@@ -33,29 +33,8 @@ struct TTransform {     // 1
   VEC3 getScale() const { return scale; }
   void setScale(VEC3 new_scale) { scale = new_scale; }
 
-  //	// Returns true if the point is in the positive part of my front
-  //	bool isInFront(VEC3 loc) const {
-  //		return XMVectorGetX(XMVector3dot(getFront(), loc - position)) > 0.f;
-  //	}
-  //
-  //	bool isInLeft(VEC3 loc) const {
-  //		return XMVectorGetX(XMVector3dot(getLeft(), loc - position)) > 0.f;
-  //	}
-
-  //	bool isInFov(XMVECTOR loc, float fov_in_rad) const {
-  //		XMVECTOR unit_delta = XMVector3Normalize(loc - position);
-  //		float cos_angle = XMVectorGetX(XMVector3dot(getFront(), unit_delta));
-  //		return(cos_angle < cos(fov_in_rad * 0.5f));
-  //	}
-
     // Aim the transform to a position instantly
   void lookAt(VEC3 new_target, VEC3 new_up_aux);
-
-  // Aim the transform to a position with SLerp
-//	void aimAt(VEC3 new_target, VEC3 new_up_aux, float t) {
-//    MAT44 view = MAT44::CreateLookAt(position, position - (new_target - position), new_up_aux);
-//		rotation = XMQuaternionSlerp(rotation, XMQuaternionInverse(XMQuaternionRotationMatrix(view)), t);
-//	}
 
   MAT44 asMatrix() const;
   void fromMatrix(MAT44 mtx);
@@ -65,7 +44,6 @@ struct TTransform {     // 1
   void       getAngles(float* yaw, float* pitch, float* roll = nullptr) const;
   void setAngles(float new_yaw, float new_pitch, float new_roll = 0.f);
   TTransform inverse() const;
-//  void load(const json& j);
 
   bool debugInMenu();
 

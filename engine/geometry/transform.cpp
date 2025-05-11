@@ -65,7 +65,6 @@ void TTransform::fromMatrix(MAT44 mtx) {
   setRotation(new_rot);
 }
 
-
 // ---------------------------
 void TTransform::getAngles(float* yaw, float* pitch, float* roll) const {
   VEC3 f = getFront();
@@ -94,7 +93,6 @@ VEC3 TTransform::transformDir(VEC3 p) const {
 void TTransform::setAngles(float new_yaw, float new_pitch, float new_roll) {
   rotation = QUAT::createFromYawPitchRoll(new_yaw, -new_pitch, new_roll);
 }
-
 
 static void initGizmo(int id, CCamera* c) {
   const TViewport& vp_dock = c->getViewport();

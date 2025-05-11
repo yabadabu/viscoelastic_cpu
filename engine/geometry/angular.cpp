@@ -40,28 +40,3 @@ float wrapAngle(float rad) {
     rad -= 2 * pi;
   return rad;
 }
-
-VEC2 vogelDiskSample(int sampleIndex, int samplesCount, float phi)
-{
-  const float golden_angle = 2.4f;
-
-  const float r = sqrtf((sampleIndex + 0.5f) / (float)samplesCount);
-  const float theta = sampleIndex * golden_angle + phi;
-
-  const float sine = sinf(theta);
-  const float cosine = cosf(theta);
-  return VEC2(r * cosine, r * sine);
-}
-
-void VogelHemiSphereSampler::initAxis( ) {
-  aux1 = VEC3(1, 1, 1).cross(normal).normalized();
-  aux2 = normal.cross(aux1).normalized();
-};
-
-VEC3 VogelHemiSphereSampler::get(int idx) const {
-  VEC2 p = vogelDiskSample(idx, nsamples, phi * M_PI * 2.0f);
-  VEC3 p3(p.x, 0, p.y);
-  p3.y = sqrtf(1.0f - (p.x * p.x + p.y * p.y));
-  p3 = p3.x * aux1 + p3.y * normal + p3.z * aux2;
-  return p3;
-}

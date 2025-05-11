@@ -50,7 +50,6 @@ struct TAABB {
   bool isEmpty() const {
     return half.lengthSquared() == 0.f;
   }
-  bool intersects(VEC3 Origin, VEC3 Direction, float& Dist, float* tOut = nullptr) const;
   void enlarge(const TAABB& aabb) {
     VEC3 new_min = VEC3::Min(getMinCorner(), aabb.getMinCorner());
     VEC3 new_max = VEC3::Max(getMaxCorner(), aabb.getMaxCorner());

@@ -41,7 +41,6 @@ namespace Render {
 
   // -------------------------------------------------------
   static Encoder* main_encoder = nullptr;
-  static Buffer* gpu_instances = nullptr;
 
   void setMainEncoder(Encoder* in_encoder) {
     main_encoder = in_encoder;
@@ -131,8 +130,6 @@ namespace Render {
   }
 
   void frameStarts() {
-    if (!gpu_instances)
-      gpu_instances = (Buffer*)Resource<Buffer>("instances.buffer");
   }
 
   void drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const Render::PipelineState* pso, uint32_t submesh) {
@@ -148,10 +145,14 @@ namespace Render {
 
     if (!pso)
       pso = Resource<PipelineState>("basic.pso");
+
     assert(pso);
     assert(mesh);
     assert(pso->vertex_decl == mesh->vertex_decl);
     encoder->setRenderPipelineState(pso);
+
+    Buffer* gpu_instances = (Buffer*)Resource<Buffer>("instances.buffer");
+    assert(gpu_instances);
 
     const u8* bytes = (const u8*)data;
     uint32_t remaining = ninstances;
@@ -210,8 +211,3 @@ namespace Render {
   }
 
 }
-
-//template<>
-//void load<Render::eFormat>(json j, Render::eFormat& fmt) {
-//  fmt = Render::formatNames.valueOf(j);
-//}

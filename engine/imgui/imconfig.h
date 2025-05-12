@@ -26,7 +26,7 @@
 //#define IMGUI_API __declspec(dllexport)                   // MSVC Windows: DLL export
 //#define IMGUI_API __declspec(dllimport)                   // MSVC Windows: DLL import
 //#define IMGUI_API __attribute__((visibility("default")))  // GCC/Clang: override visibility when set is hidden
-#if !defined(_USRDLL) && defined(PLATFORM_WINDOWS)
+#if !defined(_USRDLL) && defined(IN_PLATFORM_WINDOWS)
 #define IMGUI_API __declspec(dllexport)
 #else
 #define IMGUI_API

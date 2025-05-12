@@ -2,7 +2,7 @@
 #define INC_RENDER_GPU_TRACES_H_
 
 // Enable profile even in release builds
-#ifdef PLATFORM_WINDOWS
+#ifdef IN_PLATFORM_WINDOWS
 #ifdef _DEBUG
 #define ENABLE_GPU_PROFILE_DX11
 #endif

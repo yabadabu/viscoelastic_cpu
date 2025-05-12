@@ -25,18 +25,18 @@
     "cast_shadows": false
   },
   {
-    "type": "pso",
-    "name": "solid",
-    "vertex_decl": "PosN",
-    "vs": "VS_Solid",
-    "src": "basic"
-  },
-  {
     "type": "buffer",
     "name": "instances",
     "slot": 2,
     "bytes_per_instance": 96,
-    "num_instances": 8192
+    "num_instances": 512
+  },
+  {
+    "type": "buffer",
+    "name": "single_instance",
+    "slot": 2,
+    "bytes_per_instance": 96,
+    "num_instances": 1
   },
   {
     "type": "buffer",

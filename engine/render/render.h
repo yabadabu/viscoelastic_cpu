@@ -228,7 +228,6 @@ namespace Render {
   // -------------------------------------------------------
   void drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const PipelineState* pso = nullptr, uint32_t submesh = 0);
   void drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color = VEC4(1, 1, 1, 1), const PipelineState* pso = nullptr, uint32_t submesh = 0);
-  void frameStarts();
 
   template< typename InstanceData >
   class InstancesData : public std::vector< InstanceData > {

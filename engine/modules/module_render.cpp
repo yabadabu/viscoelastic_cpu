@@ -52,7 +52,6 @@ void ModuleRender::unload() {
 
 void ModuleRender::generateFrame(int w, int h) {
   assert(w > 0 && h > 0);
-  Render::frameStarts();
 
   RenderPlatform::beginRenderingBackBuffer();
   activateCamera(Render::getCurrentRenderCamera(), w, h);

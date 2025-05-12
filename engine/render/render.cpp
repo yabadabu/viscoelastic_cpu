@@ -129,10 +129,8 @@ namespace Render {
     return true;
   }
 
-  void frameStarts() {
-  }
 
-  void drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const Render::PipelineState* pso, uint32_t submesh) {
+  void drawInstancedPrimitivesWithGPUBuffer(const Mesh* mesh, const Instance* data, uint32_t ninstances, const Render::PipelineState* pso, uint32_t submesh, Buffer* gpu_instances) {
 
     if (!data || !ninstances)
       return;
@@ -148,11 +146,9 @@ namespace Render {
 
     assert(pso);
     assert(mesh);
+    assert(gpu_instances);
     assert(pso->vertex_decl == mesh->vertex_decl);
     encoder->setRenderPipelineState(pso);
-
-    Buffer* gpu_instances = (Buffer*)Resource<Buffer>("instances.buffer");
-    assert(gpu_instances);
 
     const u8* bytes = (const u8*)data;
     uint32_t remaining = ninstances;
@@ -168,8 +164,16 @@ namespace Render {
   }
 
   void drawPrimitive(const Mesh* mesh, const MAT44& world, VEC4 color, const PipelineState* pso, uint32_t submesh) {
+    Buffer* gpu_instances = (Buffer*)Resource<Buffer>("single_instance.buffer");
+    assert(gpu_instances);
     Instance instance = { world, color };
-    drawInstancedPrimitives(mesh, &instance, 1, pso, submesh);
+    drawInstancedPrimitivesWithGPUBuffer(mesh, &instance, 1, pso, submesh, gpu_instances);
+  }
+
+  void drawInstancedPrimitives(const Mesh* mesh, const Instance* data, uint32_t ninstances, const Render::PipelineState* pso, uint32_t submesh) {
+    Buffer* gpu_instances = (Buffer*)Resource<Buffer>("instances.buffer");
+    assert(gpu_instances);
+    drawInstancedPrimitivesWithGPUBuffer(mesh, data, ninstances, pso, submesh, gpu_instances);
   }
 
   void VInstances::addLine(VEC3 src, VEC3 dst, VEC4 color) {

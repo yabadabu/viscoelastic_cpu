@@ -66,7 +66,7 @@ struct ViscoelasticSim {
 
   int                     debug_particle = -1;
 
-  bool using_parallel = false;
+  bool                    using_parallel = false;
 
   static constexpr int num_threads = 12;
   ThreadPool* pool = nullptr;
@@ -82,6 +82,8 @@ struct ViscoelasticSim {
   void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict deltas);
   void updateStep(float dt);
   void update(float dt);
+  void doubleDensityRelaxationPara(float dt, ThreadPool& pool);
+  void doubleDensityRelaxation(float dt);
 
   template< typename Fn >
   void runInParallel(int num_jobs, int num_splits, Fn fn) {
@@ -98,20 +100,6 @@ struct ViscoelasticSim {
     }
     for (auto& job : jobs)
       job.get();
-  }
-
-  void doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
-    int num_jobs = (int)spatial_hash.cells_ranges.size();
-    runInParallel(num_jobs, num_threads * 3, [&](int start, int end, int job_id) {
-      for (int i = start; i < end; ++i)
-        processRange(dt, spatial_hash.cells_ranges[i], particles_frozen_pos, &particles_pos);
-      });
-  }
-
-  void doubleDensityRelaxation(float dt) {
-    PROFILE_SCOPED_NAMED("doubleDensityRelaxation");
-    for (auto& range : spatial_hash.cells_ranges)
-      processRange(dt, range, particles_frozen_pos, &particles_pos);
   }
 
   void saveTime(eSection section_id, TTimer& tm) {

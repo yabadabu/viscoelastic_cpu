@@ -464,6 +464,7 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
     });
 }
 
+
 void ViscoelasticSim::updateSpatialHash() {
 
   float inv_kernel_radius = 1.0f / mat.kernel_radius;
@@ -507,6 +508,19 @@ void ViscoelasticSim::updateSpatialHash() {
       });
     });
 
+}
+
+void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
+  int num_jobs = (int)spatial_hash.cells_ranges.size();
+  runInParallel(num_jobs, num_threads * 3, [&](int start, int end, int job_id) {
+    for (int i = start; i < end; ++i)
+      processRange(dt, spatial_hash.cells_ranges[i], particles_frozen_pos, &particles_pos);
+    });
+}
+
+void ViscoelasticSim::doubleDensityRelaxation(float dt) {
+  for (auto& range : spatial_hash.cells_ranges)
+    processRange(dt, range, particles_frozen_pos, &particles_pos);
 }
 
 void ViscoelasticSim::updateStep(float dt) {

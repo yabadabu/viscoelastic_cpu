@@ -27,9 +27,6 @@
     <ClCompile Include="engine\geometry\camera.cpp">
       <Filter>engine\geometry</Filter>
     </ClCompile>
-    <ClCompile Include="engine\geometry\aabb.cpp">
-      <Filter>engine\geometry</Filter>
-    </ClCompile>
     <ClCompile Include="engine\modules\module.cpp">
       <Filter>engine\modules</Filter>
     </ClCompile>
@@ -179,6 +176,24 @@
     </ClInclude>
     <ClInclude Include="engine\profile\profiling.h">
       <Filter>engine\profile</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\color.h">
+      <Filter>engine\render</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\debug_texts.h">
+      <Filter>engine\render</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\gpu_trace.h">
+      <Filter>engine\render</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\utils\randoms.h">
+      <Filter>engine\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\vertex_declarations.h">
+      <Filter>engine\render</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\render\vertex_types.h">
+      <Filter>engine\render</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -376,12 +376,14 @@ void ViscoelasticSim::init() {
   aux_particles_type = new u8[max_particles];
 }
 
-void ViscoelasticSim::addParticle(VEC3 pos, VEC3 vel) {
-  assert(num_particles < max_particles);
+void ViscoelasticSim::addParticle(VEC3 pos, VEC3 vel, uint8_t particle_type) {
+  if (num_particles >= max_particles)
+    return;
   assert(particles_pos.buf.size() > 0);
   particles_pos.set(num_particles, pos);
   particles_prev_pos.set(num_particles, pos);
   particles_vels.set(num_particles, vel);
+  particles_type[num_particles] = particle_type;
   ++num_particles;
 }
 
@@ -531,8 +533,8 @@ void ViscoelasticSim::updateStep(float dt) {
     saveTime(eSection::SpatialHash, tm);
   }
 
-  VEC3 mouse_drag = mouse - mouse_prev;
-  mouse_prev = mouse;
+  VEC3 interact_drag = interact_point - interact_point_prev;
+  interact_point_prev = interact_point;
 
   // Apply external forces
   {
@@ -547,10 +549,10 @@ void ViscoelasticSim::updateStep(float dt) {
     PROFILE_SCOPED_NAMED("ext forces");
     float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
     attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
-    float ar_non_zero = attrack_repel != 0.0f;
+    bool ar_non_zero = attrack_repel != 0.0f;
     if (ar_non_zero || drag) {
       for (int i = 0; i < num_particles; ++i) {
-        VEC3 delta = particles_pos.get(i) - mouse;
+        VEC3 delta = particles_pos.get(i) - interact_point;
         float dist_sq = delta.lengthSquared();
         if (dist_sq > 100000 || dist_sq < 0.1)
           continue;
@@ -561,7 +563,7 @@ void ViscoelasticSim::updateStep(float dt) {
           particles_vels.add(i, attrack_repel * (-delta));
         }
         else
-          particles_vels.add(i, mouse_drag);
+          particles_vels.add(i, interact_drag);
       }
     }
   }

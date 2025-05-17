@@ -16,6 +16,7 @@ HWND hWnd;
 bool user_wants_to_exit = false;
 bool resizing_window = false;
 VEC2 windows_size;
+VEC2 mouse_cursor;
 
 void resizeAppWindow(int w, int h) {
   RECT rect = { 0, 0, w, h };
@@ -63,6 +64,10 @@ static LRESULT WINAPI MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     }
     break;
   }
+
+  case WM_MOUSEMOVE:
+    mouse_cursor = VEC2((LONG)GET_X_LPARAM(lParam), (LONG)GET_Y_LPARAM(lParam));
+    break;
 
   case WM_ENTERSIZEMOVE:
     resizing_window = true;

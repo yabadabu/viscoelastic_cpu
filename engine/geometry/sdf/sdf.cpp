@@ -63,7 +63,7 @@ namespace SDF {
     else if (prim_type == eType::PLANE)
       return SDF::sdPlaneXZ(p) * multiplier;
     else if (prim_type == eType::BOX) {
-      static float r = 0.5f;
+      constexpr float r = 0.5f;
       return SDF::sdBox(p, VEC3(r, r, r), softness) * multiplier;
     }
     return 1.0f;
@@ -92,6 +92,12 @@ namespace SDF {
       dmin = std::min(dmin, sdSphere(p - prim.c, prim.r) * prim.multiplier);
     for (auto& prim : boxes)
       dmin = std::min(dmin, sdBox(p - prim.c, prim.radius, prim.softness) * prim.multiplier);
+    
+    const VEC3 half_unit(0.5f, 0.5f, 0.5f);
+    for (auto& prim : oriented_boxes) {
+      VEC3 local_p = prim.to_local.transformCoord(p);
+      dmin = std::min(dmin, sdBox(local_p, half_unit, prim.softness)* prim.multiplier );
+    }
     return dmin;
   }
 
@@ -166,12 +172,23 @@ namespace SDF {
       spheres.emplace_back(center, radius, p.multiplier);
       });
 
-    boxes.clear();
+    //boxes.clear();
+    //onEachPrimitive(SDF::Primitive::eType::BOX, [&](const SDF::Primitive& p) {
+    //  VEC3 center = p.transform.getPosition();
+    //  VEC3 radius = p.transform.getScale() * 0.5f;
+    //  boxes.emplace_back(center, radius, p.softness, p.multiplier);
+    //  });
+
+    oriented_boxes.clear();
     onEachPrimitive(SDF::Primitive::eType::BOX, [&](const SDF::Primitive& p) {
-      VEC3 center = p.transform.getPosition();
-      VEC3 radius = p.transform.getScale() * 0.5f;
-      boxes.emplace_back(center, radius, p.softness, p.multiplier);
+      OrientedBox obox;
+      obox.to_local = p.to_local;
+      obox.radius = 1.0f;
+      obox.softness = p.softness;
+      obox.multiplier = p.multiplier;
+      oriented_boxes.push_back(obox);
       });
+
   }
 
   bool Primitive::renderInMenu() {

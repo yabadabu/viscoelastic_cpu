@@ -59,8 +59,8 @@ struct ViscoelasticSim {
   bool                    emit = false;
   bool                    drag = false;
 
-  VEC3                    mouse = VEC3::zero;
-  VEC3                    mouse_prev = VEC3::zero;
+  VEC3                    interact_point = VEC3::zero;
+  VEC3                    interact_point_prev = VEC3::zero;
   float                   world_scale = 100.0f;
   int                     num_substeps = 1;
 
@@ -75,7 +75,7 @@ struct ViscoelasticSim {
 
   void init();
 
-  void addParticle(VEC3 pos, VEC3 vel);
+  void addParticle(VEC3 pos, VEC3 vel, uint8_t particle_type);
 
   void updateSpatialHash();
   void resolveCollisions(float dt, int start, int end);

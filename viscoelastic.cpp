@@ -3,11 +3,36 @@
 #include "render/debug_texts.h"
 #include "viscoelastic_sim.h"
 
-struct ViscoelasticModule : public Module {
+extern VEC2 mouse_cursor;
 
+struct ViscoelasticModule : public Module {
   const char* getName() const override { return "viscoelastic"; }
 
   ViscoelasticSim          sim;
+  
+  struct Emitter {
+    TTransform               transform;
+    float                    radius = 0.2f;
+    float                    strength = 1.0f;
+    int                      rate = 1;
+    bool                     enabled = false;
+    int                      particle_type = 0;
+    bool renderInMenu() {
+      if (!ImGui::TreeNode("Emitter"))
+        return false;
+      bool changed = transform.debugInMenu();
+      ImGui::Checkbox("Emitting", &enabled);
+      ImGui::DragFloat("Radius", &radius, 0.01f, 0.1f, 3.0f);
+      ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 25.0f);
+      ImGui::DragInt("Rate", &rate, 0.1f, 0, 32);
+      ImGui::DragInt("Type", &particle_type, 0.1f, 0, 4);
+      ImGui::TreePop();
+      return changed;
+    }
+  };
+
+  Emitter                  emitter;
+
   bool                     paused = false;
   bool                     auto_pause = false;
   float                    delta_time = 1.0;
@@ -24,6 +49,8 @@ struct ViscoelasticModule : public Module {
   int                      num_particles_m0 = 2048;
   int                      num_particles_m1 = 2048;
   int                      num_particles_m2 = 2048;
+
+  VEC2                     mouse;
 
   void updateParticleTypes() {
     int counters[3];
@@ -62,6 +89,11 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_z));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
+
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 3.0, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f ));
+
+    emitter.transform.setPosition(VEC3(0.0f, 3.0f, -2.0f));
+
     addParticles(512);
   }
 
@@ -71,12 +103,13 @@ struct ViscoelasticModule : public Module {
   }
 
   void addParticles(int num) {
+    uint8_t particle_type = 0;
     TRandomSequence seq(54123);
     for (int i = 0; i < num; ++i) {
       if (sim.in_2d)
-        sim.addParticle(VEC3(0.0f, seq.between(200.0, 1000.0f), seq.between(-500.0, 500.0f)), VEC3(0, 0, 0));
+        sim.addParticle(VEC3(0.0f, seq.between(200.0, 1000.0f), seq.between(-500.0, 500.0f)), VEC3(0, 0, 0), particle_type );
       else
-        sim.addParticle(VEC3(seq.between(200.0, 2000.0f), seq.between(100.0, 1000.0f), seq.between(-500.0, 500.0f)), VEC3(0, 0, 0));
+        sim.addParticle(VEC3(seq.between(200.0, 2000.0f), seq.between(100.0, 1000.0f), seq.between(-500.0, 500.0f)), VEC3(0, 0, 0), particle_type);
     }
     updateParticleTypes();
   }
@@ -167,6 +200,9 @@ struct ViscoelasticModule : public Module {
       }
     }
 
+    //wired_cells.emplace_back(MAT44::createTranslation(sim.interact_point * ( 1.0f / sim.world_scale)), Color::White);
+    sprites.emplace_back(sim.interact_point * (1.0f / sim.world_scale), 1.0f, Color::Magenta);
+
     {
       PROFILE_SCOPED_NAMED("Flush");
       sprites.drawAll();
@@ -249,6 +285,9 @@ struct ViscoelasticModule : public Module {
       addParticles(100);
     if (ImGui::SmallButton("Add 1024 particles..."))
       addParticles(1024);
+
+    if (ImGui::SmallButton("Remove All Particles"))
+      sim.num_particles = 0;
 
     if (ImGui::SmallButton("Config 2D 2K Particles")) {
       sim.mat.rest_density = 3.0f;
@@ -337,11 +376,20 @@ struct ViscoelasticModule : public Module {
         ImGui::TreePop();
       }
     }
+    ImGui::Text("Mouse: %1.2f %1.2f", mouse.x, mouse.y);
+    ImGui::Text("Interact: %1.2f %1.2f %1.2f", sim.interact_point.x, sim.interact_point.y, sim.interact_point.z);
 
     if (changed)
       updateParticleTypes();
 
+    emitter.renderInMenu();
     sim.sdf.renderInMenu();
+
+    //auto& io = ImGui::GetIO();
+    //ImVec2 impos = io.MousePos; 
+    mouse = mouse_cursor;
+    //bool open = true;
+    //ImGui::ShowDemoWindow(&open);
   }
 
   void update() override {
@@ -350,22 +398,31 @@ struct ViscoelasticModule : public Module {
       sim.mat.gravity = VEC3(0, gdir.x, gdir.z) * gravity_amount;
       sim.update(delta_time);
       debug_particle = sim.debug_particle;
+
+      if (emitter.enabled) {
+        static TRandomSequence rseq;
+        for (int i = 0; i < emitter.rate; ++i)
+        {
+          VEC3 p = emitter.transform.transformCoord(VEC3(rseq.between( -emitter.radius, emitter.radius ), rseq.between(-emitter.radius, emitter.radius), 0.0f)) * sim.world_scale;
+          VEC3 v = emitter.transform.transformDir(VEC3(0.0f, 0.0f, 1.0f)) * emitter.strength;
+          sim.addParticle(p, v, emitter.particle_type);
+        }
+      }
+
     }
     if (auto_pause)
       paused = true;
 
     if (CCamera* camera = Render::getCurrentRenderCamera()) {
-      VEC2 mouse; //= ImGui::getInput().mouse_pixels;
       VEC3 dir = camera->getRayDirectionFromViewportCoords(mouse.x, mouse.y);
       float t_hit = -camera->getPosition().x / dir.x;
       VEC3 hit = camera->getPosition() + t_hit * dir;
-      sim.mouse_prev = sim.mouse;
-      sim.mouse = hit * sim.world_scale;
+      sim.interact_point = hit * sim.world_scale;
     }
 
-    //sim.drain = getInput().key('C').isPressed();
-    //sim.repel = getInput().key('R').isPressed();
-    //sim.attract = getInput().key('Z').isPressed();
+    sim.drain = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_C);
+    sim.repel = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_R);
+    sim.attract = ImGui::IsKeyDown( ImGuiKey::ImGuiKey_Z );
   }
 
 };

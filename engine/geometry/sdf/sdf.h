@@ -85,6 +85,16 @@ namespace SDF {
     };
     std::vector< Box > boxes;
 
+    struct OrientedBox {
+      MAT44 to_local;
+      float radius = 1.0f;
+      float softness = 1.0f;
+      float multiplier = 1.0f;
+      float padding = 0.0f;
+      OrientedBox() = default;
+    };
+    std::vector< OrientedBox > oriented_boxes;
+
     // -------------------------------------------------
     void generateCompactStructs();
     float evalCompact(VEC3 p) const;

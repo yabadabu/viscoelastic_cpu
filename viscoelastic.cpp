@@ -50,8 +50,6 @@ struct ViscoelasticModule : public Module {
   int                      num_particles_m1 = 2048;
   int                      num_particles_m2 = 2048;
 
-  VEC3                     interact_dir;
-
   void updateParticleTypes() {
     int counters[3];
     counters[0] = num_particles_m0;
@@ -202,7 +200,7 @@ struct ViscoelasticModule : public Module {
 
     VEC3 interact_point = sim.interact_point * (1.0f / sim.world_scale);
     sprites.emplace_back(interact_point, 1.0f, Color::Magenta);
-    lines.addLine(interact_point, interact_point + interact_dir * 0.1f, Color::Magenta);
+    lines.addLine(interact_point, interact_point + sim.interact_dir * 0.1f, Color::Magenta);
 
     {
       PROFILE_SCOPED_NAMED("Flush");
@@ -441,7 +439,7 @@ struct ViscoelasticModule : public Module {
       VEC3 dir = camera->getRayDirectionFromViewportCoords(mouse_cursor.x, mouse_cursor.y);
       VEC3 hit = findNearestIntersectionWithSDF(eye, dir);
       sim.interact_point = hit * sim.world_scale;
-      interact_dir = sim.sdf.evalGrad(hit);
+      sim.interact_dir = sim.sdf.evalGrad(hit);
     }
 
     sim.drain = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_X);

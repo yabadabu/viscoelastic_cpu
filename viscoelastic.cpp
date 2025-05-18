@@ -12,8 +12,8 @@ struct ViscoelasticModule : public Module {
   
   struct Emitter {
     TTransform               transform;
-    float                    radius = 0.2f;
-    float                    strength = 1.0f;
+    float                    radius = 0.1f;
+    float                    strength = 10.0f;
     int                      rate = 1;
     bool                     enabled = false;
     int                      particle_type = 0;
@@ -25,7 +25,7 @@ struct ViscoelasticModule : public Module {
       ImGui::DragFloat("Radius", &radius, 0.01f, 0.1f, 3.0f);
       ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 25.0f);
       ImGui::DragInt("Rate", &rate, 0.1f, 0, 32);
-      ImGui::DragInt("Type", &particle_type, 0.1f, 0, 4);
+      ImGui::DragInt("Type", &particle_type, 0.1f, 0, 3);
       ImGui::TreePop();
       return changed;
     }
@@ -44,13 +44,13 @@ struct ViscoelasticModule : public Module {
   Render::VInstances       lines;
 
   double                   time_render = 0.0f;
-  VEC4                     colors[4] = { Color::Red, Color::Green, Color::Blue, Color::White };
 
+  VEC4                     colors[4] = { Color::Red, Color::Green, Color::Blue, Color::White };
   int                      num_particles_m0 = 2048;
   int                      num_particles_m1 = 2048;
   int                      num_particles_m2 = 2048;
 
-  VEC2                     mouse;
+  VEC3                     interact_dir;
 
   void updateParticleTypes() {
     int counters[3];
@@ -200,8 +200,9 @@ struct ViscoelasticModule : public Module {
       }
     }
 
-    //wired_cells.emplace_back(MAT44::createTranslation(sim.interact_point * ( 1.0f / sim.world_scale)), Color::White);
-    sprites.emplace_back(sim.interact_point * (1.0f / sim.world_scale), 1.0f, Color::Magenta);
+    VEC3 interact_point = sim.interact_point * (1.0f / sim.world_scale);
+    sprites.emplace_back(interact_point, 1.0f, Color::Magenta);
+    lines.addLine(interact_point, interact_point + interact_dir * 0.1f, Color::Magenta);
 
     {
       PROFILE_SCOPED_NAMED("Flush");
@@ -225,6 +226,7 @@ struct ViscoelasticModule : public Module {
         paused = false;
       }
     }
+
     if (ImGui::SmallButton("Step")) {
       auto_pause = true;
       paused = false;
@@ -236,7 +238,7 @@ struct ViscoelasticModule : public Module {
       addParticles(n);
     }
 
-    ImGui::DragFloat("Grid Radius", &sim.mat.kernel_radius, 0.1f);
+    ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);
     ImGui::DragFloat("Rest Density", &sim.mat.rest_density, 0.1f);
     ImGui::DragFloat("Stiffness", &sim.mat.stiffness, 0.01f, 0.1f, 2.0f);
     ImGui::DragFloat("NearStiffness", &sim.mat.near_stiffness, 0.01f, 0.0f, 2.0f);
@@ -254,7 +256,7 @@ struct ViscoelasticModule : public Module {
     ImGui::Text("%1.6lf spatial_hash", sim.times[ ViscoelasticSim::eSection::SpatialHash] );
     ImGui::Text("%1.6lf velocities_update", sim.times[ViscoelasticSim::eSection::VelocitiesUpdate] );
     ImGui::Text("%1.6lf predict_position (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::PredictPositions], ( 4.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::PredictPositions]));
-    ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (20.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
+    ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
     ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
     ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
     ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
@@ -283,6 +285,7 @@ struct ViscoelasticModule : public Module {
 
     if (ImGui::SmallButton("Add 100 particles..."))
       addParticles(100);
+
     if (ImGui::SmallButton("Add 1024 particles..."))
       addParticles(1024);
 
@@ -376,8 +379,10 @@ struct ViscoelasticModule : public Module {
         ImGui::TreePop();
       }
     }
-    ImGui::Text("Mouse: %1.2f %1.2f", mouse.x, mouse.y);
+
     ImGui::Text("Interact: %1.2f %1.2f %1.2f", sim.interact_point.x, sim.interact_point.y, sim.interact_point.z);
+    ImGui::Text("Interact Dir: %1.2f %1.2f %1.2f", interact_dir.x, interact_dir.y, interact_dir.z);
+    ImGui::DragFloat("Interact Radius", &sim.interact_rad, 0.1f, 1.0f, 150.0f);
 
     if (changed)
       updateParticleTypes();
@@ -385,11 +390,14 @@ struct ViscoelasticModule : public Module {
     emitter.renderInMenu();
     sim.sdf.renderInMenu();
 
-    //auto& io = ImGui::GetIO();
-    //ImVec2 impos = io.MousePos; 
-    mouse = mouse_cursor;
-    //bool open = true;
-    //ImGui::ShowDemoWindow(&open);
+    if (ImGui::Begin("Hints")) {
+      ImGui::Text("W/E/R : Move / Rotate / Scale");
+      ImGui::Text("Z Attract");
+      ImGui::Text("X Drain");
+      ImGui::Text("C Repel");
+    }
+    ImGui::End();
+
   }
 
   void update() override {
@@ -414,15 +422,31 @@ struct ViscoelasticModule : public Module {
       paused = true;
 
     if (CCamera* camera = Render::getCurrentRenderCamera()) {
-      VEC3 dir = camera->getRayDirectionFromViewportCoords(mouse.x, mouse.y);
-      float t_hit = -camera->getPosition().x / dir.x;
-      VEC3 hit = camera->getPosition() + t_hit * dir;
+      VEC3 eye = camera->getPosition();
+      VEC3 dir = camera->getRayDirectionFromViewportCoords(mouse_cursor.x, mouse_cursor.y);
+      VEC3 hit = findNearestIntersectionWithSDF(eye, dir);
       sim.interact_point = hit * sim.world_scale;
+      interact_dir = sim.sdf.evalGrad(hit);
     }
 
-    sim.drain = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_C);
-    sim.repel = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_R);
+    sim.drain = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_X);
+    sim.repel = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_C);
     sim.attract = ImGui::IsKeyDown( ImGuiKey::ImGuiKey_Z );
+  }
+
+  VEC3 findNearestIntersectionWithSDF(VEC3 src, VEC3 dir) const {
+    float best_t = FLT_MAX;
+    for (auto& p : sim.sdf.planes) {
+      float num = -( p.d + src.dot(p.n) );
+      float den = dir.dot(p.n);
+      // Skip planes not looking at the camera
+      if (den >= 0.0)
+        continue;
+      float t = num / den;
+      if (t < best_t)
+        best_t = t;
+    }
+    return src + best_t * dir;
   }
 
 };

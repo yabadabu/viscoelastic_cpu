@@ -58,15 +58,17 @@ struct ViscoelasticSim {
   bool                    drain = false;
   bool                    emit = false;
   bool                    drag = false;
+  bool                    using_parallel = false;
 
   VEC3                    interact_point = VEC3::zero;
   VEC3                    interact_point_prev = VEC3::zero;
+  float                   interact_rad = 80.0;
+
   float                   world_scale = 100.0f;
   int                     num_substeps = 1;
 
   int                     debug_particle = -1;
 
-  bool                    using_parallel = false;
 
   static constexpr int num_threads = 12;
   ThreadPool* pool = nullptr;

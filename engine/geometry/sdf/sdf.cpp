@@ -19,7 +19,6 @@ namespace SDF {
   }
 
   // --------------------------------------------------------------------------
-
 // Signed box centered in the origin
   float sdBox(VEC3 p, VEC3 radius, float softness) {
     VEC3 d = p.abs() - radius;
@@ -90,8 +89,6 @@ namespace SDF {
       dmin = std::min(dmin, sdPlane(p, prim.n, prim.d) * prim.multiplier);
     for (auto& prim : spheres)
       dmin = std::min(dmin, sdSphere(p - prim.c, prim.r) * prim.multiplier);
-    for (auto& prim : boxes)
-      dmin = std::min(dmin, sdBox(p - prim.c, prim.radius, prim.softness) * prim.multiplier);
     
     const VEC3 half_unit(0.5f, 0.5f, 0.5f);
     for (auto& prim : oriented_boxes) {
@@ -171,13 +168,6 @@ namespace SDF {
       float radius = p.transform.getScale().x;
       spheres.emplace_back(center, radius, p.multiplier);
       });
-
-    //boxes.clear();
-    //onEachPrimitive(SDF::Primitive::eType::BOX, [&](const SDF::Primitive& p) {
-    //  VEC3 center = p.transform.getPosition();
-    //  VEC3 radius = p.transform.getScale() * 0.5f;
-    //  boxes.emplace_back(center, radius, p.softness, p.multiplier);
-    //  });
 
     oriented_boxes.clear();
     onEachPrimitive(SDF::Primitive::eType::BOX, [&](const SDF::Primitive& p) {

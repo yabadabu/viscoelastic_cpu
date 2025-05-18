@@ -75,16 +75,6 @@ namespace SDF {
     std::vector< Sphere > spheres;
 
     // -------------------------------------------------
-    struct Box {
-      VEC3  c;
-      float softness = 1.0f;
-      VEC3  radius;
-      float multiplier = 1.0f;
-      Box() = default;
-      Box(VEC3 new_c, VEC3 new_radius, float new_softness, float new_multiplier) : c(new_c), radius(new_radius), softness(new_softness), multiplier(new_multiplier) {}
-    };
-    std::vector< Box > boxes;
-
     struct OrientedBox {
       MAT44 to_local;
       float radius = 1.0f;

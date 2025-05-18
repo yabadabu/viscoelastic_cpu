@@ -551,10 +551,11 @@ void ViscoelasticSim::updateStep(float dt) {
     attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
     bool ar_non_zero = attrack_repel != 0.0f;
     if (ar_non_zero || drag) {
+      float interact_rad_sqr = interact_rad * interact_rad;
       for (int i = 0; i < num_particles; ++i) {
         VEC3 delta = particles_pos.get(i) - interact_point;
         float dist_sq = delta.lengthSquared();
-        if (dist_sq > 100000 || dist_sq < 0.1)
+        if (dist_sq > interact_rad_sqr || dist_sq < 0.1)
           continue;
         if (ar_non_zero) {
           const float dist = sqrtf(dist_sq);

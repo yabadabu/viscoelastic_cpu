@@ -145,6 +145,20 @@ Remember that the spatial index we are using allows us to sort the cells by any 
 
 ## Results
 
+For 32K particles, using 12 CPUs in a Ryzen Threadripper 3960X with 24-Cores
+
+0.001296 Spatial Hash
+0.000034 Velocities update
+0.000066 Predict Positions
+0.003042 Relaxation
+0.000229 Collisions
+0.000076 Velocities from positions
+0.000828 Render
+0.004908 Total update
+
+And the thread utilizations during a single frame.
+
+[!(videos/sim00.profile.png)]
 
 ## Conclusions
 

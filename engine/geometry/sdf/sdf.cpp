@@ -192,6 +192,7 @@ namespace SDF {
     }
 
     changed |= ImGui::Checkbox("Enabled", &enabled);
+    changed |= ImGui::DragFloat("Weight", &multiplier, 0.1f, -5.0f, 5.0f );
     if (ImGui::TreeNode("Transform...")) {
       if (transform.debugInMenu())
         transformHasChanged();

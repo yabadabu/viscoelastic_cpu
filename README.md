@@ -2,7 +2,10 @@
 
 This document describes the approach I have taken to perform a particle simulation in 3D using only the CPU's. We process allows to update 32K particles with collisions using 12 CPU's in just 4ms per update. Today it's more common to perform these type of simulations using the GPU, but I wanted to explore first the use of the CPU's.
 
+[![Watch the video](https://raw.githubusercontent.com/yabadabu/viscoelastic_cpu/videos/sim00.png)](https://raw.githubusercontent.com/yabadabu/viscoelastic_cpu/branch/videos/sim00.mp4)
+
 The sample code focus on the simulation and uses DirectX 11 to draw a small sprite on each particle position.
+
 
 ## Particles
 

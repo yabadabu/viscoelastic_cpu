@@ -2,7 +2,7 @@
 
 This document describes the approach I have taken to perform a particle simulation in 3D using only the CPU's. The process allows to update 32K particles with collisions using 12 CPU's in just 4ms per update. Today it's more common to perform these type of simulations using the GPU, but I wanted to explore first the use of the CPU's.
 
-[![Watch the video](videos/sim00.png)](videos/sim00.mp4)
+[![Watch the video](results/sim00.png)](results/sim00.mp4)
 
 The sample code focus on the simulation and uses a small framework with DirectX 11 to draw a small sprite on each particle position.
 
@@ -147,6 +147,7 @@ Remember that the spatial index we are using allows us to sort the cells by any 
 
 For 32K particles, using 12 CPUs in a Ryzen Threadripper 3960X with 24-Cores
 
+```
 0.001296 Spatial Hash
 0.000034 Velocities update
 0.000066 Predict Positions
@@ -155,10 +156,13 @@ For 32K particles, using 12 CPUs in a Ryzen Threadripper 3960X with 24-Cores
 0.000076 Velocities from positions
 0.000828 Render
 0.004908 Total update
+```
 
 And the thread utilizations during a single frame.
 
-[!(videos/sim00.profile.png)]
+![CPU Profile](results/sim00.profile.png)
+
+You can check the details openning the file `results/capture.json` using the `chrome://tracing/` url from Chrome. Or capture new traces using the `Profile Capture` button from the imgui
 
 ## Conclusions
 

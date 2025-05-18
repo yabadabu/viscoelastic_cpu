@@ -138,10 +138,11 @@ struct ViscoelasticModule : public Module {
     dbg("ViscoelasticModule::ViscoelasticModule\n");
     sim.init();
     sim.in_2d = true;
-    sdfCage( );
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
+    //sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
-    addParticles(512);
+    //addParticles(512);
+    sdfLargeCage();
+    config3D_32K();
   }
 
   void sdfCage(  ) {
@@ -294,6 +295,26 @@ struct ViscoelasticModule : public Module {
     }
     sim.saveTime(ViscoelasticSim::eSection::Render, tm);
   }
+  
+  void config3D_32K() {
+    sim.mat.rest_density = 3.0f;
+    sim.mat.near_stiffness = 1.0f;
+    delta_time = 1.0f;
+    sim.max_speed = 5.0f;
+    sim.mat.kernel_radius = 20.0f;
+    gravity_amount = 0.1f;
+    gravity_direction = -90.0f;
+    num_particles_m0 = 8192;
+    num_particles_m1 = 8192;
+    num_particles_m2 = 8192;
+    sim.using_parallel = true;
+    sim.num_particles = 0;
+    sim.sdf.prims[3].transform.setPosition(VEC3(0, 0, -5.0));
+    sim.sdf.prims[3].transformHasChanged();
+    sim.in_2d = false;
+    addParticles(32 * 1024);
+    updateParticleTypes();
+  }
 
   void renderInMenu() override {
 
@@ -414,25 +435,8 @@ struct ViscoelasticModule : public Module {
       updateParticleTypes();
     }
 
-    if (ImGui::SmallButton("Config 3D 32K Particles")) {
-      sim.mat.rest_density = 3.0f;
-      sim.mat.near_stiffness = 1.0f;
-      delta_time = 1.0f;
-      sim.max_speed = 5.0f;
-      sim.mat.kernel_radius = 20.0f;
-      gravity_amount = 0.1f;
-      gravity_direction = -90.0f;
-      num_particles_m0 = 8192;
-      num_particles_m1 = 8192;
-      num_particles_m2 = 8192;
-      sim.using_parallel = true;
-      sim.num_particles = 0;
-      sim.sdf.prims[3].transform.setPosition(VEC3(0, 0, -5.0));
-      sim.sdf.prims[3].transformHasChanged();
-      sim.in_2d = false;
-      addParticles(32 * 1024);
-      updateParticleTypes();
-    }
+    if (ImGui::SmallButton("Config 3D 32K Particles"))
+      config3D_32K();
 
     if (ImGui::TreeNode("Colors..."))
     {

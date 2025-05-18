@@ -1,20 +1,19 @@
 # Introduction
 
-This document describes the approach I have taken to perform a particle simulation in 3D using only the CPU's. We process allows to update 32K particles with collisions using 12 CPU's in just 4ms per update. Today it's more common to perform these type of simulations using the GPU, but I wanted to explore first the use of the CPU's.
+This document describes the approach I have taken to perform a particle simulation in 3D using only the CPU's. The process allows to update 32K particles with collisions using 12 CPU's in just 4ms per update. Today it's more common to perform these type of simulations using the GPU, but I wanted to explore first the use of the CPU's.
 
 [![Watch the video](videos/sim00.png)](videos/sim00.mp4)
 
-The sample code focus on the simulation and uses DirectX 11 to draw a small sprite on each particle position.
-
+The sample code focus on the simulation and uses a small framework with DirectX 11 to draw a small sprite on each particle position.
 
 ## Particles
 
 The simulation requires to store for each particle:
-	position (3 floats)
-	velocity (3 floats)
-	prev_position (3 floats)
-	cell_id, index_in_cell (2 ints)
-	type (1 byte)
+- position (3 floats)
+- velocity (3 floats)
+- prev_position (3 floats)
+- cell_id, index_in_cell (2 ints)
+- type (1 byte)
 
 We will store each information in a separate linear buffer, using a SoA (Structure of Arrays) instead of AoS (Array of Structures). When we move to use sse/avx/avx2, even the 3 coords xyz of the vectors will be stored in separated linear buffers.
 
@@ -38,13 +37,13 @@ Something like:
 
 And in our case num_cells_mask = 64K - 1, so 0xffff
 
-For each cell, we are going to store the following information: (u32 = unsigned int of 32 bits)
+For each cell, we are going to store the following information: (u32 = unsigned int of 32 bits, and Int3 stores x3 ints)
 		
 	struct CellInfo {
-		u32  tag = 0;
-		u32  count;				// Keep track of the number of particles associated to this cell in this frame
-		Int3 coords;			// Current coords associated to this cell
-		u32  base = 0;
+	  u32  tag = 0;
+	  u32  count;		// Keep track of the number of particles associated to this cell in this frame
+	  Int3 coords;		// Current coords associated to this cell
+	  u32  base = 0;
 	};
 
 The tag is going to be an integer we will increase on each iteration of the simulation and allows us to recognize if the cell has been used in this frame or not.
@@ -52,37 +51,37 @@ The tag is going to be an integer we will increase on each iteration of the simu
 We will need to deal with some hash collisions, when two cells with different cell_coords are assigned to the same cell_id number. In that case we will use a linear probing and use the next cell_id that it's available.
 
 The algorithm is then:
-	- Define a u32 current_tag, and increment it on each frame
-	- For each particle.position, find the official cell_id
-	    const CellInfo& cell = cell_infos[ cell_id ]
-	- Check the CellInfo assocaited to the cell_id (array access)
-	- If this is the first time we use this cell (comparing the tag vs current_tag):
-	    - We update the tag of the cell and reset the cell.count = 0 
-	    - We store in a separate array the cell_id as 'being used in this frame'
-	- Otherwise, we need to confirm if the coords of the cell match the coords of our particle. If we need to find another cell, just increment the cell_id by one and try again. (Linear probing)
-	- If the coords also match, the cell_id is good, increment the count of the cell_info struct.
+- Define a u32 current_tag, and increment it on each frame
+- For each particle.position, find the official cell_id:  onst CellInfo& cell = cell_infos[ cell_id ]
+- Check the CellInfo assocaited to the cell_id (array access)
+- If this is the first time we use this cell (comparing the tag vs current_tag):
+    - We update the tag of the cell and reset the cell.count = 0 
+    - We store in a separate array the cell_id as 'being used in this frame'
+- Otherwise, we need to confirm if the coords of the cell match the coords of our particle. If we need to find another cell, just increment the cell_id by one and try again. (Linear probing)
+- If the coords also match, the cell_id is good, increment the count of the cell_info struct.
 
-In either case, save to cell_id assoeach to the particle and the count in the cell that has been assigned to the particle.
+In either case, save to cell_id and the current count in the cell that has been assigned to the particle.
 
 This is not thread safe.
 
-Once all the particles have been assigned a cell_id, and a index in each particle, we also end with the list of cells (in our big list of 64K cells) which 
-contains particles. In my tests, we might use around 4000 particles of the 64K.
+Once all the particles have been assigned a cell_id and the index in each particle, we also end with the list of cells (a selection of our big list of 64K cells) which 
+contains particles. In my tests, we might use around 4000 particles of the 64K (6% approx).
 
 We are free to 'sort' the cell_id's to our best interest. 
 
 Then, we run the following code:
-	u32 acc = 0;
-  for( u32 cell_id : used_cell_ids ) {
-		cells[ cell_id ].base = acc;
-		acc += cells[ cell_id ].count;
-	}
+
+    u32 acc = 0;
+    for( u32 cell_id : used_cell_ids ) {
+      cells[ cell_id ].base = acc;
+      acc += cells[ cell_id ].count;
+    }
 
 Now we can run a final stage, where each particle is moved to a unique position	in a linear array.
 	for( u32 particle_id : num_particles ) {
-		Particle p = old_particles[ particle_id ]
-		u32 final_index = cells[ p.cell_id ].base + p.count_in_cell
-		new_particles[ final_particle_index ] = p
+	  Particle p = old_particles[ particle_id ]
+	  u32 final_index = cells[ p.cell_id ].base + p.count_in_cell
+	  new_particles[ final_particle_index ] = p
 	}
 
 This stage can be run in parallel, as each particle already has a unique index associated.
@@ -92,13 +91,13 @@ For 32K particles, this takes about 1.4ms
 
 ## Simulation
 
-	Apply external forces (gravity for example)
-	Estimate new position
-	// Index here
-	Apply viscosity
-	Apply results of viscosity
-	Resolve collisions with walls
-	Compute new_velocities
+- Apply external forces (gravity for example)
+- Estimate new position
+// Index here
+- Apply viscosity
+- Apply results of viscosity
+- Resolve collisions with walls
+- Compute new_velocities
 
 The huge cost goes to the apply viscosity, where for each particle we need to find the influence of all nearby particles.
 For the viscositySolve to work, we make a copy of the positions of each particle, and accumulate the expected changes of each particle in a separate buffer, this way the we could run each particle in parallel without locking mechanisms
@@ -152,8 +151,8 @@ Generating the list of unique cell_id's and associate each particle with a uniqu
 - Each thread creates 8 groups, and stores each particle_id associated to each group
 		groups[ group_id ].push_back( particle_id )
 - At this points, each thread has organized the particles in 8 buckets
-- Using a st::atomic<int> each thread allocates the number of particles for each group
-- 
+- Using a std::atomic<int> each thread allocates the number of particles for each group
+
 
 
 

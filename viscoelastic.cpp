@@ -19,9 +19,21 @@ struct ViscoelasticModule : public Module {
     int                      particle_type = 0;
     int                      num_pendings = 0;
     bool renderInMenu() {
-      if (!ImGui::TreeNode("Emitter"))
+      if (!ImGui::TreeNode("Emitter..."))
         return false;
       bool changed = transform.debugInMenu();
+
+      ImGui::Text("Queue");
+      ImGui::SameLine();
+      if (ImGui::SmallButton("100"))
+        add(100);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("1024"))
+        add(1024);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("4096"))
+        add(4096);
+
       ImGui::Checkbox("Emitting", &enabled);
       if (num_pendings) {
         ImGui::SameLine();
@@ -99,7 +111,7 @@ struct ViscoelasticModule : public Module {
 
     sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f ));
 
-    emitter.transform.setPosition(VEC3(0.0f, 3.0f, -2.0f));
+    emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
 
     addParticles(512);
   }
@@ -248,7 +260,6 @@ struct ViscoelasticModule : public Module {
     ImGui::Text("%d Particles / %d Cells", sim.num_particles, (int)sim.spatial_hash.cells_ranges.size());
     ImGui::Checkbox("Using parallel", &sim.using_parallel);
 
-    ImGui::SetNextItemOpen(true, ImGuiCond_Appearing);
     if (ImGui::TreeNode("Simulation Params...")) {
       ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);
       ImGui::DragFloat("Rest Density", &sim.mat.rest_density, 0.1f);
@@ -300,12 +311,6 @@ struct ViscoelasticModule : public Module {
         sim.debug_particle = debug_particle;
       ImGui::TreePop();
     }
-
-    if (ImGui::SmallButton("Add 100 particles..."))
-      emitter.add(100);
-
-    if (ImGui::SmallButton("Add 1024 particles..."))
-      emitter.add(1024);
 
     if (ImGui::SmallButton("Remove All Particles"))
       sim.num_particles = 0;
@@ -402,8 +407,9 @@ struct ViscoelasticModule : public Module {
       }
     }
 
-    ImGui::Text("Interact: %1.2f %1.2f %1.2f", sim.interact_point.x, sim.interact_point.y, sim.interact_point.z);
-    ImGui::Text("Interact Dir: %1.2f %1.2f %1.2f", interact_dir.x, interact_dir.y, interact_dir.z);
+    //ImGui::Text("Mouse: %1.1f %1.1f", mouse_cursor.x, mouse_cursor.y);
+    //ImGui::Text("Interact Pos: %1.2f %1.2f %1.2f", sim.interact_point.x, sim.interact_point.y, sim.interact_point.z);
+    //ImGui::Text("Interact Normal: %1.2f %1.2f %1.2f", sim.interact_dir.x, sim.interact_dir.y, sim.interact_dir.z);
     ImGui::DragFloat("Interact Radius", &sim.interact_rad, 0.1f, 1.0f, 150.0f);
 
     emitter.renderInMenu();
@@ -462,11 +468,13 @@ struct ViscoelasticModule : public Module {
     sim.attract = ImGui::IsKeyDown( ImGuiKey::ImGuiKey_Z );
   }
 
-  VEC3 findNearestIntersectionWithSDF(VEC3 src, VEC3 dir) const {
+  VEC3 findNearestIntersectionWithSDF(VEC3 ray_src, VEC3 ray_dir) const {
+    
     float best_t = FLT_MAX;
+    ray_src += ray_dir * 0.01f;
     for (auto& p : sim.sdf.planes) {
-      float num = -( p.d + src.dot(p.n) );
-      float den = dir.dot(p.n);
+      float num = -( p.d + ray_src.dot(p.n) );
+      float den = ray_dir.dot(p.n);
       // Skip planes not looking at the camera
       if (den >= 0.0)
         continue;
@@ -474,7 +482,11 @@ struct ViscoelasticModule : public Module {
       if (t < best_t)
         best_t = t;
     }
-    return src + best_t * dir;
+
+    // test vs the other primitives...
+    // ..
+
+    return ray_src + best_t * ray_dir;
   }
 
 };

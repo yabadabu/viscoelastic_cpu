@@ -14,20 +14,29 @@ struct ViscoelasticModule : public Module {
     TTransform               transform;
     float                    radius = 0.1f;
     float                    strength = 10.0f;
-    int                      rate = 1;
+    int                      rate = 4;
     bool                     enabled = false;
     int                      particle_type = 0;
+    int                      num_pendings = 0;
     bool renderInMenu() {
       if (!ImGui::TreeNode("Emitter"))
         return false;
       bool changed = transform.debugInMenu();
       ImGui::Checkbox("Emitting", &enabled);
+      if (num_pendings) {
+        ImGui::SameLine();
+        ImGui::Text("%d", num_pendings);
+      }
       ImGui::DragFloat("Radius", &radius, 0.01f, 0.1f, 3.0f);
       ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 25.0f);
       ImGui::DragInt("Rate", &rate, 0.1f, 0, 32);
-      ImGui::DragInt("Type", &particle_type, 0.1f, 0, 3);
+      ImGui::DragInt("Type", &particle_type, 0.05f, 0, 3);
       ImGui::TreePop();
       return changed;
+    }
+    void add(int n) {
+      num_pendings = n;
+      enabled = true;
     }
   };
 
@@ -250,7 +259,7 @@ struct ViscoelasticModule : public Module {
       ImGui::DragFloat("Delta Time", &delta_time, 0.005f, 0.0f, 1.0f);
       ImGui::DragFloat("Gravity Direction", &gravity_direction, 1.0f, -360, 360.0f);
       ImGui::DragFloat("Gravity Amount", &gravity_amount, 0.01f, 0.0, 1.0f);
-      ImGui::DragFloat("Max Speed", &sim.max_speed, 0.05f, 0, 5.0f);
+      ImGui::DragFloat("Max Speed", &sim.max_speed, 0.05f, 0, 10.0f);
 
       ImGui::DragInt("Sub Steps", &sim.num_substeps, 0.02f, 1, 10);
 
@@ -293,10 +302,10 @@ struct ViscoelasticModule : public Module {
     }
 
     if (ImGui::SmallButton("Add 100 particles..."))
-      addParticles(100);
+      emitter.add(100);
 
     if (ImGui::SmallButton("Add 1024 particles..."))
-      addParticles(1024);
+      emitter.add(1024);
 
     if (ImGui::SmallButton("Remove All Particles"))
       sim.num_particles = 0;
@@ -404,6 +413,7 @@ struct ViscoelasticModule : public Module {
     }
 
     if (ImGui::Begin("Hints")) {
+      ImGui::Text("WSAD  : Move Camera");
       ImGui::Text("W/E/R : Move / Rotate / Scale");
       ImGui::Text("Z Attract");
       ImGui::Text("X Drain");
@@ -424,9 +434,14 @@ struct ViscoelasticModule : public Module {
         static TRandomSequence rseq;
         for (int i = 0; i < emitter.rate; ++i)
         {
-          VEC3 p = emitter.transform.transformCoord(VEC3(rseq.between( -emitter.radius, emitter.radius ), rseq.between(-emitter.radius, emitter.radius), 0.0f)) * sim.world_scale;
+          VEC3 p = emitter.transform.transformCoord(VEC3(rseq.between( -emitter.radius, emitter.radius ), rseq.between(-emitter.radius, emitter.radius), rseq.between(-emitter.radius, emitter.radius))) * sim.world_scale;
           VEC3 v = emitter.transform.transformDir(VEC3(0.0f, 0.0f, 1.0f)) * emitter.strength;
           sim.addParticle(p, v, emitter.particle_type);
+        }
+        if (emitter.num_pendings > 0) {
+          emitter.num_pendings -= emitter.rate;
+          if (emitter.num_pendings <= 0)
+            emitter.enabled = false;
         }
       }
 

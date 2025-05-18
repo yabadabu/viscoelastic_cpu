@@ -66,7 +66,7 @@ static LRESULT WINAPI MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
   }
 
   case WM_MOUSEMOVE:
-    mouse_cursor = VEC2((LONG)GET_X_LPARAM(lParam), (LONG)GET_Y_LPARAM(lParam));
+    mouse_cursor = VEC2((float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam));
     break;
 
   case WM_ENTERSIZEMOVE:

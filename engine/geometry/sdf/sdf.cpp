@@ -184,7 +184,13 @@ namespace SDF {
   bool Primitive::renderInMenu() {
     ImGui::PushID(this);
     bool changed = false;
-    changed |= ImGui::ColorEdit4("Color", &color.x);
+
+    int itype = (int)prim_type;
+    if (ImGui::Combo("Type", &itype, "Sphere\0Box\0Plane\0\0", 4)) {
+      prim_type = (eType)(itype);
+      changed = true;
+    }
+
     changed |= ImGui::Checkbox("Enabled", &enabled);
     if (ImGui::TreeNode("Transform...")) {
       if (transform.debugInMenu())
@@ -197,8 +203,13 @@ namespace SDF {
 
   bool sdFunc::renderInMenu() {
     bool changed = false;
-    for (auto& prim : prims)
+    for (auto& prim : prims) {
+      ImGui::Separator();
       changed |= prim.renderInMenu();
+    }
+    if (ImGui::SmallButton("Add..."))
+      prims.push_back(SDF::Primitive::makeSphere(VEC3(0, 0, 0), 1.0f));
+
     return changed;
   }
 }

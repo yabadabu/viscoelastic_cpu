@@ -12,8 +12,7 @@ IResource* createMesh(const std::string& name) {
   if (name == "grid.mesh")       createGrid(mesh);
   //else if (sname == "axis.mesh")  createAxis(mesh);
   else if (name == "unit_wired_cube.mesh")  createUnitWiredCube(mesh);
-  //else if (sname == "unit_circle_xz.mesh")  createUnitWiredCircleXZ(mesh, 32);
-  //else 
+  else if (name == "unit_circle_xz.mesh")  createUnitWiredCircleXZ(mesh, 32);
   else if (name == "line.mesh") createLine(mesh);
   else if (name == "unit_quad_xy.mesh") createUnitQuadXY(mesh);
   //else if (sname == "view_volume.mesh") createViewVolume(mesh);

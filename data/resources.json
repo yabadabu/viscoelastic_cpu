@@ -16,6 +16,10 @@
     "name": "unit_wired_cube"
   },
   {
+    "type": "mesh",
+    "name": "unit_circle_xz"
+  },
+  {
     "type": "pso",
     "name": "basic",
     "vertex_decl": "PosColor",

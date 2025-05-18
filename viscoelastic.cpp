@@ -90,7 +90,7 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
 
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 3.0, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f ));
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f ));
 
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, -2.0f));
 
@@ -238,50 +238,61 @@ struct ViscoelasticModule : public Module {
       addParticles(n);
     }
 
-    ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);
-    ImGui::DragFloat("Rest Density", &sim.mat.rest_density, 0.1f);
-    ImGui::DragFloat("Stiffness", &sim.mat.stiffness, 0.01f, 0.1f, 2.0f);
-    ImGui::DragFloat("NearStiffness", &sim.mat.near_stiffness, 0.01f, 0.0f, 2.0f);
-    ImGui::DragFloat("Friction", &sim.friction, 0.005f, 0.0f, 1.0f);
-
-    ImGui::DragFloat("Delta Time", &delta_time, 0.005f, 0.0f, 1.0f);
-    ImGui::DragFloat("Gravity Direction", &gravity_direction, 1.0f, -360, 360.0f);
-    ImGui::DragFloat("Gravity Amount", &gravity_amount, 0.01f, 0.0, 1.0f);
-    ImGui::DragFloat("Max Speed", &sim.max_speed, 0.05f, 0, 5.0f);
-
-    ImGui::DragInt("Sub Steps", &sim.num_substeps, 0.02f, 1, 10);
-
-    float buffer_size_mbs = sim.num_particles * sizeof(VEC3) / ( 1024.f * 1024.f );
-
-    ImGui::Text("%1.6lf spatial_hash", sim.times[ ViscoelasticSim::eSection::SpatialHash] );
-    ImGui::Text("%1.6lf velocities_update", sim.times[ViscoelasticSim::eSection::VelocitiesUpdate] );
-    ImGui::Text("%1.6lf predict_position (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::PredictPositions], ( 4.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::PredictPositions]));
-    ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
-    ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
-    ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
-    ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
-    ImGui::Text("%1.6lf Total update (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Update], ( 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Update]));
-
     ImGui::Text("%d Particles / %d Cells", sim.num_particles, (int)sim.spatial_hash.cells_ranges.size());
-    ImGui::Text("# Hash Collisions: %d (%1.2f%%)", sim.spatial_hash.num_collisions, (sim.spatial_hash.num_collisions * 100.0 / sim.num_particles) );
-    ImGui::Checkbox("Use Cell Colors", &use_cell_colors);
-    ImGui::Checkbox("Show Cells", &show_cells);
-    ImGui::Checkbox("Show Particle IDs", &show_ids);
-    ImGui::Checkbox("Show Cell IDs", &show_cell_ids);
     ImGui::Checkbox("Using parallel", &sim.using_parallel);
 
-    if (show_ids) {
-      for (int i = 0; i < sim.num_particles; ++i)
-        dbg_texts.add(sim.particles_pos.get(i) * (1.0f / sim.world_scale), 0xffffffff, "%d", i);
+    ImGui::SetNextItemOpen(true, ImGuiCond_Appearing);
+    if (ImGui::TreeNode("Simulation Params...")) {
+      ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);
+      ImGui::DragFloat("Rest Density", &sim.mat.rest_density, 0.1f);
+      ImGui::DragFloat("Stiffness", &sim.mat.stiffness, 0.01f, 0.1f, 2.0f);
+      ImGui::DragFloat("NearStiffness", &sim.mat.near_stiffness, 0.01f, 0.0f, 2.0f);
+      ImGui::DragFloat("Friction", &sim.friction, 0.005f, 0.0f, 1.0f);
+
+      ImGui::DragFloat("Delta Time", &delta_time, 0.005f, 0.0f, 1.0f);
+      ImGui::DragFloat("Gravity Direction", &gravity_direction, 1.0f, -360, 360.0f);
+      ImGui::DragFloat("Gravity Amount", &gravity_amount, 0.01f, 0.0, 1.0f);
+      ImGui::DragFloat("Max Speed", &sim.max_speed, 0.05f, 0, 5.0f);
+
+      ImGui::DragInt("Sub Steps", &sim.num_substeps, 0.02f, 1, 10);
+
+      float buffer_size_mbs = sim.num_particles * sizeof(VEC3) / ( 1024.f * 1024.f );
+
+      ImGui::Text("%1.6lf spatial_hash", sim.times[ ViscoelasticSim::eSection::SpatialHash] );
+      ImGui::Text("%1.6lf velocities_update", sim.times[ViscoelasticSim::eSection::VelocitiesUpdate] );
+      ImGui::Text("%1.6lf predict_position (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::PredictPositions], ( 4.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::PredictPositions]));
+      ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
+      ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
+      ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
+      ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
+      ImGui::Text("%1.6lf Total update (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Update], ( 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Update]));
+      ImGui::Text("# Hash Collisions: %d (%1.2f%%)", sim.spatial_hash.num_collisions, (sim.spatial_hash.num_collisions * 100.0 / sim.num_particles) );
+      ImGui::TreePop();
     }
-    if (show_cell_ids) {
-      for (auto& cell : sim.spatial_hash.cells_ranges) {
-        const auto& cell_info = sim.spatial_hash.cells_info[cell.cell_id];
-        VEC3 p = sim.spatial_hash.getCellCoords(cell_info.coords) + VEC3::ones * sim.mat.kernel_radius * 0.5f;
-        dbg_texts.add(p * (1.0f / sim.world_scale), 0xffff00ff, "%08x", cell.cell_id);
+
+    if (ImGui::TreeNode("Simulation Debug...")) {
+      ImGui::Checkbox("Use Cell Colors", &use_cell_colors);
+      ImGui::Checkbox("Show Cells", &show_cells);
+      ImGui::Checkbox("Show Particle IDs", &show_ids);
+      ImGui::Checkbox("Show Cell IDs", &show_cell_ids);
+
+      if (show_ids) {
+        for (int i = 0; i < sim.num_particles; ++i)
+          dbg_texts.add(sim.particles_pos.get(i) * (1.0f / sim.world_scale), 0xffffffff, "%d", i);
       }
+      if (show_cell_ids) {
+        for (auto& cell : sim.spatial_hash.cells_ranges) {
+          const auto& cell_info = sim.spatial_hash.cells_info[cell.cell_id];
+          VEC3 p = sim.spatial_hash.getCellCoords(cell_info.coords) + VEC3::ones * sim.mat.kernel_radius * 0.5f;
+          dbg_texts.add(p * (1.0f / sim.world_scale), 0xffff00ff, "%08x", cell.cell_id);
+        }
+      }
+      dbg_texts.flush();
+
+      if (ImGui::DragInt("Debug Particle", &debug_particle, 0.1f, -1, sim.num_particles))
+        sim.debug_particle = debug_particle;
+      ImGui::TreePop();
     }
-    dbg_texts.flush();
 
     if (ImGui::SmallButton("Add 100 particles..."))
       addParticles(100);
@@ -349,17 +360,21 @@ struct ViscoelasticModule : public Module {
       updateParticleTypes();
     }
 
-    bool changed = false;
-    changed |= ImGui::DragInt("Amount M0", &num_particles_m0, 0.02f, 0, 4096);
-    changed |= ImGui::DragInt("Amount M1", &num_particles_m1, 0.02f, 0, 4096);
-    changed |= ImGui::DragInt("Amount M2", &num_particles_m2, 0.02f, 0, 4096);
-    ImGui::ColorEdit4("Color 0", &colors[0].x);
-    ImGui::ColorEdit4("Color 1", &colors[1].x);
-    ImGui::ColorEdit4("Color 2", &colors[2].x);
-    ImGui::ColorEdit4("Color 3", &colors[3].x);
-    changed |= ImGui::DragFloat4("Masses", sim.masses, 0.02f, 0, 4.0f);
-    if (ImGui::DragInt("Debug Particle", &debug_particle, 0.1f, -1, sim.num_particles))
-      sim.debug_particle = debug_particle;
+    if (ImGui::TreeNode("Colors..."))
+    {
+      bool changed = false;
+      changed |= ImGui::DragInt("Amount M0", &num_particles_m0, 0.02f, 0, 4096);
+      changed |= ImGui::DragInt("Amount M1", &num_particles_m1, 0.02f, 0, 4096);
+      changed |= ImGui::DragInt("Amount M2", &num_particles_m2, 0.02f, 0, 4096);
+      ImGui::ColorEdit4("Color 0", &colors[0].x);
+      ImGui::ColorEdit4("Color 1", &colors[1].x);
+      ImGui::ColorEdit4("Color 2", &colors[2].x);
+      ImGui::ColorEdit4("Color 3", &colors[3].x);
+      changed |= ImGui::DragFloat4("Masses", sim.masses, 0.02f, 0, 4.0f);
+      if (changed)
+        updateParticleTypes();
+      ImGui::TreePop();
+    }
 
     if (debug_particle >= 0 && debug_particle < sim.num_particles) {
       if (ImGui::TreeNode("All Particles around")) {
@@ -384,11 +399,11 @@ struct ViscoelasticModule : public Module {
     ImGui::Text("Interact Dir: %1.2f %1.2f %1.2f", interact_dir.x, interact_dir.y, interact_dir.z);
     ImGui::DragFloat("Interact Radius", &sim.interact_rad, 0.1f, 1.0f, 150.0f);
 
-    if (changed)
-      updateParticleTypes();
-
     emitter.renderInMenu();
-    sim.sdf.renderInMenu();
+    if (ImGui::TreeNode("Collisions SDF...")) {
+      sim.sdf.renderInMenu();
+      ImGui::TreePop();
+    }
 
     if (ImGui::Begin("Hints")) {
       ImGui::Text("W/E/R : Move / Rotate / Scale");

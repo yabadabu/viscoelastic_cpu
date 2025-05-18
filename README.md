@@ -4,7 +4,13 @@ This document describes the approach I have taken to perform a particle simulati
 
 [![Watch the video](results/sim00.png)](results/sim00.mp4)
 
-The sample code focus on the simulation and uses a small framework with DirectX 11 to draw a small sprite on each particle position.
+The sample code focus on the simulation and uses a small framework with DirectX 11 to draw a small sprite on each particle position. 
+
+The simulation is based on the repository from https://github.com/kotsoft/particle_based_viscoelastic_fluid, uses ImGui (https://github.com/ocornut/imgui), and the thread pool from https://github.com/progschj/ThreadPool (both included)
+
+## Build and run in Windows
+
+Open viscoelastic.sln with Visual C++ 2022 and press F5 in Release
 
 ## Particles
 
@@ -145,17 +151,17 @@ Remember that the spatial index we are using allows us to sort the cells by any 
 
 ## Results
 
-For 32K particles, using 12 CPUs in a Ryzen Threadripper 3960X with 24-Cores
+For 32K particles, using 12 CPUs in a Ryzen Threadripper 3960X with 24-Cores, times in msecs
 
 ```
-0.001296 Spatial Hash
-0.000034 Velocities update
-0.000066 Predict Positions
-0.003042 Relaxation
-0.000229 Collisions
-0.000076 Velocities from positions
-0.000828 Render
-0.004908 Total update
+1.296 Spatial Hash
+0.034 Velocities update
+0.066 Predict Positions
+3.042 Relaxation
+0.229 Collisions
+0.076 Velocities from positions
+0.828 Render
+4.908 Total update
 ```
 
 And the thread utilizations during a single frame.
@@ -168,6 +174,12 @@ You can check the details openning the file `results/capture.json` using the `ch
 
 - More threads does not mean better performance
 - Multithreading pays off when enough independent work is pushed
+- Allow to change the number of threads dynamically and bucket sizes within the app
+
+## Improvements
+
+- I have been testing an approach to generate the spatial index using multiple threads, but only pays off when more particles are being simulated
+- The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)
 
 ## Multithread generation of the Spatial Index
 

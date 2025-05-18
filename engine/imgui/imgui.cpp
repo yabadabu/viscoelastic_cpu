@@ -2156,14 +2156,14 @@ const char* ImStrSkipBlank(const char* str)
 // and setup the wrapper yourself. (FIXME-OPT: Some of our high-level operations such as ImGuiTextBuffer::appendfv() are
 // designed using two-passes worst case, which probably could be improved using the stbsp_vsprintfcb() function.)
 #ifdef IMGUI_USE_STB_SPRINTF
-//#ifndef IMGUI_DISABLE_STB_SPRINTF_IMPLEMENTATION
-//#define STB_SPRINTF_IMPLEMENTATION
-//#endif
-//#ifdef IMGUI_STB_SPRINTF_FILENAME
-//#include IMGUI_STB_SPRINTF_FILENAME
-//#else
-//#include "stb_sprintf.h"
-//#endif
+#ifndef IMGUI_DISABLE_STB_SPRINTF_IMPLEMENTATION
+#define STB_SPRINTF_IMPLEMENTATION
+#endif
+#ifdef IMGUI_STB_SPRINTF_FILENAME
+#include IMGUI_STB_SPRINTF_FILENAME
+#else
+#include "stb_sprintf.h"
+#endif
 #endif // #ifdef IMGUI_USE_STB_SPRINTF
 
 #if defined(_MSC_VER) && !defined(vsnprintf)
@@ -2976,11 +2976,11 @@ bool ImGuiTextFilter::PassFilter(const char* text, const char* text_end) const
 // On some platform vsnprintf() takes va_list by reference and modifies it.
 // va_copy is the 'correct' way to copy a va_list but Visual Studio prior to 2013 doesn't have it.
 #ifndef va_copy
-//#if defined(__GNUC__) || defined(__clang__)
-//#define va_copy(dest, src) __builtin_va_copy(dest, src)
-//#else
-//#define va_copy(dest, src) (dest = src)
-//#endif
+#if defined(__GNUC__) || defined(__clang__)
+#define va_copy(dest, src) __builtin_va_copy(dest, src)
+#else
+#define va_copy(dest, src) (dest = src)
+#endif
 #endif
 
 char ImGuiTextBuffer::EmptyString[1] = { 0 };
@@ -5551,7 +5551,7 @@ void ImGui::NewFrame()
 
     // Platform IME data: reset for the frame
     g.PlatformImeDataPrev = g.PlatformImeData;
-    g.PlatformImeData.WantVisible = false;
+    g.PlatformImeData.WantVisible = g.PlatformImeData.WantTextInput = false;
 
     // Mouse wheel scrolling, scale
     UpdateMouseWheel();
@@ -5719,7 +5719,7 @@ static void InitViewportDrawData(ImGuiViewportP* viewport)
     draw_data->TotalVtxCount = draw_data->TotalIdxCount = 0;
     draw_data->DisplayPos = viewport->Pos;
     draw_data->DisplaySize = is_minimized ? ImVec2(0.0f, 0.0f) : viewport->Size;
-    draw_data->FramebufferScale = io.DisplayFramebufferScale; // FIXME-VIEWPORT: This may vary on a per-monitor/viewport basis?
+    draw_data->FramebufferScale = (viewport->FramebufferScale.x != 0.0f) ? viewport->FramebufferScale : io.DisplayFramebufferScale;
     draw_data->OwnerViewport = viewport;
 }
 
@@ -5901,6 +5901,7 @@ void ImGui::EndFrame()
             viewport = GetMainViewport();
         g.PlatformIO.Platform_SetImeDataFn(&g, viewport, ime_data);
     }
+    g.WantTextInputNextFrame = ime_data->WantTextInput ? 1 : 0;
 
     // Hide implicit/fallback "Debug" window if it hasn't been used
     g.WithinFrameScopeWithImplicitWindow = false;
@@ -15940,7 +15941,7 @@ static void ImGui::UpdateViewportsNewFrame()
         // Focused viewport has changed?
         if (focused_viewport && g.PlatformLastFocusedViewportId != focused_viewport->ID)
         {
-            IMGUI_DEBUG_LOG_VIEWPORT("[viewport] Focused viewport changed %08X -> %08X, attempting to apply our focus.\n", g.PlatformLastFocusedViewportId, focused_viewport->ID);
+            IMGUI_DEBUG_LOG_VIEWPORT("[viewport] Focused viewport changed %08X -> %08X '%s', attempting to apply our focus.\n", g.PlatformLastFocusedViewportId, focused_viewport->ID, focused_viewport->Window ? focused_viewport->Window->Name : "n/a");
             const ImGuiViewport* prev_focused_viewport = FindViewportByID(g.PlatformLastFocusedViewportId);
             const bool prev_focused_has_been_destroyed = (prev_focused_viewport == NULL) || (prev_focused_viewport->PlatformWindowCreated == false);
 
@@ -16014,6 +16015,8 @@ static void ImGui::UpdateViewportsNewFrame()
                     viewport->Pos = viewport->LastPlatformPos = g.PlatformIO.Platform_GetWindowPos(viewport);
                 if (viewport->PlatformRequestResize)
                     viewport->Size = viewport->LastPlatformSize = g.PlatformIO.Platform_GetWindowSize(viewport);
+                if (g.PlatformIO.Platform_GetWindowFramebufferScale != NULL)
+                    viewport->FramebufferScale = g.PlatformIO.Platform_GetWindowFramebufferScale(viewport);
             }
         }
 
@@ -16219,10 +16222,7 @@ ImGuiViewportP* ImGui::AddUpdateViewport(ImGuiWindow* window, ImGuiID id, const 
 
         // Store initial DpiScale before the OS platform window creation, based on expected monitor data.
         // This is so we can select an appropriate font size on the first frame of our window lifetime
-        if (viewport->PlatformMonitor != -1)
-            viewport->DpiScale = g.PlatformIO.Monitors[viewport->PlatformMonitor].DpiScale;
-        else
-            viewport->DpiScale = 1.0f;
+        viewport->DpiScale = GetViewportPlatformMonitor(viewport)->DpiScale;
     }
 
     viewport->Window = window;
@@ -21145,6 +21145,18 @@ static void MetricsHelpMarker(const char* desc)
 // [DEBUG] List fonts in a font atlas and display its texture
 void ImGui::ShowFontAtlas(ImFontAtlas* atlas)
 {
+    ImGuiContext& g = *GImGui;
+
+    Text("Read ");
+    SameLine(0, 0);
+    TextLinkOpenURL("https://www.dearimgui.com/faq/");
+    SameLine(0, 0);
+    Text(" for details on font loading.");
+
+    ImGuiMetricsConfig* cfg = &g.DebugMetricsConfig;
+    Checkbox("Show font preview", &cfg->ShowFontPreview);
+
+    // Font list
     for (ImFont* font : atlas->Fonts)
     {
         PushID(font);
@@ -21153,7 +21165,6 @@ void ImGui::ShowFontAtlas(ImFontAtlas* atlas)
     }
     if (TreeNode("Font Atlas", "Font Atlas (%dx%d pixels)", atlas->TexWidth, atlas->TexHeight))
     {
-        ImGuiContext& g = *GImGui;
         PushStyleVar(ImGuiStyleVar_ImageBorderSize, ImMax(1.0f, g.Style.ImageBorderSize));
         ImageWithBg(atlas->TexID, ImVec2((float)atlas->TexWidth, (float)atlas->TexHeight), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
         PopStyleVar();
@@ -22124,6 +22135,8 @@ void ImGui::DebugNodeDrawCmdShowMeshAndBoundingBox(ImDrawList* out_draw_list, co
 // [DEBUG] Display details for a single font, called by ShowStyleEditor().
 void ImGui::DebugNodeFont(ImFont* font)
 {
+    ImGuiContext& g = *GImGui;
+    ImGuiMetricsConfig* cfg = &g.DebugMetricsConfig;
     bool opened = TreeNode(font, "Font: \"%s\": %.2f px, %d glyphs, %d sources(s)",
         font->Sources ? font->Sources[0].Name : "", font->FontSize, font->Glyphs.Size, font->SourcesCount);
 
@@ -22131,9 +22144,12 @@ void ImGui::DebugNodeFont(ImFont* font)
     if (!opened)
         Indent();
     Indent();
-    PushFont(font);
-    Text("The quick brown fox jumps over the lazy dog");
-    PopFont();
+    if (cfg->ShowFontPreview)
+    {
+        PushFont(font);
+        Text("The quick brown fox jumps over the lazy dog");
+        PopFont();
+    }
     if (!opened)
     {
         Unindent();
@@ -22299,8 +22315,9 @@ void ImGui::DebugNodeViewport(ImGuiViewportP* viewport)
     if (open)
     {
         ImGuiWindowFlags flags = viewport->Flags;
-        BulletText("Main Pos: (%.0f,%.0f), Size: (%.0f,%.0f)\nWorkArea Inset Left: %.0f Top: %.0f, Right: %.0f, Bottom: %.0f\nMonitor: %d, DpiScale: %.0f%%",
+        BulletText("Main Pos: (%.0f,%.0f), Size: (%.0f,%.0f)\nFrameBufferScale: (%.2f,%.2f)\nWorkArea Inset Left: %.0f Top: %.0f, Right: %.0f, Bottom: %.0f\nMonitor: %d, DpiScale: %.0f%%",
             viewport->Pos.x, viewport->Pos.y, viewport->Size.x, viewport->Size.y,
+            viewport->FramebufferScale.x, viewport->FramebufferScale.y,
             viewport->WorkInsetMin.x, viewport->WorkInsetMin.y, viewport->WorkInsetMax.x, viewport->WorkInsetMax.y,
             viewport->PlatformMonitor, viewport->DpiScale * 100.0f);
         if (viewport->Idx > 0) { SameLine(); if (SmallButton("Reset Pos")) { viewport->Pos = ImVec2(200, 200); viewport->UpdateWorkRect(); if (viewport->Window) viewport->Window->Pos = viewport->Pos; } }

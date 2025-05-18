@@ -18,6 +18,17 @@ struct ViscoelasticModule : public Module {
     bool                     enabled = false;
     int                      particle_type = 0;
     int                      num_pendings = 0;
+
+    int                      counter = 0;
+    int                      period = 1024;
+
+    enum eGenerationType {
+      eUniform,
+      eRandom,
+      eRanges
+    };
+    eGenerationType generation_type = eGenerationType::eUniform;
+
     bool renderInMenu() {
       if (!ImGui::TreeNode("Emitter..."))
         return false;
@@ -42,13 +53,38 @@ struct ViscoelasticModule : public Module {
       ImGui::DragFloat("Radius", &radius, 0.01f, 0.1f, 3.0f);
       ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 25.0f);
       ImGui::DragInt("Rate", &rate, 0.1f, 0, 32);
+      ImGui::Combo("Generation Type", (int*)&generation_type, "Uniform\0Random\0Ranges\0\0", 4);
       ImGui::DragInt("Type", &particle_type, 0.05f, 0, 3);
       ImGui::TreePop();
       return changed;
     }
     void add(int n) {
-      num_pendings = n;
+      num_pendings += n;
       enabled = true;
+    }
+    void emit(ViscoelasticSim& sim) {
+      if (!enabled)
+        return;
+      static TRandomSequence rseq;
+      for (int i = 0; i < rate; ++i) {
+        VEC3 p = transform.transformCoord(VEC3(rseq.between(-radius, radius), rseq.between(-radius, radius), rseq.between(-radius, radius))) * sim.world_scale;
+        VEC3 v = transform.transformDir(VEC3::axis_z) * strength;
+        if (generation_type == eGenerationType::eRandom)
+          particle_type = rseq.between(0, 4);
+        else if( generation_type == eGenerationType::eRanges ) {
+          counter += 1;
+          if (counter > period) {
+            counter = 0;
+            particle_type = ( particle_type + 1 ) % 4;
+          }
+        }
+        sim.addParticle(p, v, particle_type);
+      }
+      if (num_pendings > 0) {
+        num_pendings -= rate;
+        if (num_pendings <= 0)
+          enabled = false;
+      }
     }
   };
 
@@ -92,6 +128,8 @@ struct ViscoelasticModule : public Module {
   bool        show_cells = false;
   bool        show_ids = false;
   bool        show_cell_ids = false;
+  bool        auto_rotate_first_box = false;
+  float       rotation_speed = deg2rad( 1.0f );
   CDebugTexts dbg_texts;
 
   int       debug_particle = -1;
@@ -100,7 +138,14 @@ struct ViscoelasticModule : public Module {
     dbg("ViscoelasticModule::ViscoelasticModule\n");
     sim.init();
     sim.in_2d = true;
+    sdfCage( );
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
+    emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
+    addParticles(512);
+  }
 
+  void sdfCage(  ) {
+    sim.sdf.prims.clear();
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3::zero, VEC3::axis_y));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 6, 0), -VEC3::axis_y));
     const float sz = 2.5f;
@@ -108,12 +153,25 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_z));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
+  }
 
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f ));
+  void sdfLargeCage() {
+    sim.in_2d = false;
+    sdfCage();
+    sim.sdf.prims[3].transform.position.z = -5.0;
+    sim.sdf.prims[3].transformHasChanged();
+  }
 
-    emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
-
-    addParticles(512);
+  void sdfPlatforms() {
+    sim.in_2d = false;
+    sdfLargeCage();
+    emitter.transform.setPosition(VEC3(0.0f, 5.7f, -1.5f));
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 2.5f, -2.5f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
+    sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(20.0f)));
+    sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.5f, 1.0f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
+    sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(-20.0f)));
+    sim.sdf.prims.back().transformHasChanged();
   }
 
   void load() {
@@ -413,6 +471,16 @@ struct ViscoelasticModule : public Module {
     ImGui::DragFloat("Interact Radius", &sim.interact_rad, 0.1f, 1.0f, 150.0f);
 
     emitter.renderInMenu();
+
+    if (ImGui::TreeNode("SDFs Config...")) {
+      if (ImGui::SmallButton("Box3D Large"))
+        sdfLargeCage();
+      if (ImGui::SmallButton("Platforms"))
+        sdfPlatforms();
+      ImGui::Checkbox("Auto rotate first box", &auto_rotate_first_box);
+      ImGui::TreePop();
+    }
+
     if (ImGui::TreeNode("Collisions SDF...")) {
       sim.sdf.renderInMenu();
       ImGui::TreePop();
@@ -436,21 +504,7 @@ struct ViscoelasticModule : public Module {
       sim.update(delta_time);
       debug_particle = sim.debug_particle;
 
-      if (emitter.enabled) {
-        static TRandomSequence rseq;
-        for (int i = 0; i < emitter.rate; ++i)
-        {
-          VEC3 p = emitter.transform.transformCoord(VEC3(rseq.between( -emitter.radius, emitter.radius ), rseq.between(-emitter.radius, emitter.radius), rseq.between(-emitter.radius, emitter.radius))) * sim.world_scale;
-          VEC3 v = emitter.transform.transformDir(VEC3(0.0f, 0.0f, 1.0f)) * emitter.strength;
-          sim.addParticle(p, v, emitter.particle_type);
-        }
-        if (emitter.num_pendings > 0) {
-          emitter.num_pendings -= emitter.rate;
-          if (emitter.num_pendings <= 0)
-            emitter.enabled = false;
-        }
-      }
-
+      emitter.emit(sim);
     }
     if (auto_pause)
       paused = true;
@@ -466,6 +520,18 @@ struct ViscoelasticModule : public Module {
     sim.drain = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_X);
     sim.repel = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_C);
     sim.attract = ImGui::IsKeyDown( ImGuiKey::ImGuiKey_Z );
+
+    if (auto_rotate_first_box) {
+      for (auto& prim : sim.sdf.prims) {
+        if (prim.prim_type == SDF::Primitive::eType::BOX) {
+          prim.transform.setRotation(prim.transform.getRotation() * QUAT::createFromAxisAngle(VEC3::axis_x, rotation_speed));
+          prim.transformHasChanged();
+          break;
+        }
+      }
+    }
+
+
   }
 
   VEC3 findNearestIntersectionWithSDF(VEC3 ray_src, VEC3 ray_dir) const {

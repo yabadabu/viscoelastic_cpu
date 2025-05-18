@@ -69,8 +69,10 @@ struct ViscoelasticSim {
   int                     debug_particle = -1;
   std::vector<int>        particles_to_remove;
 
-  static constexpr int num_threads = 12;
+  int num_threads = 12;
   ThreadPool* pool = nullptr;
+
+  void setNumThreads(int new_num_threads);
 
   std::vector< CPUSpatialSubdivision::AssignedCell > assigned_cells;
 

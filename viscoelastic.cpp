@@ -317,6 +317,10 @@ struct ViscoelasticModule : public Module {
 
     ImGui::Text("%d Particles / %d Cells", sim.num_particles, (int)sim.spatial_hash.cells_ranges.size());
     ImGui::Checkbox("Using parallel", &sim.using_parallel);
+    int max_threads = std::thread::hardware_concurrency();
+    int num_threads = sim.num_threads;
+    if (ImGui::DragInt("Num Threads", &num_threads, 0.1f, 1, max_threads))
+      sim.setNumThreads(num_threads);
 
     if (ImGui::TreeNode("Simulation Params...")) {
       ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);

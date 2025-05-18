@@ -359,7 +359,7 @@ inline void collect_neighbors_block(
 }
 
 void ViscoelasticSim::init() {
-  pool = new ThreadPool(num_threads);
+  setNumThreads(num_threads);
 
   assigned_cells.resize(max_particles);
 
@@ -637,6 +637,13 @@ void ViscoelasticSim::updateStep(float dt) {
     saveTime(eSection::VelocitiesFromPositions, tm);
   }
 
+}
+
+void ViscoelasticSim::setNumThreads(int new_num_threads) {
+  num_threads = new_num_threads;
+  if (pool)
+    delete pool;
+  pool = new ThreadPool(num_threads);
 }
 
 void ViscoelasticSim::update(float delta_time) {

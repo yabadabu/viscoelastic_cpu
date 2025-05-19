@@ -57,7 +57,7 @@ void ModuleRender::generateFrame(int w, int h) {
   activateCamera(Render::getCurrentRenderCamera(), w, h);
   
   Modules::get().onRender3D();
-  Modules::get().renderInMenu();
+  //Modules::get().renderInMenu();
 
   RenderPlatform::endRenderingBackBuffer();
 

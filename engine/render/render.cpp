@@ -52,7 +52,7 @@ namespace Render {
 
   // -------------------------------------------------------
   bool PipelineState::loadCommonConfig(const json& j) {
-    const char* rs_cfg_str = j.value("rs", "default");
+    //const char* rs_cfg_str = j.value("rs", "default");
     //rs_cfg = rsConfigs.valueOf(rs_cfg_str);
     //if (rs_cfg == eRSConfig::COUNT)
     //  fatal("Invalid rs config %s\n", rs_cfg_str);

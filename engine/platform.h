@@ -2,6 +2,7 @@
 
 // Std platform
 
+#ifdef IN_PLATFORM_WINDOWS
 #define _SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
@@ -10,6 +11,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define OS_NAME  "windows"
 #include <windows.h>
+#endif
 
 // ----------------------------------------
 // C++ std
@@ -41,7 +43,6 @@
 #define stat     _stat
 #define mkdir    _mkdir
 #endif
-
 
 // ----------------------------------------
 #define IMGUI_DEFINE_MATH_OPERATORS

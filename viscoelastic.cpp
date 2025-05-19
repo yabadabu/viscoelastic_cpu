@@ -140,9 +140,9 @@ struct ViscoelasticModule : public Module {
     sim.in_2d = true;
     //sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
-    //addParticles(512);
-    sdfLargeCage();
-    config3D_32K();
+    addParticles(512);
+    //sdfLargeCage();
+    //config3D_32K();
   }
 
   void sdfCage(  ) {
@@ -175,7 +175,7 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.back().transformHasChanged();
   }
 
-  void load() {
+  void load() override {
     wired_cells = Render::VInstances("unit_wired_cube.mesh");
     lines = Render::VInstances( "line.mesh" );
   }
@@ -212,7 +212,7 @@ struct ViscoelasticModule : public Module {
     drawCell( cell_info.coords );
   }
 
-  void onRender3D() {
+  void onRender3D() override {
     TTimer tm;
 
     float sim_to_world_factor = 1.0f / sim.world_scale;

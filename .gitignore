@@ -4,5 +4,7 @@ x64/
 *.map
 *.lib
 *.exp
+objs/
 viscoelasticd.*
 capture.json
+demo_OSX

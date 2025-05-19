@@ -1,6 +1,13 @@
 #pragma once
 
+#ifdef IN_PLATFORM_WINDOWS
 #include "dx11/render_platform.h"
+#endif
+
+#ifdef IN_PLATFORM_APPLE
+#include "metal/render_platform.h"
+#endif
+
 #include "resources/resource.h"
 #include "vertex_declarations.h"
 
@@ -177,7 +184,7 @@ namespace Render {
 
   // -------------------------------------------------------
   struct PipelineState : public RenderPlatform::PipelineState, public IResource {
-    const VertexDecl* vertex_decl = nullptr;
+    const VertexDecl*    vertex_decl = nullptr;
     int                  priority = 0;
     uint32_t             category = CategorySolids;
     eDepthState          depth_state = eDepthState::DEFAULT;

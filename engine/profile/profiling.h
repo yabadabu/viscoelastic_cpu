@@ -1,24 +1,6 @@
 #pragma once
 
-#ifndef ENABLE_PROFILING
-#if defined(IN_PLATFORM_OSX) || defined(IN_PLATFORM_WINDOWS)
-#define ENABLE_PROFILING 1
-#else
-#define ENABLE_PROFILING 0
-#endif
-#endif
-
-
-#if !ENABLE_PROFILING
-
-#define PROFILE_SCOPED()
-#define PROFILE_SCOPED_NAMED(x)
-#define PROFILE_START_CAPTURING(nFrames)    while(false) { }
-#define PROFILE_BEGIN_SECTION(txt)          0
-#define PROFILE_END_SECTION(n)
-#define PROFILE_BEGIN_FRAME()
-
-#else
+#if defined(ENABLE_PROFILING)
 
 namespace Profiling {
 
@@ -53,6 +35,15 @@ namespace Profiling {
 #define PROFILE_BEGIN_FRAME()             Profiling::frameBegins()
 
 }
+
+#else
+
+#define PROFILE_SCOPED()
+#define PROFILE_SCOPED_NAMED(x)
+#define PROFILE_START_CAPTURING(nFrames)    while(false) { }
+#define PROFILE_BEGIN_SECTION(txt)          0
+#define PROFILE_END_SECTION(n)
+#define PROFILE_BEGIN_FRAME()
 
 #endif
 

@@ -67,7 +67,7 @@ struct ModuleCamera : public Module {
     controller = &fly;
   }
 
-  void update() {
+  void update() override {
     float dt = frameTime().elapsed;
     controller->updateCamera(Render::getCurrentRenderCamera(), dt);
   }

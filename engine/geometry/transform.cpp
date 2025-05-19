@@ -98,7 +98,6 @@ static void initGizmo(int id, CCamera* c) {
   const TViewport& vp_dock = c->getViewport();
   auto vp = ImGui::GetMainViewport();
   auto vp_pos = vp->WorkPos;
-  auto vp_size = vp->WorkSize;
   //ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
   ImGuizmo::SetID(id);
   ImGuizmo::SetRect((vp_dock.TopLeftX + vp_pos.x), (vp_dock.TopLeftY + vp_pos.y), (vp_dock.Width), (vp_dock.Height));

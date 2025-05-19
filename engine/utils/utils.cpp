@@ -36,7 +36,7 @@ int fatal(const char* fmt, ...) {
   char buf[48 * 1024];
   va_list ap;
   va_start(ap, fmt);
-  int n = vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+  vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
   va_end(ap);
 
   (*fatal_handler)(buf);

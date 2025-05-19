@@ -4,9 +4,12 @@ This document describes the approach I have taken to perform a particle simulati
 
 [![Watch the video](results/sim00.png)](results/sim00.mp4)
 
-The sample code focus on the simulation and uses a small framework with DirectX 11 to draw a small sprite on each particle position. 
+The sample code focus on the simulation and uses a small C++ framework with DirectX 11 to draw a small sprite on each particle position. 
 
-The simulation is based on the repository from https://github.com/kotsoft/particle_based_viscoelastic_fluid, uses ImGui (https://github.com/ocornut/imgui), and the thread pool from https://github.com/progschj/ThreadPool (both included)
+The simulation is based on the repository from https://github.com/kotsoft/particle_based_viscoelastic_fluid, and uses code from the following repo (all included):
+- ImGui (https://github.com/ocornut/imgui),
+- ImGuizmo (https://github.com/CedricGuillemet/ImGuizmo)
+- ThreadPool (https://github.com/progschj/ThreadPool)
 
 ## Build and run in Windows
 
@@ -267,7 +270,7 @@ Finally, with 64K particles, increasing the number of threads brings some nice i
 - Test other CPU's
 - Move it to GPU
 
-## Multithread generation of the Spatial Index
+## Multithread generation of the Spatial Index (uncomplete)
 
 Generating the list of unique cell_id's and associate each particle with a unique position in a linear buffer, so that subsequent queries run in parallel is the purpose of this section. The proposed solution is the following:
 

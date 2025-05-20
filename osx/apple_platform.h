@@ -19,7 +19,6 @@ extern "C" {
 
 	// -----------------------------------------
 	void inputSend( const char* event_name, float x, float y );
-  void runOSCommand( const char* cmd, void* args );
 
 #ifdef __cplusplus
 }

@@ -1,10 +1,8 @@
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CVDisplayLink.h>
-
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
-
 #include "apple_platform.h"
 
 // https://github.com/gamedevtech/CocoaOpenGLWindow
@@ -16,9 +14,6 @@
 @public
     CVDisplayLinkRef displayLink;
     bool running;
-    int  current_flags;
-    id<NSObject, NSCopying> touch0;
-    id<NSObject, NSCopying> touch1;
 }
 @end
 
@@ -27,7 +22,6 @@
 - (id) initWithFrame: (NSRect) frame {
     self = [super initWithFrame:frame];
     running = true;
-    current_flags = 0;
 
     self.device = MTLCreateSystemDefaultDevice();
     self.delegate = self;
@@ -43,8 +37,6 @@
     renderOpen( (__bridge void*)self );
     [NSApp activateIgnoringOtherApps:YES];
 
-    touch0 = nil;
-    touch1 = nil;
     return self;
 }
 
@@ -104,179 +96,6 @@
     NSPoint point = [self TransformPoint:event];
     inputSend( "mouse.move", point.x, point.y );
 }
-
-
-- (void)touchesBeganWithEvent:(NSEvent *)event {
-  NSSet *touches = [event touchesMatchingPhase:NSTouchPhaseBegan inView:self];
-  NSSize size = [self frame ].size;
-
-  for (NSTouch *touch in touches) {
-    NSPoint point = [self TransformPoint:event];
-    NSPoint npoint = NSMakePoint( point.x / size.height, point.y / size.height );
-    id<NSObject, NSCopying> identity = touch.identity;
-    if( touch0 == nil ) {
-        touch0 = identity;
-        // inputSend( "touch.0.dw", npoint.x, npoint.y );
-        // inputSend( "mouse.left.dw", point.x, point.y);
-        //NSLog(@"Touch began: %@ as 0 T0:%p T1:%p", touch, touch0, touch1);
-    }
-    else if( touch1 == nil ) {
-        touch1 = identity;
-        // inputSend( "touch.1.dw", npoint.x, npoint.y );
-        // inputSend( "mouse.left.dw", point.x, point.y);
-        //NSLog(@"Touch began: %@ as 1 T0:%p T1:%p", touch, touch0, touch1);
-    }
-    else {
-        //NSLog(@"Touch began: %@ but both touch0 and touch1 are already being tracked %p T0:%p T1:%p", touch, identity, touch0, touch1);
-    }
-  }
-}
-
-- (void)touchesMovedWithEvent:(NSEvent *)event {
-  NSSet *touches = [event touchesMatchingPhase:NSTouchPhaseMoved inView:self];
-  NSSize size = [self frame ].size;
-
-  for (NSTouch *touch in touches) {
-    NSPoint point = [self TransformPoint:event];
-    NSPoint npoint = NSMakePoint( point.x / size.height, point.y / size.height );
-    id<NSObject, NSCopying> identity = touch.identity;
-    if( touch0 == identity ) {
-        // inputSend( "touch.0.pos", npoint.x, npoint.y );
-        // inputSend( "mouse.move", point.x, point.y);
-    } else if( touch1 == identity ) {
-        // inputSend( "touch.1.pos", npoint.x, npoint.y );
-        // inputSend( "mouse.move", point.x, point.y);
-    } else {
-        //NSLog(@"Touch moved: %@ (%p) T0:%p T1:%p", touch, identity, touch0, touch1);
-    }
-  }
-}
-
-- (void)touchesEndedWithEvent:(NSEvent *)event {
-  NSSet *touches = [event touchesMatchingPhase:NSTouchPhaseEnded inView:self];
-  NSSize size = [self frame ].size;
-
-  for (NSTouch *touch in touches) {
-    NSPoint point = [self TransformPoint:event];
-    NSPoint npoint = NSMakePoint( point.x / size.height, point.y / size.height );
-    id<NSObject, NSCopying> identity = touch.identity;
-    if( touch0 == identity ) {
-        // inputSend( "touch.0.up", npoint.x, npoint.y );
-        // inputSend( "mouse.left.up", point.x, point.y);
-        touch0 = nil;
-        //NSLog(@"Touch end: %@ as 0 T0:%p T1:%p", touch, touch0, touch1);
-    }
-    else if( touch1 == identity ) {
-        // inputSend( "touch.1.up", npoint.x, npoint.y );
-        // inputSend( "mouse.left.up", point.x, point.y);
-        touch1 = nil;
-        //NSLog(@"Touch end: %@ as 1 T0:%p T1:%p", touch, touch0, touch1);
-    }
-    else {
-        //NSLog(@"Touch ended: %@ (%p) T0:%p T1:%p", touch, identity, touch0, touch1);
-    }    
-  }
-
-  NSSet *active_touches = [event touchesMatchingPhase:NSTouchPhaseTouching inView:self];
-  bool t0_found = false;
-  bool t1_found = false;
-  for (NSTouch *touch in active_touches) {
-    id<NSObject, NSCopying> identity = touch.identity;
-    if( touch0 == identity ) 
-        t0_found = true;
-    if( touch1 == identity ) 
-        t1_found = true;
-  }
-
-    if( !t0_found && touch0 != nil) {
-//        inputSend( "touch.0.up", 0, 0 );
-        touch0 = nil;
-        //NSLog(@"Touch forced end0 T0:%p T1:%p", touch0, touch1);
-    }
-    if( !t1_found && touch1 != nil) {
-        //inputSend( "touch.1.up", 0, 0 );
-        touch1 = nil;
-        //NSLog(@"Touch forced end1 T0:%p T1:%p", touch0, touch1);
-    }
-}
-
-- (void)touchesCancelledWithEvent:(NSEvent *)event {
-  NSSet *touches = [event touchesMatchingPhase:NSTouchPhaseCancelled inView:self];
-  NSSize size = [self frame ].size;
-
-  for (NSTouch *touch in touches) {
-    NSPoint point = [self TransformPoint:event];
-    NSPoint npoint = NSMakePoint( point.x / size.height, point.y / size.height );
-    id<NSObject, NSCopying> identity = touch.identity;
-    if( touch0 == identity ) {
-        //inputSend( "touch.0.up", npoint.x, npoint.y );
-        touch0 = nil;
-        //NSLog(@"Touch cancelled: %@ as 0 T0:%p T1:%p", touch, touch0, touch1);
-    }
-    else if( touch1 == identity ) {
-        //inputSend( "touch.1.up", npoint.x, npoint.y );
-        touch1 = nil;
-        //NSLog(@"Touch cancelled: %@ as 1 T0:%p T1:%p", touch, touch0, touch1);
-    }
-    else {
-        //NSLog(@"Touch cancelled: %@ (%p) T0:%p T1:%p", touch, identity, touch0, touch1);
-    }     
-  }
-  //[super touchesCancelledWithEvent:event];
-}
-
-int translateKeyCode( int code ) {
-    switch( code ) {
-        // case kVK_Escape: return KeyEsc;
-        // case kVK_LeftArrow:  return KeyLeftArrow;
-        // case kVK_RightArrow: return KeyRightArrow;
-        // case kVK_DownArrow:  return KeyDownArrow;
-        // case kVK_UpArrow:    return KeyUpArrow;
-        // case kVK_Tab:    return KeyTab;
-        // case kVK_Return: return KeyReturn;
-        case kVK_Space: return ' ';
-        case kVK_ANSI_A: return 'A';
-        case kVK_ANSI_B: return 'B';
-        case kVK_ANSI_C: return 'C';
-        case kVK_ANSI_D: return 'D';
-        case kVK_ANSI_E: return 'E';
-        case kVK_ANSI_F: return 'F';
-        case kVK_ANSI_G: return 'G';
-        case kVK_ANSI_H: return 'H';
-        case kVK_ANSI_I: return 'I';
-        case kVK_ANSI_J: return 'J';
-        case kVK_ANSI_K: return 'K';
-        case kVK_ANSI_L: return 'L';
-        case kVK_ANSI_M: return 'M';
-        case kVK_ANSI_N: return 'N';
-        case kVK_ANSI_O: return 'O';
-        case kVK_ANSI_P: return 'P';
-        case kVK_ANSI_Q: return 'Q';
-        case kVK_ANSI_R: return 'R';
-        case kVK_ANSI_S: return 'S';
-        case kVK_ANSI_T: return 'T';
-        case kVK_ANSI_U: return 'U';
-        case kVK_ANSI_V: return 'V';
-        case kVK_ANSI_W: return 'W';
-        case kVK_ANSI_X: return 'X';
-        case kVK_ANSI_Y: return 'Y';
-        case kVK_ANSI_Z: return 'Z';
-    }
-    NSLog( @"Unknown Key %d\n", code );
-    return 0;
-}
-
-// - (void) keyDown: (NSEvent*) event {
-//     if ([event isARepeat] == NO) {
-//         int code = translateKeyCode( event.keyCode );
-//         //inputSend( "key.dw", code, 0 );
-//     }
-// }
-
-// - (void) keyUp: (NSEvent*) event {
-//     int code = translateKeyCode( event.keyCode );
-//     //inputSend( "key.up", code, 0 );
-// }
 
 // Resize
 - (void)windowDidResize:(NSNotification*)notification {

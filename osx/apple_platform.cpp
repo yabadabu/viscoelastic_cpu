@@ -90,10 +90,6 @@ void renderFrame( RenderArgs* args ) {
 
   MTL::CommandBuffer* commandBuffer = RenderPlatform::getCommandBuffer();
 
-  // ImGuiIO& io = ImGui::GetIO();
-  // io.DisplaySize.x = args->width;
-  // io.DisplaySize.y = args->height;
-
   //Start the Dear ImGui frame
   ImGui_ImplMetal_NewFrame(passDescriptor);
   ImGui_ImplOSX_NewFrame(args->view);

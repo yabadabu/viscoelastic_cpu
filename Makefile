@@ -67,7 +67,7 @@ SRCS+=apple_platform \
      geometry transform camera angular sdf \
      render primitives \
      json json_file \
-     utils \
+     utils profiling \
      resources_manager \
      render_platform \
      imgui imgui_draw imgui_widgets imgui_tables imgui_demo ImGuizmo \
@@ -133,11 +133,8 @@ clean :
 	rm -f ${ROOT_APP_NAME}*
 
 help :
-	@echo "  make                            # Build OSX"
-	@echo "  make RELEASE=1                  # Build OSX in shipping"
-	@echo "  make install                    # Build and install iOS"
-	@echo "  make tools                      # Build tools for osx"
-	@echo "  make assets                     # Cook assets from assets -> data"
+	@echo "  make -j                         # Build OSX"
+	@echo "  make RELEASE=1 -j               # Build OSX in shipping"
 
 # osx :
 # 	@echo Building for OSX

@@ -9,7 +9,6 @@
 #include "QuartzCore/CAMetalDrawable.hpp"
 
 #include "render/render.h"
-//#include "input/input.h"
 #include "modules/module_render.h"
 
 #include "imgui/imgui_impl_osx.h"
@@ -25,15 +24,16 @@
 
 static ModuleRender* render_module = nullptr;
 
-// void inputSend( const char* event_name, float x, float y ) {
-//   Input::get().send( event_name, x, y );
-// }
-
 VEC2 mouse_cursor;
+void inputSend( const char* event_name, float x, float y ) {
+  if( strcmp( event_name, "mouse.move") == 0 ) {
+    mouse_cursor.x = x;
+    mouse_cursor.y = y;
+  }
+}
 
 static int counter = 0;
 void osSysLog( const char* msg ) {
-  printf( "Hi %s", msg);
   os_log(OS_LOG_DEFAULT, "App.Log[%d] %{public}s", counter++, msg );
 }
 

@@ -4,13 +4,10 @@
 
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
-//#import "game_controller_manager.h"
 
 #include "apple_platform.h"
-//#include "input/keys.h"
 
 // https://github.com/gamedevtech/CocoaOpenGLWindow
-
 // https://github.com/metal-by-example/learn-metal-cpp-ios/blob/master/learn-metal/05-perspective/05-perspective.cpp
 
 @class View;
@@ -20,17 +17,10 @@
     CVDisplayLinkRef displayLink;
     bool running;
     int  current_flags;
-    //GameControllerManager *game_controller;
     id<NSObject, NSCopying> touch0;
     id<NSObject, NSCopying> touch1;
-    //- (void) runOSCommand:(const char*)cmd withArgs:(void*)args;
 }
-
 @end
-
-void runOSCommand( const char* cmd, void* args ) {
-    NSLog(@"Hi from runOSCommand %s", cmd);
-}
 
 @implementation MyView
 // Initialize
@@ -51,12 +41,10 @@ void runOSCommand( const char* cmd, void* args ) {
     self.clearDepth = 1.0f;
 
     renderOpen( (__bridge void*)self );
-
-    //game_controller = [[GameControllerManager alloc] init];
+    [NSApp activateIgnoringOtherApps:YES];
 
     touch0 = nil;
     touch1 = nil;
-
     return self;
 }
 
@@ -105,10 +93,6 @@ void runOSCommand( const char* cmd, void* args ) {
     [NSApp terminate:self];
 }
 
-- (BOOL)acceptsFirstResponder {
-    return YES;
-}
-
 - (NSPoint)TransformPoint:(NSEvent*) event {
     NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
     NSSize size = [self frame ].size;
@@ -117,92 +101,10 @@ void runOSCommand( const char* cmd, void* args ) {
 }
 
 - (void)mouseMoved:(NSEvent*) event {
-    //NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.move", point.x, point.y );
-}
-
-- (void) mouseDragged: (NSEvent*) event {
-    //NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.move", point.x, point.y );
-}
-
-- (void) rightMouseDragged: (NSEvent*) event {
     NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.move", point.x, point.y );
-    //inputSend( "mouse.drag", point.x, point.y );
+    inputSend( "mouse.move", point.x, point.y );
 }
 
-- (void)scrollWheel: (NSEvent*) event  {
-    float dx = [event scrollingDeltaX];
-    float dy = [event scrollingDeltaY];
-    //inputSend( "mouse.wheel", dx, dy  );
-}
-
-- (void) mouseDown: (NSEvent*) event {
-    //NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.left.dw", point.x, point.y);
-}
-
-- (void) mouseUp: (NSEvent*) event {
-    //NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.left.up", point.x, point.y);
-}
-
-- (void) rightMouseDown: (NSEvent*) event {
-    NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.right.dw", point.x, point.y);
-}
-
-- (void) rightMouseUp: (NSEvent*) event {
-    NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.right.up", point.x, point.y);
-}
-
-- (void)otherMouseDown: (NSEvent*) event {
-    NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.middle.dw", point.x, point.y );
-}
-
-- (void)otherMouseUp: (NSEvent*) event {
-    NSPoint point = [self TransformPoint:event];
-    //inputSend( "mouse.middle.up", point.x, point.y );
-}
-
-- (void)magnifyWithEvent:(NSEvent *)event {
-    CGFloat factor = [event magnification];
-    //inputSend( "magnify", factor, 0.0f );
-}
-
-- (void)rotateWithEvent:(NSEvent *)event {
-    CGFloat factor = [event rotation];
-    //inputSend( "rotation", factor, 0.0f );
-}
-
-- (void) mouseEntered: (NSEvent*)event {
-    NSLog(@"Mouse entered");
-}
-
-- (void) mouseExited: (NSEvent*)event {
-    NSLog(@"Mouse left");
-}
-
-- (void)flagsChanged:(NSEvent *)event {
-    int new_flags = ([event modifierFlags])>>16;
-    int changes = new_flags ^ current_flags;
-    // if( changes & 2)
-    //     inputSend( new_flags & 2 ? "key.dw" : "key.up", KeyShift, 0);
-    // if( changes & 4)
-    //     inputSend( new_flags & 4 ? "key.dw" : "key.up", KeyControl, 0);
-    // if( changes & 8)
-    //     inputSend( new_flags & 8 ? "key.dw" : "key.up", KeyOption, 0);
-    // if( changes & 16)
-    //     inputSend( new_flags & 16 ? "key.dw" : "key.up", KeyCommand, 0);
-    current_flags = new_flags;
-}
-
-- (BOOL) acceptsFirstMouse: (NSEvent*)event {
-    return true;
-}
 
 - (void)touchesBeganWithEvent:(NSEvent *)event {
   NSSet *touches = [event touchesMatchingPhase:NSTouchPhaseBegan inView:self];

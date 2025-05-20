@@ -50,7 +50,7 @@ void runOSCommand( const char* cmd, void* args ) {
     self.depthStencilPixelFormat = MTLPixelFormatDepth16Unorm;
     self.clearDepth = 1.0f;
 
-    renderOpen();
+    renderOpen( (__bridge void*)self );
 
     //game_controller = [[GameControllerManager alloc] init];
 
@@ -77,6 +77,7 @@ void runOSCommand( const char* cmd, void* args ) {
         args.drawable = (__bridge void*)(view.currentDrawable);
         args.width = size.width;
         args.height = size.height;
+        args.view = (__bridge void*)(view);
 
         renderFrame( &args );
     }
@@ -363,17 +364,17 @@ int translateKeyCode( int code ) {
     return 0;
 }
 
-- (void) keyDown: (NSEvent*) event {
-    if ([event isARepeat] == NO) {
-        int code = translateKeyCode( event.keyCode );
-        //inputSend( "key.dw", code, 0 );
-    }
-}
+// - (void) keyDown: (NSEvent*) event {
+//     if ([event isARepeat] == NO) {
+//         int code = translateKeyCode( event.keyCode );
+//         //inputSend( "key.dw", code, 0 );
+//     }
+// }
 
-- (void) keyUp: (NSEvent*) event {
-    int code = translateKeyCode( event.keyCode );
-    //inputSend( "key.up", code, 0 );
-}
+// - (void) keyUp: (NSEvent*) event {
+//     int code = translateKeyCode( event.keyCode );
+//     //inputSend( "key.up", code, 0 );
+// }
 
 // Resize
 - (void)windowDidResize:(NSNotification*)notification {

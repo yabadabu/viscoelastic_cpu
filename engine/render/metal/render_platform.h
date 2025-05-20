@@ -67,7 +67,7 @@ namespace RenderPlatform {
                  , MTL::CommandBuffer* new_commandBuffer, CA::MetalDrawable* drawable );
 	void beginRenderingBackBuffer();
 	void endRenderingBackBuffer();
-
+  void swapFrames();
 
 }
 

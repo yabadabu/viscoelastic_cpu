@@ -8,11 +8,12 @@ extern "C" {
 	struct RenderArgs {
 		void* renderPassDescriptor;
 		void* drawable;
+		void* view;
 		int   width;
 		int   height;
 	};
 
-	void renderOpen();
+	void renderOpen( void* view);
 	void renderFrame( struct RenderArgs* args );
 	void renderClose();
 

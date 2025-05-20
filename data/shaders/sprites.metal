@@ -7,9 +7,9 @@ struct v2f {
 };
 
 struct TSprite {
-  float3 pos;
-  float  scale;
-  float4 color;
+  VEC3  pos;
+  float scale;
+  VEC4  color;
 };
 
 // ----------------------------------------------
@@ -33,14 +33,11 @@ vertex v2f VS(
     return vout;
 }
 // ----------------------------------------------
-fragment half4 PS(v2f in [[stage_in]])
+fragment half4 PS(v2f v [[stage_in]])
 {
-
-  // float a = 1.0 - saturate(length(v.uv));
-  // if (a < 0.2)
-  //   discard;
-  // return float4(a,a,a,1) * v.color;
-
-    return in.color;
+  float a = 1.0 - saturate(length(v.uv));
+  if (a < 0.2)
+     discard_fragment();
+  return half4(a,a,a,1) * v.color;
 }
 

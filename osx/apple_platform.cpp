@@ -12,6 +12,7 @@
 //#include "input/input.h"
 #include "modules/module_render.h"
 
+#include "imgui/imgui_impl_osx.h"
 #include "imgui/imgui_impl_metal.h"
 
 #if defined( ENABLE_PROFILING )
@@ -36,7 +37,7 @@ void osSysLog( const char* msg ) {
   os_log(OS_LOG_DEFAULT, "App.Log[%d] %{public}s", counter++, msg );
 }
 
-void renderOpen() {
+void renderOpen( void* raw_view ) {
 
   // CFBundleRef main_bundle = CFBundleGetMainBundle();
   // CFURLRef url_ref = CFBundleCopyResourcesDirectoryURL(main_bundle);
@@ -66,8 +67,8 @@ void renderOpen() {
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
   ImGui::StyleColorsDark();
+  ImGui_ImplOSX_Init(raw_view);
   ImGui_ImplMetal_Init(RenderPlatform::getDevice());
-
 }
 
 void renderClose() {
@@ -89,24 +90,26 @@ void renderFrame( RenderArgs* args ) {
 
   MTL::CommandBuffer* commandBuffer = RenderPlatform::getCommandBuffer();
 
+  // ImGuiIO& io = ImGui::GetIO();
+  // io.DisplaySize.x = args->width;
+  // io.DisplaySize.y = args->height;
+
+  //Start the Dear ImGui frame
+  ImGui_ImplMetal_NewFrame(passDescriptor);
+  ImGui_ImplOSX_NewFrame(args->view);
+  ImGui::NewFrame();
+
   static uint32_t frame_id = 0;
   RenderPlatform::beginFrame( ++frame_id, passDescriptor, commandBuffer, drawable );
 
-  // Start the Dear ImGui frame
-  // ImGui_ImplMetal_NewFrame(renderPassDescriptor);
-  // ImGui_ImplOSX_NewFrame(view);
-  // ImGui::NewFrame();
-
   render_module->generateFrame( args->width, args->height );
 
-  // // Rendering
-  // ImGui::Render();
-  // ImDrawData* draw_data = ImGui::GetDrawData();
+  // ImGui
+  ImGui::Render();
+  ImDrawData* draw_data = ImGui::GetDrawData();
+  Render::Encoder* encoder = Render::getMainEncoder( );
+  assert( encoder );
+  ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, encoder->encoder);
 
-  // renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-  // id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-  // [renderEncoder pushDebugGroup:@"Dear ImGui rendering"];
-  // ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, renderEncoder);
-  // [renderEncoder popDebugGroup];
-  // [renderEncoder endEncoding];  
+  RenderPlatform::swapFrames();
 }

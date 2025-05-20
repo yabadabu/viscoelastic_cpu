@@ -55,6 +55,9 @@ namespace RenderPlatform {
   }
 
   void endRenderingBackBuffer() {
+  }
+
+  void swapFrames() {
     assert( backbuffer_passDescriptor != nullptr );
     assert( backbuffer_drawable != nullptr );
 

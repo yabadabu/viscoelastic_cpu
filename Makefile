@@ -133,14 +133,15 @@ clean :
 	rm -f ${ROOT_APP_NAME}*
 
 help :
-	@echo "  make osx                        # Build OSX"
-	@echo "  make osx RELEASE=1              # Build OSX in shipping"
+	@echo "  make                            # Build OSX"
+	@echo "  make RELEASE=1                  # Build OSX in shipping"
 	@echo "  make install                    # Build and install iOS"
 	@echo "  make tools                      # Build tools for osx"
 	@echo "  make assets                     # Cook assets from assets -> data"
 
-osx :
-	@make --no-print-directory PLATFORM=OSX -j -r
+# osx :
+# 	@echo Building for OSX
+# 	@make --no-print-directory PLATFORM=OSX -j -r
 
 universal_osx :
 	@make --no-print-directory PLATFORM=OSX -j -r
@@ -149,3 +150,4 @@ universal_osx :
 	@lipo -create -output ${ROOT_APP_NAME}_universal ${ROOT_APP_NAME}_OSX ${ROOT_APP_NAME}_ARM
 
 .phony : clean all tools icons osx ios assets
+

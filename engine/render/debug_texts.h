@@ -17,7 +17,7 @@ public:
     b.color = color;
     va_list argp;
     va_start(argp, fmt);
-    int n = vsnprintf(b.str, sizeof(b.str) - 1, fmt, argp);
+    [[maybe_unused]] int n = vsnprintf(b.str, sizeof(b.str) - 1, fmt, argp);
     va_end(argp);
   }
   void flush() {

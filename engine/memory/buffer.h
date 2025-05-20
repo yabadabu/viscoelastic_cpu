@@ -48,7 +48,7 @@ struct TBuffer : public std::vector< uint8_t > {
     auto sz = ftell(f);
     this->resize(sz);
     fseek(f, 0, SEEK_SET);
-    auto bytes_read = fread(data(), 1, sz, f);
+    [[maybe_unused]] auto bytes_read = fread(data(), 1, sz, f);
     assert(bytes_read == sz);
     fclose(f);
     return true;
@@ -57,7 +57,7 @@ struct TBuffer : public std::vector< uint8_t > {
     FILE* f = fopen(filename, "wb");
     if (!f)
       return false;
-    auto bytes_written = fwrite(data(), 1, size(), f);
+    [[maybe_unused]] auto bytes_written = fwrite(data(), 1, size(), f);
     assert(bytes_written == size());
     fclose(f);
     return true;

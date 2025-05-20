@@ -183,62 +183,62 @@ This is the tiem for the Relaxation stage as we increase the number of threads f
 
 <table>
   <tr>
-    <td>
-  
-| # Threads  | Relaxation Time (secs)  |
-|------------|-------------------------|
-|         1  | 0.02353                 |
-|         2  | 0.01225                 |
-|         3  | 0.00841                 |
-|         4  | 0.00582                 |
-|         6  | 0.00471                 |
-|         8  | 0.00386                 |
-|        10  | 0.00332                 |
-|        12  | 0.00295                 |
-|        16  | 0.00235                 |
-|        20  | 0.00212                 |
-|        24  | 0.00185                 |
-
-</td>
 <td>
 
 <img src="results/time_vs_threads.png" width="800"/>
 
 </td>
+    <td>
+  
+| # Threads  | Relaxation Time (msecs)  |
+|------------|-------------------------|
+|         1  | 23.53                 |
+|         2  | 12.25                 |
+|         3  |  8.41                 |
+|         4  |  5.82                 |
+|         6  |  4.71                 |
+|         8  |  3.86                 |
+|        10  |  3.32                 |
+|        12  |  2.95                 |
+|        16  |  2.35                 |
+|        20  |  2.12                 |
+|        24  |  1.85                 |
+
+</td>
   </tr>
 </table>
 
-And this is the time in secs with 12 threads as we increase the number of particles. Good point is that is scales linearly with the number of particles!
+And this is the time in msecs with 12 threads as we increase the number of particles. Good point is that is scales linearly with the number of particles!
 
 <table>
   <tr>
+<td>
+
+<img src="results/time_vs_num_particles.png" width="800"/>
+
+</td>
     <td>
 	    
 | # Particles | Relaxation Time  | Total Time  |
 |-------------|-------------------------|--------------------|
-|         1K  | 0,000245                | 0,000560           |
-|         2K  | 0,000236                | 0,000670           |
-|         4K  | 0,000310                | 0,000760           |
-|         8K  | 0,000820                | 0,001490           |
-|        12K  | 0,001123                | 0,001989           |
-|        16K  | 0,001432                | 0,002612           |
-|        20K  | 0,002021                | 0,003123           |
-|        24K  | 0,002180                | 0,003650           |
-|        28K  | 0,002627                | 0,004328           |
-|        32K  | 0,002950                | 0,004810           |
-|        36K  | 0,003415                | 0,005417           |
-|        40K  | 0,003970                | 0,005980           |
-|        44K  | 0,004013                | 0,006326           |
-|        48K  | 0,004578                | 0,007125           |
-|        52K  | 0,005215                | 0,007982           |
-|        56K  | 0,005726                | 0,008523           |
-|        60K  | 0,005928                | 0,008902           |
-|        64K  | 0,005272                | 0,009523           |
-
-</td>
-<td>
-
-<img src="results/time_vs_num_particles.png" width="800"/>
+|         1K  |  2.45                | 0.560           |
+|         2K  |  2.36                | 0.670           |
+|         4K  |  3.10                | 0.760           |
+|         8K  |  8.20                | 1.490           |
+|        12K  | 1.123                | 1.989           |
+|        16K  | 1.432                | 2.612           |
+|        20K  | 2.021                | 3.123           |
+|        24K  | 2.180                | 3.650           |
+|        28K  | 2.627                | 4.328           |
+|        32K  | 2.950                | 4.810           |
+|        36K  | 3.415                | 5.417           |
+|        40K  | 3.970                | 5.980           |
+|        44K  | 4.013                | 6.326           |
+|        48K  | 4.578                | 7.125           |
+|        52K  | 5.215                | 7.982           |
+|        56K  | 5.726                | 8.523           |
+|        60K  | 5.928                | 8.902           |
+|        64K  | 5.272                | 9.523           |
 
 </td>
   </tr>
@@ -246,12 +246,12 @@ And this is the time in secs with 12 threads as we increase the number of partic
 
 Finally, with 64K particles, increasing the number of threads brings some nice improvement, but using all threads does not.
 
-| Num Threads | Total Time |
+| Num Threads | Total Time(ms) |
 |-------------|-----------|
-|         12  | 0,00952 |
-|         24  | 0,00693 |
-|         32  | 0,00612 |
-|         48  | 0,00712 |
+|         12  | 9.52 |
+|         24  | 6.93 |
+|         32  | 6.12 |
+|         48  | 7.12 |
 
 ![Particle Cells in 2D](results/sim01.png)
 ![Particle Cells in 2D](results/sim02.png)

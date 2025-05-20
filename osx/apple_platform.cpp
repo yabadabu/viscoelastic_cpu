@@ -1,6 +1,5 @@
 #include "platform.h"
 #include "apple_platform.h"
-#import <os/log.h>
 
 #define NS_PRIVATE_IMPLEMENTATION
 #define MTL_PRIVATE_IMPLEMENTATION
@@ -15,14 +14,6 @@
 #include "imgui/imgui_impl_metal.h"
 #include "imgui/ImGuizmo.h"
 
-#if defined( ENABLE_PROFILING )
-#error profiling is enabled!!
-#endif
-
-#if defined( IN_PLATFORM_WINDOWS )
-#error in windows paltform
-#endif
-
 static ModuleRender* render_module = nullptr;
 
 VEC2 mouse_cursor;
@@ -33,25 +24,7 @@ void inputSend( const char* event_name, float x, float y ) {
   }
 }
 
-static int counter = 0;
-void osSysLog( const char* msg ) {
-  os_log(OS_LOG_DEFAULT, "App.Log[%d] %{public}s", counter++, msg );
-}
-
 void renderOpen( void* raw_view ) {
-
-  // CFBundleRef main_bundle = CFBundleGetMainBundle();
-  // CFURLRef url_ref = CFBundleCopyResourcesDirectoryURL(main_bundle);
-  // uint8_t buf[2048] = { };
-  // if( CFURLGetFileSystemRepresentation(url_ref, true, buf, 2047) )
-  //   strcpy( TBuffer::root_path, (char*)buf );
-  
-#if IN_PLATFORM_IOS
-  setFatalHandler( &osSysLog );
-  setDebugHandler( &osSysLog );
-#endif
-  
-  // CFRelease( url_ref );
   
   PROFILE_START_CAPTURING(5);
   PROFILE_BEGIN_FRAME();
@@ -85,13 +58,10 @@ void renderFrame( RenderArgs* args ) {
 
   MTL::RenderPassDescriptor* passDescriptor = (MTL::RenderPassDescriptor*)args->renderPassDescriptor;
   assert( passDescriptor );
-
   CA::MetalDrawable* drawable = (CA::MetalDrawable*)args->drawable;
   assert( drawable );
-
   MTL::CommandBuffer* commandBuffer = RenderPlatform::getCommandBuffer();
 
-  //Start the Dear ImGui frame
   ImGui_ImplMetal_NewFrame(passDescriptor);
   ImGui_ImplOSX_NewFrame(args->view);
   ImGui::NewFrame();
@@ -104,10 +74,8 @@ void renderFrame( RenderArgs* args ) {
 
   // ImGui
   ImGui::Render();
-  ImDrawData* draw_data = ImGui::GetDrawData();
   Render::Encoder* encoder = Render::getMainEncoder( );
-  assert( encoder );
-  ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, encoder->encoder);
+  ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, encoder->encoder);
 
   RenderPlatform::swapFrames();
 }

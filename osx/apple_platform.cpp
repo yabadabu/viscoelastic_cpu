@@ -13,6 +13,7 @@
 
 #include "imgui/imgui_impl_osx.h"
 #include "imgui/imgui_impl_metal.h"
+#include "imgui/ImGuizmo.h"
 
 #if defined( ENABLE_PROFILING )
 #error profiling is enabled!!
@@ -94,6 +95,7 @@ void renderFrame( RenderArgs* args ) {
   ImGui_ImplMetal_NewFrame(passDescriptor);
   ImGui_ImplOSX_NewFrame(args->view);
   ImGui::NewFrame();
+  ImGuizmo::BeginFrame();
 
   static uint32_t frame_id = 0;
   RenderPlatform::beginFrame( ++frame_id, passDescriptor, commandBuffer, drawable );

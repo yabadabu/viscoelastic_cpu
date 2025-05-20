@@ -4,9 +4,12 @@ This document describes the approach I have taken to perform a particle simulati
 
 [![Watch the video](results/sim00.png)](results/sim00.mp4)
 
-The sample code focus on the simulation and uses a small framework with DirectX 11 to draw a small sprite on each particle position. 
+The sample code focus on the simulation and uses a small C++ framework with DirectX 11 to draw a small sprite on each particle position. 
 
-The simulation is based on the repository from https://github.com/kotsoft/particle_based_viscoelastic_fluid, uses ImGui (https://github.com/ocornut/imgui), and the thread pool from https://github.com/progschj/ThreadPool (both included)
+The simulation is based on the repository from https://github.com/kotsoft/particle_based_viscoelastic_fluid, and uses code from the following repo (all included):
+- ImGui (https://github.com/ocornut/imgui),
+- ImGuizmo (https://github.com/CedricGuillemet/ImGuizmo)
+- ThreadPool (https://github.com/progschj/ThreadPool)
 
 ## Build and run in Windows
 
@@ -25,7 +28,7 @@ We will store each information in a separate linear buffer, using a SoA (Structu
 
 ## Spatial Index
 
-The objective is to be able to quickly find for each particle, all the particles nearby in a radius R.
+The objective is to be able to quickly find for each particle, all the particles nearby in a radius R, and have all the particles in each cell in a continuous region of memory.
 
 For this we are going to split the 3D space in a regular grid of cells of fixed size. Each cell has 26 neighbours in 3D space.
 We will identify each cell uniquely by its own 3D integer coordinates:
@@ -33,6 +36,8 @@ We will identify each cell uniquely by its own 3D integer coordinates:
 ```cpp
     Int3 cell_coords = floor( pos * scale_factor );
 ```
+
+![Particle Cells](results/particle_cells.png)
 
 Because we don't know the 3D limits of our simulation, we will store the information for a limited number of cells, say 64K cells for example. 
 We are going to generate a hash number for each cell_coords and use it to assign each coords to a planar array, using the lower bits of the hash.
@@ -48,6 +53,8 @@ Something like:
       return ( (coords.x * prime1) ^ (coords.y * prime12) ^ (coords.z * prime3) ) & num_cells_mask;
     }
 ```
+
+![Particle Cells in 2D](results/color_cells.png)
 
 And in our case num_cells_mask = 64K - 1, so 0xffff
 
@@ -118,6 +125,8 @@ For 32K particles, this takes about 1.4ms
 The huge cost goes to the apply viscosity, where for each particle we need to find the influence of all nearby particles.
 For the viscositySolve to work, we make a copy of the positions of each particle, and accumulate the expected changes of each particle in a separate buffer, this way the we could run each particle in parallel without locking mechanisms
 
+The code can perform substeps simulations but with just one step, the simulation is pretty stable.
+
 ## Collisions
 
 The collisions will be handled using a collection of SDFs (Signed Distance Functions). In the current implementation we check each particle against an array of oriented planes, spheres and oriented boxes. The check affects only the position of the each individual particle which means we can run it in parallel using multiple threads.
@@ -170,18 +179,98 @@ And the thread utilizations during a single frame.
 
 You can check the details openning the file `results/capture.json` using the `chrome://tracing/` url from Chrome. Or capture new traces using the `Profile Capture` button from the imgui
 
+This is the tiem for the Relaxation stage as we increase the number of threads for the 32K particles simulation
+
+<table>
+  <tr>
+    <td>
+  
+| # Threads  | Relaxation Time (secs)  |
+|------------|-------------------------|
+|         1  | 0.02353                 |
+|         2  | 0.01225                 |
+|         3  | 0.00841                 |
+|         4  | 0.00582                 |
+|         6  | 0.00471                 |
+|         8  | 0.00386                 |
+|        10  | 0.00332                 |
+|        12  | 0.00295                 |
+|        16  | 0.00235                 |
+|        20  | 0.00212                 |
+|        24  | 0.00185                 |
+
+</td>
+<td>
+
+<img src="results/time_vs_threads.png" width="800"/>
+
+</td>
+  </tr>
+</table>
+
+And this is the time in secs with 12 threads as we increase the number of particles. Good point is that is scales linearly with the number of particles!
+
+<table>
+  <tr>
+    <td>
+	    
+| # Particles | Relaxation Time  | Total Time  |
+|-------------|-------------------------|--------------------|
+|         1K  | 0,000245                | 0,000560           |
+|         2K  | 0,000236                | 0,000670           |
+|         4K  | 0,000310                | 0,000760           |
+|         8K  | 0,000820                | 0,001490           |
+|        12K  | 0,001123                | 0,001989           |
+|        16K  | 0,001432                | 0,002612           |
+|        20K  | 0,002021                | 0,003123           |
+|        24K  | 0,002180                | 0,003650           |
+|        28K  | 0,002627                | 0,004328           |
+|        32K  | 0,002950                | 0,004810           |
+|        36K  | 0,003415                | 0,005417           |
+|        40K  | 0,003970                | 0,005980           |
+|        44K  | 0,004013                | 0,006326           |
+|        48K  | 0,004578                | 0,007125           |
+|        52K  | 0,005215                | 0,007982           |
+|        56K  | 0,005726                | 0,008523           |
+|        60K  | 0,005928                | 0,008902           |
+|        64K  | 0,005272                | 0,009523           |
+
+</td>
+<td>
+
+<img src="results/time_vs_num_particles.png" width="800"/>
+
+</td>
+  </tr>
+</table>
+
+Finally, with 64K particles, increasing the number of threads brings some nice improvement, but using all threads does not.
+
+| Num Threads | Total Time |
+|-------------|-----------|
+|         12  | 0,00952 |
+|         24  | 0,00693 |
+|         32  | 0,00612 |
+|         48  | 0,00712 |
+
+![Particle Cells in 2D](results/sim01.png)
+![Particle Cells in 2D](results/sim02.png)
+
 ## Conclusions
 
 - More threads does not mean better performance
 - Multithreading pays off when enough independent work is pushed
-- Allow to change the number of threads dynamically and bucket sizes within the app
 
 ## Improvements
 
 - I have been testing an approach to generate the spatial index using multiple threads, but only pays off when more particles are being simulated
 - The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)
+- Testing with different data alignments
+- Testing with AVX512
+- Test other CPU's
+- Move it to GPU
 
-## Multithread generation of the Spatial Index
+## Multithread generation of the Spatial Index (uncomplete)
 
 Generating the list of unique cell_id's and associate each particle with a unique position in a linear buffer, so that subsequent queries run in parallel is the purpose of this section. The proposed solution is the following:
 
@@ -192,12 +281,5 @@ Generating the list of unique cell_id's and associate each particle with a uniqu
 		groups[ group_id ].push_back( particle_id )
 - At this points, each thread has organized the particles in 8 buckets
 - Using a std::atomic<int> each thread allocates the number of particles for each group
-
-
-
-
-
-
-
 
 

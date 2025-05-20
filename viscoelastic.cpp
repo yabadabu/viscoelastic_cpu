@@ -13,7 +13,7 @@ struct ViscoelasticModule : public Module {
   struct Emitter {
     TTransform               transform;
     float                    radius = 0.1f;
-    float                    strength = 10.0f;
+    float                    strength = 20.0f;
     int                      rate = 4;
     bool                     enabled = false;
     int                      particle_type = 0;
@@ -27,7 +27,7 @@ struct ViscoelasticModule : public Module {
       eRandom,
       eRanges
     };
-    eGenerationType generation_type = eGenerationType::eUniform;
+    eGenerationType generation_type = eGenerationType::eRanges;
 
     bool renderInMenu() {
       if (!ImGui::TreeNode("Emitter..."))
@@ -51,7 +51,7 @@ struct ViscoelasticModule : public Module {
         ImGui::Text("%d", num_pendings);
       }
       ImGui::DragFloat("Radius", &radius, 0.01f, 0.1f, 3.0f);
-      ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 25.0f);
+      ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 35.0f);
       ImGui::DragInt("Rate", &rate, 0.1f, 0, 32);
       ImGui::Combo("Generation Type", (int*)&generation_type, "Uniform\0Random\0Ranges\0\0", 4);
       ImGui::DragInt("Type", &particle_type, 0.05f, 0, 3);
@@ -533,7 +533,7 @@ struct ViscoelasticModule : public Module {
     if (auto_rotate_first_box) {
       for (auto& prim : sim.sdf.prims) {
         if (prim.prim_type == SDF::Primitive::eType::BOX) {
-          prim.transform.setRotation(prim.transform.getRotation() * QUAT::createFromAxisAngle(VEC3::axis_x, rotation_speed));
+          prim.transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, rotation_speed) * prim.transform.getRotation());
           prim.transformHasChanged();
           break;
         }

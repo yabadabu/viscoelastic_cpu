@@ -135,7 +135,6 @@ struct ViscoelasticModule : public Module {
   int       debug_particle = -1;
 
   ViscoelasticModule() {
-    dbg("ViscoelasticModule::ViscoelasticModule\n");
     sim.init();
     sim.in_2d = true;
     //sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));

@@ -6,10 +6,11 @@ APP_NAME=${ROOT_APP_NAME}_${PLATFORM}
 
 TARGET : ${APP_NAME}
 
-INCLUDE_PATHS=. engine engine/render/metal osx/metal-cpp
+INCLUDE_PATHS=. engine engine/render/metal engine/osx/metal-cpp
 INCLUDE_OPTIONS+=$(foreach f,${INCLUDE_PATHS},-I$f)
 
 CFLAGS=-Wall -c ${INCLUDE_OPTIONS} -DIN_PLATFORM_${PLATFORM}=1  -DIN_PLATFORM_APPLE=1 -DIMGUI_IMPL_METAL_CPP_EXTENSIONS
+CFLAGS+= -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 CONFIG_PATH=debug
 ifdef RELEASE
@@ -74,7 +75,6 @@ SRCS+=apple_platform \
      viscoelastic viscoelastic_sim \
      ${MODULE_SRCS} \
 
-#SRCS=demo
 OBJS=$(foreach f,${SRCS},$(OBJS_PATH)/$(basename $f).o)
 
 VPATH=${shell find engine -type d| grep -v objs | grep -v common} osx experiments tools

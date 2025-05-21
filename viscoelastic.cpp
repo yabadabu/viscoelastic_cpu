@@ -129,7 +129,7 @@ struct ViscoelasticModule : public Module {
   bool        show_ids = false;
   bool        show_cell_ids = false;
   bool        auto_rotate_first_box = false;
-  float       rotation_speed = deg2rad( 1.0f );
+  float       auto_rotation_speed = 1.0f;     // in degs
   CDebugTexts dbg_texts;
 
   int       debug_particle = -1;
@@ -154,6 +154,13 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_z));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
+  }
+
+  void sdfInsideCage( ) {
+    sim.sdf.prims.clear();
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0.0f, 5.0f, 3.0f), VEC3( 4.0f, 2.0, 2.0f )));
+    sim.sdf.prims.back().multiplier = -1.0f;
+    sim.sdf.prims[3].transformHasChanged();
   }
 
   void sdfLargeCage() {
@@ -485,7 +492,11 @@ struct ViscoelasticModule : public Module {
         sdfLargeCage();
       if (ImGui::SmallButton("Platforms"))
         sdfPlatforms();
+      if (ImGui::SmallButton("Inside Box"))
+        sdfInsideCage();
       ImGui::Checkbox("Auto rotate first box", &auto_rotate_first_box);
+      if( auto_rotate_first_box )
+        ImGui::DragFloat( "Rotation Speed", &auto_rotation_speed, 0.01f, -1.0f, 1.0f );
       ImGui::TreePop();
     }
 
@@ -532,7 +543,7 @@ struct ViscoelasticModule : public Module {
     if (auto_rotate_first_box) {
       for (auto& prim : sim.sdf.prims) {
         if (prim.prim_type == SDF::Primitive::eType::BOX) {
-          prim.transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, rotation_speed) * prim.transform.getRotation());
+          prim.transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(auto_rotation_speed)) * prim.transform.getRotation());
           prim.transformHasChanged();
           break;
         }

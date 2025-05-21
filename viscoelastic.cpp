@@ -139,10 +139,10 @@ struct ViscoelasticModule : public Module {
     sim.in_2d = true;
     //sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
-    sdfCage();
-    addParticles(512);
-    //sdfLargeCage();
-    //config3D_32K();
+    //sdfCage();
+    //addParticles(512);
+    sdfLargeCage();
+    config3D_32K();
   }
 
   void sdfCage(  ) {

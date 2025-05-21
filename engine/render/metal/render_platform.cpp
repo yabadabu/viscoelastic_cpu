@@ -403,8 +403,9 @@ namespace Render {
 
     size_t new_size = buffer->current_offset + new_data_size;
     if( new_size > buffer->size() ) {
-      buffer->num_instances = (int)(new_size / buffer->bytes_per_instance);
+      buffer->num_instances = (int)(new_size / buffer->bytes_per_instance) + 256;
       dbg( "At frame %d, no space left in Render::Buffer for new %ld bytes of data. Current usage is %d / %d (%d instances)\n", RenderPlatform::current_frame_id, new_data_size, buffer->current_offset, buffer->size(), buffer->num_instances );
+      new_size = buffer->num_instances * buffer->bytes_per_instance;
       MTL::Buffer* prev_buffer = buffer->buffer;
       buffer->create( new_size );
       // Copy the current used contents

@@ -203,13 +203,14 @@ namespace SDF {
   }
 
   bool sdFunc::renderInMenu() {
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Add..."))
+      prims.push_back(SDF::Primitive::makeSphere(VEC3(0, 0, 0), 1.0f));
     bool changed = false;
     for (auto& prim : prims) {
       ImGui::Separator();
       changed |= prim.renderInMenu();
     }
-    if (ImGui::SmallButton("Add..."))
-      prims.push_back(SDF::Primitive::makeSphere(VEC3(0, 0, 0), 1.0f));
 
     return changed;
   }

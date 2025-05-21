@@ -2,6 +2,7 @@
 
 // Std platform
 
+#ifdef IN_PLATFORM_WINDOWS
 #define _SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
@@ -10,6 +11,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define OS_NAME  "windows"
 #include <windows.h>
+#endif
 
 // ----------------------------------------
 // C++ std
@@ -27,21 +29,13 @@
 
 #ifdef IN_PLATFORM_WINDOWS
 #include <direct.h>         // _mkdir
-#endif
-
-// ----------------------------------------
-#ifdef IN_PLATFORM_WINDOWS
-#define ENABLE_PROFILING 1
-#else
-#undef ENABLE_PROFILING
-#endif
-
-#ifdef IN_PLATFORM_WINDOWS
 #define unlink   _unlink
 #define stat     _stat
 #define mkdir    _mkdir
 #endif
 
+// ----------------------------------------
+#define ENABLE_PROFILING 1
 
 // ----------------------------------------
 #define IMGUI_DEFINE_MATH_OPERATORS

@@ -43,12 +43,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IntDir>$(ProjectDir)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
-    <OutDir>$(ProjectDir)\</OutDir>
+    <OutDir>$(SolutionDir)\</OutDir>
     <TargetName>$(ProjectName)d</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(ProjectDir)</OutDir>
+    <OutDir>$(SolutionDir)\</OutDir>
     <IntDir>$(ProjectDir)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -59,7 +59,7 @@
       <PreprocessorDefinitions>IN_PLATFORM_WINDOWS;_DEBUG;PLATFORM_WINDOWS;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>engine</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>platform.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
@@ -85,7 +85,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>IN_PLATFORM_WINDOWS;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>engine</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeaderFile>platform.h</PrecompiledHeaderFile>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
@@ -102,132 +102,129 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="engine\formats\json\json.cpp" />
-    <ClCompile Include="engine\formats\json\json_file.cpp" />
-    <ClCompile Include="engine\geometry\angular.cpp" />
-    <ClCompile Include="engine\geometry\camera.cpp" />
-    <ClCompile Include="engine\geometry\geometry.cpp" />
-    <ClCompile Include="engine\geometry\sdf\sdf.cpp" />
-    <ClCompile Include="engine\geometry\transform.cpp" />
-    <ClCompile Include="engine\imgui\imgui.cpp">
+    <ClCompile Include="..\..\viscoelastic_sim.cpp" />
+    <ClCompile Include="..\utils\utils.cpp" />
+    <ClCompile Include="..\formats\json\json.cpp" />
+    <ClCompile Include="..\formats\json\json_file.cpp" />
+    <ClCompile Include="..\geometry\angular.cpp" />
+    <ClCompile Include="..\geometry\camera.cpp" />
+    <ClCompile Include="..\geometry\geometry.cpp" />
+    <ClCompile Include="..\geometry\sdf\sdf.cpp" />
+    <ClCompile Include="..\geometry\transform.cpp" />
+    <ClCompile Include="..\imgui\imgui.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\ImGuizmo.cpp">
+    <ClCompile Include="..\imgui\ImGuizmo.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\imgui_demo.cpp">
+    <ClCompile Include="..\imgui\imgui_demo.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\imgui_draw.cpp">
+    <ClCompile Include="..\imgui\imgui_draw.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\imgui_impl_dx11.cpp">
+    <ClCompile Include="..\imgui\imgui_impl_dx11.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\imgui_impl_win32.cpp">
+    <ClCompile Include="..\imgui\imgui_impl_win32.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\imgui_stdlib.cpp">
+    <ClCompile Include="..\imgui\imgui_stdlib.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\imgui_tables.cpp">
+    <ClCompile Include="..\imgui\imgui_tables.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\imgui\imgui_widgets.cpp">
+    <ClCompile Include="..\imgui\imgui_widgets.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="engine\modules\module.cpp" />
-    <ClCompile Include="engine\modules\module_camera.cpp" />
-    <ClCompile Include="engine\modules\module_render.cpp" />
-    <ClCompile Include="engine\modules\module_resources.cpp" />
-    <ClCompile Include="engine\platform.cpp">
+    <ClCompile Include="..\modules\module.cpp" />
+    <ClCompile Include="..\modules\module_camera.cpp" />
+    <ClCompile Include="..\modules\module_render.cpp" />
+    <ClCompile Include="..\modules\module_resources.cpp" />
+    <ClCompile Include="..\platform.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">platform.h</PrecompiledHeaderFile>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
     </ClCompile>
-    <ClCompile Include="engine\profile\profiling.cpp" />
-    <ClCompile Include="engine\render\dx11\render_platform.cpp" />
-    <ClCompile Include="engine\render\primitives.cpp" />
-    <ClCompile Include="engine\render\render.cpp" />
-    <ClCompile Include="engine\resources\resources_manager.cpp" />
-    <ClCompile Include="engine\utils\utils.cpp" />
-    <ClCompile Include="engine\windows\main.cpp" />
-    <ClCompile Include="viscoelastic.cpp">
+    <ClCompile Include="..\profile\profiling.cpp" />
+    <ClCompile Include="..\render\dx11\render_platform.cpp" />
+    <ClCompile Include="..\render\primitives.cpp" />
+    <ClCompile Include="..\render\render.cpp" />
+    <ClCompile Include="..\resources\resources_manager.cpp" />
+    <ClCompile Include="..\windows\main.cpp">
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)engine\.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\viscoelastic.cpp">
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">platform.h</PrecompiledHeaderFile>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
     </ClCompile>
-    <ClCompile Include="viscoelastic_sim.cpp">
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">platform.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">platform.h</PrecompiledHeaderFile>
-      <WholeProgramOptimization Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</WholeProgramOptimization>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="cpu_spatial_subdivision.h" />
-    <ClInclude Include="data\shaders\constants.h" />
-    <ClInclude Include="data\shaders\vertex_types.h" />
-    <ClInclude Include="engine\formats\json\json.h" />
-    <ClInclude Include="engine\formats\json\json_file.h" />
-    <ClInclude Include="engine\geometry\aabb.h" />
-    <ClInclude Include="engine\geometry\angular.h" />
-    <ClInclude Include="engine\geometry\camera.h" />
-    <ClInclude Include="engine\geometry\geometry.h" />
-    <ClInclude Include="engine\geometry\sdf\sdf.h" />
-    <ClInclude Include="engine\geometry\transform.h" />
-    <ClInclude Include="engine\geometry\vec3.h" />
-    <ClInclude Include="engine\imgui\dirent.h" />
-    <ClInclude Include="engine\imgui\icons.h" />
-    <ClInclude Include="engine\imgui\imconfig.h" />
-    <ClInclude Include="engine\imgui\imgui.h" />
-    <ClInclude Include="engine\imgui\ImGuizmo.h" />
-    <ClInclude Include="engine\imgui\imgui_impl_dx11.h" />
-    <ClInclude Include="engine\imgui\imgui_impl_win32.h" />
-    <ClInclude Include="engine\imgui\imgui_stdlib.h" />
-    <ClInclude Include="engine\modules\module.h" />
-    <ClInclude Include="engine\modules\module_render.h" />
-    <ClInclude Include="engine\platform.h" />
-    <ClInclude Include="engine\profile\profiling.h" />
-    <ClInclude Include="engine\render\color.h" />
-    <ClInclude Include="engine\render\debug_texts.h" />
-    <ClInclude Include="engine\render\dx11\render_platform.h" />
-    <ClInclude Include="engine\render\gpu_trace.h" />
-    <ClInclude Include="engine\render\primitives.h" />
-    <ClInclude Include="engine\render\render.h" />
-    <ClInclude Include="engine\render\vertex_declarations.h" />
-    <ClInclude Include="engine\render\vertex_types.h" />
-    <ClInclude Include="engine\resources\resource.h" />
-    <ClInclude Include="engine\utils\randoms.h" />
-    <ClInclude Include="engine\utils\utils.h" />
-    <ClInclude Include="thread_pool.h" />
-    <ClInclude Include="particles_vec.h" />
-    <ClInclude Include="viscoelastic_sim.h" />
+    <ClInclude Include="..\..\viscoelastic_sim.h" />
+    <ClInclude Include="..\utils\randoms.h" />
+    <ClInclude Include="..\utils\utils.h" />
+    <ClInclude Include="..\cpu_spatial_subdivision.h" />
+    <ClInclude Include="..\..\data\shaders\constants.h" />
+    <ClInclude Include="..\..\data\shaders\vertex_types.h" />
+    <ClInclude Include="..\formats\json\json.h" />
+    <ClInclude Include="..\formats\json\json_file.h" />
+    <ClInclude Include="..\geometry\aabb.h" />
+    <ClInclude Include="..\geometry\angular.h" />
+    <ClInclude Include="..\geometry\camera.h" />
+    <ClInclude Include="..\geometry\geometry.h" />
+    <ClInclude Include="..\geometry\sdf\sdf.h" />
+    <ClInclude Include="..\geometry\transform.h" />
+    <ClInclude Include="..\geometry\vec3.h" />
+    <ClInclude Include="..\imgui\dirent.h" />
+    <ClInclude Include="..\imgui\icons.h" />
+    <ClInclude Include="..\imgui\imconfig.h" />
+    <ClInclude Include="..\imgui\imgui.h" />
+    <ClInclude Include="..\imgui\ImGuizmo.h" />
+    <ClInclude Include="..\imgui\imgui_impl_dx11.h" />
+    <ClInclude Include="..\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="..\imgui\imgui_stdlib.h" />
+    <ClInclude Include="..\modules\module.h" />
+    <ClInclude Include="..\modules\module_render.h" />
+    <ClInclude Include="..\platform.h" />
+    <ClInclude Include="..\profile\profiling.h" />
+    <ClInclude Include="..\render\color.h" />
+    <ClInclude Include="..\render\debug_texts.h" />
+    <ClInclude Include="..\render\dx11\render_platform.h" />
+    <ClInclude Include="..\render\gpu_trace.h" />
+    <ClInclude Include="..\render\primitives.h" />
+    <ClInclude Include="..\render\render.h" />
+    <ClInclude Include="..\render\vertex_declarations.h" />
+    <ClInclude Include="..\resources\resource.h" />
+    <ClInclude Include="..\thread_pool.h" />
+    <ClInclude Include="..\particles_vec.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="engine\windows\Icon128.ico" />
+    <Image Include="Icon128.ico" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="data\resources.json" />
+    <None Include="..\..\data\resources.json" />
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="data\shaders\basic.hlsl">
+    <FxCompile Include="..\..\data\shaders\basic.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
-    <FxCompile Include="data\shaders\common.hlsl">
+    <FxCompile Include="..\..\data\shaders\common.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
-    <FxCompile Include="data\shaders\sprites.hlsl">
+    <FxCompile Include="..\..\data\shaders\sprites.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>

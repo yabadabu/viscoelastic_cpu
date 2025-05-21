@@ -38,7 +38,7 @@ namespace Profiling {
 		void freeEntries();
 	};
 
-  __declspec(thread) TContainer data_container;
+  thread_local TContainer data_container;
 
   static std::vector<TContainer*> data_containers;
   static std::atomic< uint32_t > num_data_containers = 0;

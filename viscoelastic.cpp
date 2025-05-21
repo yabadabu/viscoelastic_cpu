@@ -13,7 +13,7 @@ struct ViscoelasticModule : public Module {
   struct Emitter {
     TTransform               transform;
     float                    radius = 0.1f;
-    float                    strength = 10.0f;
+    float                    strength = 20.0f;
     int                      rate = 4;
     bool                     enabled = false;
     int                      particle_type = 0;
@@ -27,7 +27,7 @@ struct ViscoelasticModule : public Module {
       eRandom,
       eRanges
     };
-    eGenerationType generation_type = eGenerationType::eUniform;
+    eGenerationType generation_type = eGenerationType::eRanges;
 
     bool renderInMenu() {
       if (!ImGui::TreeNode("Emitter..."))
@@ -51,7 +51,7 @@ struct ViscoelasticModule : public Module {
         ImGui::Text("%d", num_pendings);
       }
       ImGui::DragFloat("Radius", &radius, 0.01f, 0.1f, 3.0f);
-      ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 25.0f);
+      ImGui::DragFloat("Strength", &strength, 0.1f, 1.0f, 35.0f);
       ImGui::DragInt("Rate", &rate, 0.1f, 0, 32);
       ImGui::Combo("Generation Type", (int*)&generation_type, "Uniform\0Random\0Ranges\0\0", 4);
       ImGui::DragInt("Type", &particle_type, 0.05f, 0, 3);
@@ -129,17 +129,17 @@ struct ViscoelasticModule : public Module {
   bool        show_ids = false;
   bool        show_cell_ids = false;
   bool        auto_rotate_first_box = false;
-  float       rotation_speed = deg2rad( 1.0f );
+  float       auto_rotation_speed = 1.0f;     // in degs
   CDebugTexts dbg_texts;
 
   int       debug_particle = -1;
 
   ViscoelasticModule() {
-    dbg("ViscoelasticModule::ViscoelasticModule\n");
     sim.init();
     sim.in_2d = true;
     //sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
+    //sdfCage();
     //addParticles(512);
     sdfLargeCage();
     config3D_32K();
@@ -154,6 +154,13 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_z));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
+  }
+
+  void sdfInsideCage( ) {
+    sim.sdf.prims.clear();
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.0f, 0.0f), VEC3( 2.0f, 2.0, 4.0f )));
+    sim.sdf.prims.back().multiplier = -1.0f;
+    sim.sdf.prims.back().transformHasChanged();
   }
 
   void sdfLargeCage() {
@@ -175,7 +182,7 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.back().transformHasChanged();
   }
 
-  void load() {
+  void load() override {
     wired_cells = Render::VInstances("unit_wired_cube.mesh");
     lines = Render::VInstances( "line.mesh" );
   }
@@ -212,7 +219,7 @@ struct ViscoelasticModule : public Module {
     drawCell( cell_info.coords );
   }
 
-  void onRender3D() {
+  void onRender3D() override {
     TTimer tm;
 
     float sim_to_world_factor = 1.0f / sim.world_scale;
@@ -485,7 +492,11 @@ struct ViscoelasticModule : public Module {
         sdfLargeCage();
       if (ImGui::SmallButton("Platforms"))
         sdfPlatforms();
+      if (ImGui::SmallButton("Inside Box"))
+        sdfInsideCage();
       ImGui::Checkbox("Auto rotate first box", &auto_rotate_first_box);
+      if( auto_rotate_first_box )
+        ImGui::DragFloat( "Rotation Speed", &auto_rotation_speed, 0.01f, -1.0f, 1.0f );
       ImGui::TreePop();
     }
 
@@ -532,7 +543,7 @@ struct ViscoelasticModule : public Module {
     if (auto_rotate_first_box) {
       for (auto& prim : sim.sdf.prims) {
         if (prim.prim_type == SDF::Primitive::eType::BOX) {
-          prim.transform.setRotation(prim.transform.getRotation() * QUAT::createFromAxisAngle(VEC3::axis_x, rotation_speed));
+          prim.transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(auto_rotation_speed)) * prim.transform.getRotation());
           prim.transformHasChanged();
           break;
         }

@@ -27,7 +27,11 @@ namespace Profiling {
 #define STR_CONCAT_(x,y) x##y
 #define STR_CONCAT(x,y) STR_CONCAT_(x,y)
 
+#if defined(IN_PLATFORM_WINDOWS)
 #define PROFILE_SCOPED()                  PROFILE_SCOPED_NAMED(__FUNCSIG__)
+#else
+#define PROFILE_SCOPED()                  PROFILE_SCOPED_NAMED(__PRETTY_FUNCTION__)
+#endif
 #define PROFILE_SCOPED_NAMED(txt)         Profiling::TScoped STR_CONCAT(internal_profile_, __LINE__)(txt);
 #define PROFILE_START_CAPTURING(nFrames)  Profiling::triggerCapture(nFrames)
 #define PROFILE_BEGIN_SECTION(txt)        Profiling::enterDataDataContainer(txt)

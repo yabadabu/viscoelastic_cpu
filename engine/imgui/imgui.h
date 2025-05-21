@@ -34,6 +34,8 @@
 #define IMGUI_HAS_VIEWPORT          // Viewport WIP branch
 #define IMGUI_HAS_DOCK              // Docking WIP branch
 
+#define IMGUI_IMPL_METAL_CPP
+
 /*
 
 Index of this file:

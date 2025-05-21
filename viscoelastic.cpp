@@ -158,9 +158,9 @@ struct ViscoelasticModule : public Module {
 
   void sdfInsideCage( ) {
     sim.sdf.prims.clear();
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0.0f, 5.0f, 3.0f), VEC3( 4.0f, 2.0, 2.0f )));
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.0f, 0.0f), VEC3( 2.0f, 2.0, 4.0f )));
     sim.sdf.prims.back().multiplier = -1.0f;
-    sim.sdf.prims[3].transformHasChanged();
+    sim.sdf.prims.back().transformHasChanged();
   }
 
   void sdfLargeCage() {

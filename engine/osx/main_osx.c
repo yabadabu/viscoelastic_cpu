@@ -25,10 +25,6 @@
 
     self.device = MTLCreateSystemDefaultDevice();
     self.delegate = self;
-
-    //self.wantsRestingTouches = TRUE;
-    self.allowedTouchTypes = NSTouchTypeMaskDirect |NSTouchTypeMaskIndirect;;
-
     self.clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
 
     self.depthStencilPixelFormat = MTLPixelFormatDepth16Unorm;
@@ -41,7 +37,7 @@
 }
 
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {
-    NSLog(@"drawableSizeWillChange");
+    //NSLog(@"drawableSizeWillChange");
     // Handle changes in drawable size, if needed
 }
 

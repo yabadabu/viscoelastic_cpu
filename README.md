@@ -11,9 +11,18 @@ The simulation is based on the repository from https://github.com/kotsoft/partic
 - ImGuizmo (https://github.com/CedricGuillemet/ImGuizmo)
 - ThreadPool (https://github.com/progschj/ThreadPool)
 
-## Build and run in Windows
+## Build
+
+### Windows
 
 Open viscoelastic.sln with Visual C++ 2022 and press F5 in Release
+
+### OSX
+
+From a shell in the root of the repository, type:
+
+    $ make RELEASE=1 -j
+    $ ./demo_OSX
 
 ## Particles
 
@@ -265,12 +274,13 @@ Finally, with 64K particles, increasing the number of threads brings some nice i
 
 - I have been testing an approach to generate the spatial index using multiple threads, but only pays off when more particles are being simulated
 - The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)
+- We can always start the simulation of the next frame while doing the rendering and waiting for the GPU.
 - Testing with different data alignments
 - Testing with AVX512
 - Test other CPU's
 - Move it to GPU
 
-## Multithread generation of the Spatial Index (uncomplete)
+## Multithread generation of the Spatial Index (incomplete)
 
 Generating the list of unique cell_id's and associate each particle with a unique position in a linear buffer, so that subsequent queries run in parallel is the purpose of this section. The proposed solution is the following:
 

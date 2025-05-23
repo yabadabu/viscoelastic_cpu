@@ -1,267 +1,264 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="viscoelastic.cpp" />
-    <ClCompile Include="viscoelastic_sim.cpp" />
     <ClCompile Include="..\platform.cpp">
-      <Filter>..</Filter>
+      <Filter>engine</Filter>
     </ClCompile>
     <ClCompile Include="..\geometry\sdf\sdf.cpp">
-      <Filter>..\geometry\sdf</Filter>
+      <Filter>engine\geometry\sdf</Filter>
     </ClCompile>
     <ClCompile Include="..\geometry\angular.cpp">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClCompile>
     <ClCompile Include="..\geometry\geometry.cpp">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClCompile>
     <ClCompile Include="..\geometry\transform.cpp">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClCompile>
     <ClCompile Include="..\resources\resources_manager.cpp">
-      <Filter>..\resources</Filter>
+      <Filter>engine\resources</Filter>
     </ClCompile>
     <ClCompile Include="..\geometry\camera.cpp">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClCompile>
     <ClCompile Include="..\modules\module.cpp">
-      <Filter>..\modules</Filter>
+      <Filter>engine\modules</Filter>
     </ClCompile>
     <ClCompile Include="..\modules\module_camera.cpp">
-      <Filter>..\modules</Filter>
+      <Filter>engine\modules</Filter>
     </ClCompile>
     <ClCompile Include="..\modules\module_render.cpp">
-      <Filter>..\modules</Filter>
+      <Filter>engine\modules</Filter>
     </ClCompile>
     <ClCompile Include="..\modules\module_resources.cpp">
-      <Filter>..\modules</Filter>
+      <Filter>engine\modules</Filter>
     </ClCompile>
     <ClCompile Include="..\windows\main.cpp">
-      <Filter>..\windows</Filter>
+      <Filter>engine\windows</Filter>
     </ClCompile>
     <ClCompile Include="..\render\dx11\render_platform.cpp">
-      <Filter>..\render\dx11</Filter>
+      <Filter>engine\render\dx11</Filter>
     </ClCompile>
     <ClCompile Include="..\render\render.cpp">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui_demo.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui_draw.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui_impl_dx11.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui_impl_win32.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui_stdlib.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui_widgets.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\ImGuizmo.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\imgui\imgui_tables.cpp">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\formats\json\json_file.cpp">
-      <Filter>..\formats\json</Filter>
+      <Filter>engine\formats\json</Filter>
     </ClCompile>
     <ClCompile Include="..\formats\json\json.cpp">
-      <Filter>..\formats\json</Filter>
+      <Filter>engine\formats\json</Filter>
     </ClCompile>
     <ClCompile Include="..\render\primitives.cpp">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClCompile>
     <ClCompile Include="..\profile\profiling.cpp">
-      <Filter>..\profile</Filter>
+      <Filter>engine\profile</Filter>
     </ClCompile>
     <ClCompile Include="..\utils\utils.cpp">
-      <Filter>..\utils</Filter>
+      <Filter>engine\utils</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\viscoelastic_sim.cpp" />
+    <ClCompile Include="..\..\viscoelastic.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="cpu_spatial_subdivision.h" />
-    <ClInclude Include="thread_pool.h" />
-    <ClInclude Include="viscoelastic_sim.h" />
-    <ClInclude Include="particles_vec.h" />
     <ClInclude Include="..\platform.h">
-      <Filter>..</Filter>
+      <Filter>engine</Filter>
     </ClInclude>
     <ClInclude Include="..\geometry\angular.h">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\geometry\geometry.h">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\geometry\transform.h">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\geometry\vec3.h">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\render\render.h">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClInclude>
     <ClInclude Include="..\resources\resource.h">
-      <Filter>..\resources</Filter>
+      <Filter>engine\resources</Filter>
     </ClInclude>
     <ClInclude Include="..\geometry\camera.h">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\geometry\aabb.h">
-      <Filter>..\geometry</Filter>
+      <Filter>engine\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\modules\module.h">
-      <Filter>..\modules</Filter>
+      <Filter>engine\modules</Filter>
     </ClInclude>
     <ClInclude Include="..\modules\module_render.h">
-      <Filter>..\modules</Filter>
+      <Filter>engine\modules</Filter>
     </ClInclude>
     <ClInclude Include="..\geometry\sdf\sdf.h">
-      <Filter>..\geometry\sdf</Filter>
+      <Filter>engine\geometry\sdf</Filter>
     </ClInclude>
     <ClInclude Include="..\render\dx11\render_platform.h">
-      <Filter>..\render\dx11</Filter>
+      <Filter>engine\render\dx11</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\dirent.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\icons.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\imconfig.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\imgui.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\imgui_impl_dx11.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\imgui_impl_win32.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\imgui_stdlib.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\imgui\ImGuizmo.h">
-      <Filter>..\imgui</Filter>
+      <Filter>engine\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\formats\json\json.h">
-      <Filter>..\formats\json</Filter>
+      <Filter>engine\formats\json</Filter>
     </ClInclude>
     <ClInclude Include="..\formats\json\json_file.h">
-      <Filter>..\formats\json</Filter>
-    </ClInclude>
-    <ClInclude Include="data\shaders\constants.h">
-      <Filter>data\shaders</Filter>
-    </ClInclude>
-    <ClInclude Include="data\shaders\vertex_types.h">
-      <Filter>data\shaders</Filter>
+      <Filter>engine\formats\json</Filter>
     </ClInclude>
     <ClInclude Include="..\render\primitives.h">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClInclude>
     <ClInclude Include="..\profile\profiling.h">
-      <Filter>..\profile</Filter>
+      <Filter>engine\profile</Filter>
     </ClInclude>
     <ClInclude Include="..\render\color.h">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClInclude>
     <ClInclude Include="..\render\debug_texts.h">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClInclude>
     <ClInclude Include="..\render\gpu_trace.h">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClInclude>
     <ClInclude Include="..\render\vertex_declarations.h">
-      <Filter>..\render</Filter>
-    </ClInclude>
-    <ClInclude Include="..\render\vertex_types.h">
-      <Filter>..\render</Filter>
+      <Filter>engine\render</Filter>
     </ClInclude>
     <ClInclude Include="..\utils\randoms.h">
-      <Filter>..\utils</Filter>
+      <Filter>engine\utils</Filter>
     </ClInclude>
     <ClInclude Include="..\utils\utils.h">
-      <Filter>..\utils</Filter>
+      <Filter>engine\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\viscoelastic_sim.h" />
+    <ClInclude Include="..\cpu_spatial_subdivision.h" />
+    <ClInclude Include="..\thread_pool.h" />
+    <ClInclude Include="..\particles_vec.h" />
+    <ClInclude Include="..\..\data\shaders\constants.h">
+      <Filter>data\shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\data\shaders\vertex_types.h">
+      <Filter>data\shaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="..">
-      <UniqueIdentifier>{f2a4c49b-a639-418a-a4c3-9c00f729e47c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\geometry">
-      <UniqueIdentifier>{0237263c-61a2-4367-9b81-e23d5477c428}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\geometry\sdf">
-      <UniqueIdentifier>{9e97ed74-ec97-46bb-bad7-03242032d12a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\utils">
-      <UniqueIdentifier>{b0c6c6e3-fdd3-4ef9-9e19-445793d59e54}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\render">
-      <UniqueIdentifier>{c984f780-8c30-41ec-977c-ad507c769234}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\resources">
-      <UniqueIdentifier>{b69a2e67-1882-4271-a4b8-90990acc5aef}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\modules">
-      <UniqueIdentifier>{0d2459b4-bbac-4b12-90e8-e9e8f1b1084f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\windows">
-      <UniqueIdentifier>{80b38ab6-6a06-4a02-8a56-f9cbb5e7ba34}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\render\dx11">
-      <UniqueIdentifier>{410b2188-3130-43ac-8ed9-bf5199a009e5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\imgui">
-      <UniqueIdentifier>{c95dee72-b7e4-4553-82ae-379ff4d1bdb6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="data">
       <UniqueIdentifier>{d664eb74-0fe9-4758-b2c9-26ad9c9e87a4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\formats">
-      <UniqueIdentifier>{5406e980-667b-4071-87f7-221fd5f01dca}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="..\formats\json">
-      <UniqueIdentifier>{6bd61b12-02a1-45d5-9a90-b6d6040de747}</UniqueIdentifier>
     </Filter>
     <Filter Include="data\shaders">
       <UniqueIdentifier>{ed586146-0631-40cd-8178-ca0b29c8586e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="..\profile">
+    <Filter Include="engine">
+      <UniqueIdentifier>{f2a4c49b-a639-418a-a4c3-9c00f729e47c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\geometry">
+      <UniqueIdentifier>{0237263c-61a2-4367-9b81-e23d5477c428}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\geometry\sdf">
+      <UniqueIdentifier>{9e97ed74-ec97-46bb-bad7-03242032d12a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\utils">
+      <UniqueIdentifier>{b0c6c6e3-fdd3-4ef9-9e19-445793d59e54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\render">
+      <UniqueIdentifier>{c984f780-8c30-41ec-977c-ad507c769234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\render\dx11">
+      <UniqueIdentifier>{410b2188-3130-43ac-8ed9-bf5199a009e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\resources">
+      <UniqueIdentifier>{b69a2e67-1882-4271-a4b8-90990acc5aef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\modules">
+      <UniqueIdentifier>{0d2459b4-bbac-4b12-90e8-e9e8f1b1084f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\windows">
+      <UniqueIdentifier>{80b38ab6-6a06-4a02-8a56-f9cbb5e7ba34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\imgui">
+      <UniqueIdentifier>{c95dee72-b7e4-4553-82ae-379ff4d1bdb6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\formats">
+      <UniqueIdentifier>{5406e980-667b-4071-87f7-221fd5f01dca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\formats\json">
+      <UniqueIdentifier>{6bd61b12-02a1-45d5-9a90-b6d6040de747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\profile">
       <UniqueIdentifier>{8ff75c5d-6908-4029-ac1e-12108dafa5ff}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\windows\Icon128.ico">
-      <Filter>..\windows</Filter>
+    <FxCompile Include="..\..\data\shaders\basic.hlsl">
+      <Filter>data\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\data\shaders\common.hlsl">
+      <Filter>data\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\data\shaders\sprites.hlsl">
+      <Filter>data\shaders</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Icon128.ico">
+      <Filter>engine\windows</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <None Include="data\resources.json">
-      <Filter>data</Filter>
+    <None Include="..\..\data\resources.json">
+      <Filter>engine\windows</Filter>
     </None>
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="data\shaders\basic.hlsl">
-      <Filter>data\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="data\shaders\common.hlsl">
-      <Filter>data\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="data\shaders\sprites.hlsl">
-      <Filter>data\shaders</Filter>
-    </FxCompile>
   </ItemGroup>
 </Project>

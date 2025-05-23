@@ -55,7 +55,6 @@ struct ViscoelasticSim {
   bool                    in_2d = false;
   bool                    attract = false;
   bool                    repel = false;
-  bool                    drain = false;
   bool                    emit = false;
   bool                    using_parallel = false;
 
@@ -67,7 +66,6 @@ struct ViscoelasticSim {
   int                     num_substeps = 1;
 
   int                     debug_particle = -1;
-  std::vector<int>        particles_to_remove;
 
   int num_threads = 12;
   ThreadPool* pool = nullptr;
@@ -79,6 +77,9 @@ struct ViscoelasticSim {
   void init();
 
   void addParticle(VEC3 pos, VEC3 vel, uint8_t particle_type);
+  void removeParticle(int particle_id);
+  void removeParticles(std::vector<int>& particles_to_remove);
+  void getParticleIDsNear(std::vector<int>& out_ids, VEC3 ref_point, float rad) const;
 
   void updateSpatialHash();
   void resolveCollisions(float dt, int start, int end);

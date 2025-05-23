@@ -525,26 +525,39 @@ void ViscoelasticSim::doubleDensityRelaxation(float dt) {
     processRange(dt, range, particles_frozen_pos, &particles_pos);
 }
 
-void ViscoelasticSim::updateStep(float dt) {
-
-  if (particles_to_remove.size()) {
-    std::sort(particles_to_remove.begin(), particles_to_remove.end(), [](int a, int b) { return a > b; });
-
-    auto swapInContainer = [](ParticlesVec & container, int a, int b) {
-      VEC3 pa = container.get(a);
-      VEC3 pb = container.get(b);
-      container.set(b, pa);
-      container.set(a, pb);
+void ViscoelasticSim::removeParticle(int id) {
+  auto swapInContainer = [](ParticlesVec& container, int a, int b) {
+    VEC3 pa = container.get(a);
+    VEC3 pb = container.get(b);
+    container.set(b, pa);
+    container.set(a, pb);
     };
 
-    for (int id : particles_to_remove) {
-      swapInContainer(particles_pos, num_particles - 1, id);
-      swapInContainer(particles_vels, num_particles - 1, id);
-      std::swap(particles_type[num_particles - 1], particles_type[id]);
-      num_particles--;
-    }
-    particles_to_remove.clear();
+  swapInContainer(particles_pos, num_particles - 1, id);
+  swapInContainer(particles_vels, num_particles - 1, id);
+  std::swap(particles_type[num_particles - 1], particles_type[id]);
+  num_particles -= 1;
+}
+
+void ViscoelasticSim::removeParticles(std::vector<int>& particles_to_remove) {
+  std::sort(particles_to_remove.begin(), particles_to_remove.end(), [](int a, int b) { return a > b; });
+  for (auto id : particles_to_remove)
+    removeParticle(id);
+  particles_to_remove.clear();
+}
+
+void ViscoelasticSim::getParticleIDsNear(std::vector<int>& out_ids, VEC3 ref_point, float rad) const {
+  float interact_rad_sqr = rad * rad;
+  for (int i = 0; i < num_particles; ++i) {
+    VEC3 delta = particles_pos.get(i) - ref_point;
+    float dist_sq = delta.lengthSquared();
+    if (dist_sq > interact_rad_sqr || dist_sq < 0.1f)
+      continue;
+    out_ids.push_back(i);
   }
+}
+
+void ViscoelasticSim::updateStep(float dt) {
 
   {
     TTimer tm;
@@ -566,24 +579,18 @@ void ViscoelasticSim::updateStep(float dt) {
     float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
     attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
     bool attrack_repel_active = attrack_repel != 0.0f;
-    if (attrack_repel_active || drain) {
+    if (attrack_repel_active) {
       float interact_rad_sqr = interact_rad * interact_rad;
 
       for (int i = 0; i < num_particles; ++i) {
         VEC3 delta = particles_pos.get(i) - interact_point;
         float dist_sq = delta.lengthSquared();
-        if (dist_sq > interact_rad_sqr || dist_sq < 0.1)
+        if (dist_sq > interact_rad_sqr || dist_sq < 0.1f)
           continue;
-        if (attrack_repel_active) {
-          const float dist = sqrtf(dist_sq);
-          const float inv_dist = 1.0f / dist;
-          delta *= inv_dist;
-          particles_vels.add(i, attrack_repel * (-delta));
-        }
-        else
-        {
-          particles_to_remove.push_back(i);
-        }
+        const float dist = sqrtf(dist_sq);
+        const float inv_dist = 1.0f / dist;
+        delta *= inv_dist;
+        particles_vels.add(i, attrack_repel * (-delta));
       }
     }
   }
@@ -604,7 +611,7 @@ void ViscoelasticSim::updateStep(float dt) {
   if (in_2d) {
     for (int i = 0; i < num_particles; ++i) {
       particles_pos.x[i] = 0.01f;
-      particles_vels.x[i] = 0.0;
+      particles_vels.x[i] = 0.0f;
     }
   }
 

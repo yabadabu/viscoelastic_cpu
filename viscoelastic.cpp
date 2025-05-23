@@ -536,9 +536,15 @@ struct ViscoelasticModule : public Module {
       sim.interact_dir = sim.sdf.evalGrad(hit);
     }
 
-    sim.drain = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_X);
+    bool drain = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_X);
     sim.repel = ImGui::IsKeyDown(ImGuiKey::ImGuiKey_C);
     sim.attract = ImGui::IsKeyDown( ImGuiKey::ImGuiKey_Z );
+
+    if (drain) {
+      std::vector< int > ids;
+      sim.getParticleIDsNear(ids, sim.interact_point, sim.interact_rad);
+      sim.removeParticles(ids);
+    }
 
     if (auto_rotate_first_box) {
       for (auto& prim : sim.sdf.prims) {

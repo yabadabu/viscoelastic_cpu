@@ -2,7 +2,7 @@
 
 This document describes the approach I have taken to perform a particle simulation in 3D using only the CPU's. The process allows to update 32K particles with collisions using 12 CPU's in just 4ms per update. Today it's more common to perform these type of simulations using the GPU, but I wanted to explore first the use of the CPU's.
 
-[![Watch the video](results/sim00.png)]([results/sim00.mp4](https://youtu.be/duHcCjZ-u30))
+[![Watch the video](results/sim00.png)](https://www.youtube.com/watch?v=duHcCjZ-u30)
 The sample code focus on the simulation and uses a small C++ framework with DirectX 11 to draw a small sprite on each particle position. 
 
 The simulation is based on the repository from https://github.com/kotsoft/particle_based_viscoelastic_fluid, and uses code from the following repo (all included):

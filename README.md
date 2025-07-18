@@ -141,7 +141,7 @@ The collisions will be handled using a collection of SDFs (Signed Distance Funct
 
 With 6 planes we can define the interior of a box, and changing the orientation or the translation of the planes/spheres allows us to interact with the particles.
 
-Right now, we check 32K particles vs 6 planes, and it takes xxx ms when running in parallel with 12 threads. Because most of the particles are not interacting with the walls, a posible optimization could consists of precomputing the list of sdf's that affect each cell, and check only the particles in those cells, as the spatial index already provides us with that information.
+Right now, we check 32K particles vs 6 planes, and it takes ~0.25 ms when running in parallel with 12 threads. Because most of the particles are not interacting with the walls, a posible optimization could consists of precomputing the list of sdf's that affect each cell, and check only the particles in those cells, as the spatial index already provides us with that information.
 
 ## Multithreading
 

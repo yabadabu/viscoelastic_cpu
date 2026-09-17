@@ -69,6 +69,7 @@ struct ViscoelasticSim {
 
   int num_threads = 12;
   ThreadPool* pool = nullptr;
+  std::vector<ParticlesVec> relaxation_worker_deltas;
 
   void setNumThreads(int new_num_threads);
 
@@ -83,7 +84,7 @@ struct ViscoelasticSim {
 
   void updateSpatialHash();
   void resolveCollisions(float dt, int start, int end);
-  void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_positions);
+  void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas);
   void updateStep(float dt);
   void update(float dt);
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);

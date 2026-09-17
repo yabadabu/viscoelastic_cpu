@@ -16,8 +16,15 @@ public:
   template<class F, class... Args>
   auto enqueue(F&& f, Args&&... args)
     -> std::future<typename std::result_of<F(Args...)>::type>;
+  static size_t currentWorkerIndex() {
+    assert(worker_index != invalid_worker_index);
+    return worker_index;
+  }
   ~ThreadPool();
 private:
+  static constexpr size_t invalid_worker_index = (size_t)-1;
+  inline static thread_local size_t worker_index = invalid_worker_index;
+
   // need to keep track of threads so we can join them
   std::vector< std::thread > workers;
   // the task queue
@@ -35,8 +42,9 @@ inline ThreadPool::ThreadPool(size_t threads)
 {
   for (size_t i = 0; i < threads; ++i)
     workers.emplace_back(
-      [this]
+      [this, i]
       {
+        worker_index = i;
         for (;;)
         {
           std::function<void()> task;

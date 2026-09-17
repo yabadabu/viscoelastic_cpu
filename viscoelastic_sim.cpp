@@ -132,22 +132,24 @@ inline float hsum256_ps(__m256 v) {
   return _mm_cvtss_f32(sum3);
 }
 
-inline void apply_self_displacement_simd(
+inline void apply_displacements_simd(
   float pressure,
   float near_pressure,
+  const int* nears_ids,
   const float* nears_closeness,
   const float* nears_dirs_x,
   const float* nears_dirs_y,
   const float* nears_dirs_z,
   int num_nears,
   int idx,
-  ParticlesVec* out_positions
+  ParticlesVec* out_deltas
 ) {
   const int step = 8;
   int i = 0;
 
   __m256 p = _mm256_set1_ps(pressure);
   __m256 np = _mm256_set1_ps(near_pressure);
+  __m256 half = _mm256_set1_ps(0.5f);
 
   __m256 accum_dx = _mm256_setzero_ps();
   __m256 accum_dy = _mm256_setzero_ps();
@@ -157,6 +159,7 @@ inline void apply_self_displacement_simd(
     __m256 c = _mm256_loadu_ps(&nears_closeness[i]);
     __m256 amt = _mm256_add_ps(p, _mm256_mul_ps(np, c));
     amt = _mm256_mul_ps(amt, c);
+    amt = _mm256_mul_ps(amt, half);
 
     __m256 vx = _mm256_loadu_ps(&nears_dirs_x[i]);
     __m256 vy = _mm256_loadu_ps(&nears_dirs_y[i]);
@@ -169,6 +172,14 @@ inline void apply_self_displacement_simd(
     accum_dx = _mm256_add_ps(accum_dx, dx_final);
     accum_dy = _mm256_add_ps(accum_dy, dy_final);
     accum_dz = _mm256_add_ps(accum_dz, dz_final);
+
+    alignas(32) float tx[8], ty[8], tz[8];
+    _mm256_store_ps(tx, dx_final);
+    _mm256_store_ps(ty, dy_final);
+    _mm256_store_ps(tz, dz_final);
+
+    for (int k = 0; k < 8; ++k)
+      out_deltas->add(nears_ids[i + k], tx[k], ty[k], tz[k]);
   }
 
   float acc_x = -hsum256_ps(accum_dx);
@@ -178,21 +189,55 @@ inline void apply_self_displacement_simd(
   // Scalar fallback
   for (; i < num_nears; ++i) {
     float closeness = nears_closeness[i];
-    float amount = (pressure + near_pressure * closeness) * closeness;
+    float amount = (pressure + near_pressure * closeness) * closeness * 0.5f;
     float dx = nears_dirs_x[i] * amount;
     float dy = nears_dirs_y[i] * amount;
     float dz = nears_dirs_z[i] * amount;
     acc_x -= dx;
     acc_y -= dy;
     acc_z -= dz;
+    out_deltas->add(nears_ids[i], dx, dy, dz);
   }
 
-  // Every particle visits the same pair from its own endpoint. Accumulating the
-  // full correction locally approximates the old pair of half-corrections when
-  // neighbour lists are symmetric and local pressures are similar. It also
-  // gives each output a single writer, avoiding the data race and cache-line
-  // bouncing of the former neighbour scatter.
-  out_positions->add(idx, acc_x, acc_y, acc_z);
+  out_deltas->add(idx, acc_x, acc_y, acc_z);
+}
+
+void simd_apply_relaxation_deltas(
+  ParticlesVec& positions,
+  const std::vector<ParticlesVec>& worker_deltas,
+  int start,
+  int end
+) {
+  constexpr int step = 8;
+  int i = start;
+
+  for (; i + step <= end; i += step) {
+    __m256 px = _mm256_loadu_ps(&positions.x[i]);
+    __m256 py = _mm256_loadu_ps(&positions.y[i]);
+    __m256 pz = _mm256_loadu_ps(&positions.z[i]);
+
+    for (const ParticlesVec& deltas : worker_deltas) {
+      px = _mm256_add_ps(px, _mm256_loadu_ps(&deltas.x[i]));
+      py = _mm256_add_ps(py, _mm256_loadu_ps(&deltas.y[i]));
+      pz = _mm256_add_ps(pz, _mm256_loadu_ps(&deltas.z[i]));
+    }
+
+    _mm256_storeu_ps(&positions.x[i], px);
+    _mm256_storeu_ps(&positions.y[i], py);
+    _mm256_storeu_ps(&positions.z[i], pz);
+  }
+
+  for (; i < end; ++i) {
+    float dx = 0.0f;
+    float dy = 0.0f;
+    float dz = 0.0f;
+    for (const ParticlesVec& deltas : worker_deltas) {
+      dx += deltas.x[i];
+      dy += deltas.y[i];
+      dz += deltas.z[i];
+    }
+    positions.add(i, dx, dy, dz);
+  }
 }
 
 
@@ -264,6 +309,7 @@ inline void collect_neighbors_block(
   float kernel_radius_inv,
   float* density_acc,
   float* near_density_acc,
+  int*   nears_ids,
   float* nears_closeness,
   float* nears_dirs_x,
   float* nears_dirs_y,
@@ -361,6 +407,7 @@ inline void collect_neighbors_block(
       *density_acc += c_sq;
       *near_density_acc += c_cu;
 
+      nears_ids[num_nears] = j_start + lane;
       nears_closeness[num_nears] = c;
       nears_dirs_x[num_nears] = dx_values[lane];
       nears_dirs_y[num_nears] = dy_values[lane];
@@ -419,7 +466,7 @@ void ViscoelasticSim::resolveCollisions(float dt, int start, int end) {
   }
 }
 
-void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_positions) {
+void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas) {
   float kernel_radius = mat.kernel_radius;
   float kernel_radius_inv = 1.0f / kernel_radius;
   float rest_density = mat.rest_density;
@@ -427,6 +474,7 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
   float near_stiffness = mat.near_stiffness * dt * dt;
 
   constexpr static int max_nears = 64;
+  int nears_ids[max_nears];
   float nears_closeness[max_nears];
 
   alignas(32) float nears_dirs_x[max_nears];
@@ -456,7 +504,7 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
           ppos,
           kernel_radius, kernel_radius_inv,
           &density, &near_density,
-          nears_closeness, nears_dirs_x, nears_dirs_y, nears_dirs_z,
+          nears_ids, nears_closeness, nears_dirs_x, nears_dirs_y, nears_dirs_z,
           num_nears, max_nears,
           i, j, lane_count
         );
@@ -470,13 +518,13 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
     pressure = std::min(1.0f, pressure);
     near_pressure = std::min(1.0f, near_pressure);
 
-    apply_self_displacement_simd(
+    apply_displacements_simd(
       pressure, near_pressure,
-      nears_closeness,
+      nears_ids, nears_closeness,
       nears_dirs_x, nears_dirs_y, nears_dirs_z,
       num_nears,
       i,
-      out_positions
+      out_deltas
     );
 
     });
@@ -530,9 +578,22 @@ void ViscoelasticSim::updateSpatialHash() {
 
 void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
   int num_jobs = (int)spatial_hash.cells_ranges.size();
-  runInParallel(num_jobs, num_threads * 6, [&](int start, int end, int job_id) {
+
+  // Each worker accumulates into its own full-sized buffer, so neighbour
+  // scatters never contend. The buffers are combined after all cell jobs end.
+  runInParallel(num_threads, num_threads, [&](int start, int end, int job_id) {
     for (int i = start; i < end; ++i)
-      processRange(dt, spatial_hash.cells_ranges[i], particles_frozen_pos, &particles_pos);
+      relaxation_worker_deltas[i].clearN(num_particles);
+    });
+
+  runInParallel(num_jobs, num_threads * 6, [&](int start, int end, int job_id) {
+    ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
+    for (int i = start; i < end; ++i)
+      processRange(dt, spatial_hash.cells_ranges[i], particles_frozen_pos, &worker_deltas);
+    });
+
+  runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
+    simd_apply_relaxation_deltas(particles_pos, relaxation_worker_deltas, start, end);
     });
 }
 
@@ -666,6 +727,9 @@ void ViscoelasticSim::setNumThreads(int new_num_threads) {
   num_threads = new_num_threads;
   if (pool)
     delete pool;
+  relaxation_worker_deltas.resize(num_threads);
+  for (ParticlesVec& deltas : relaxation_worker_deltas)
+    deltas.resize(max_particles);
   pool = new ThreadPool(num_threads);
 }
 

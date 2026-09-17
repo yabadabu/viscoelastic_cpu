@@ -89,6 +89,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeaderFile>platform.h</PrecompiledHeaderFile>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

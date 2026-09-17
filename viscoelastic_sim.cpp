@@ -132,24 +132,22 @@ inline float hsum256_ps(__m256 v) {
   return _mm_cvtss_f32(sum3);
 }
 
-inline void apply_displacements_simd(
+inline void apply_self_displacement_simd(
   float pressure,
   float near_pressure,
-  const int* nears_ids,
   const float* nears_closeness,
   const float* nears_dirs_x,
   const float* nears_dirs_y,
   const float* nears_dirs_z,
   int num_nears,
   int idx,
-  ParticlesVec* deltas
+  ParticlesVec* out_positions
 ) {
   const int step = 8;
   int i = 0;
 
   __m256 p = _mm256_set1_ps(pressure);
   __m256 np = _mm256_set1_ps(near_pressure);
-  __m256 half = _mm256_set1_ps(0.5f);
 
   __m256 accum_dx = _mm256_setzero_ps();
   __m256 accum_dy = _mm256_setzero_ps();
@@ -159,7 +157,6 @@ inline void apply_displacements_simd(
     __m256 c = _mm256_loadu_ps(&nears_closeness[i]);
     __m256 amt = _mm256_add_ps(p, _mm256_mul_ps(np, c));
     amt = _mm256_mul_ps(amt, c);
-    amt = _mm256_mul_ps(amt, half);
 
     __m256 vx = _mm256_loadu_ps(&nears_dirs_x[i]);
     __m256 vy = _mm256_loadu_ps(&nears_dirs_y[i]);
@@ -172,14 +169,6 @@ inline void apply_displacements_simd(
     accum_dx = _mm256_add_ps(accum_dx, dx_final);
     accum_dy = _mm256_add_ps(accum_dy, dy_final);
     accum_dz = _mm256_add_ps(accum_dz, dz_final);
-
-    alignas(32) float tx[8], ty[8], tz[8];
-    _mm256_store_ps(tx, dx_final);
-    _mm256_store_ps(ty, dy_final);
-    _mm256_store_ps(tz, dz_final);
-
-    for (int k = 0; k < 8; ++k)
-      deltas->add(nears_ids[i + k], tx[k], ty[k], tz[k]);
   }
 
   float acc_x = -hsum256_ps(accum_dx);
@@ -189,17 +178,21 @@ inline void apply_displacements_simd(
   // Scalar fallback
   for (; i < num_nears; ++i) {
     float closeness = nears_closeness[i];
-    float amount = (pressure + near_pressure * closeness) * closeness * 0.5f;
+    float amount = (pressure + near_pressure * closeness) * closeness;
     float dx = nears_dirs_x[i] * amount;
     float dy = nears_dirs_y[i] * amount;
     float dz = nears_dirs_z[i] * amount;
     acc_x -= dx;
     acc_y -= dy;
     acc_z -= dz;
-    deltas->add(nears_ids[i], dx, dy, dz);
   }
 
-  deltas->add(idx, acc_x, acc_y, acc_z);
+  // Every particle visits the same pair from its own endpoint. Accumulating the
+  // full correction locally approximates the old pair of half-corrections when
+  // neighbour lists are symmetric and local pressures are similar. It also
+  // gives each output a single writer, avoiding the data race and cache-line
+  // bouncing of the former neighbour scatter.
+  out_positions->add(idx, acc_x, acc_y, acc_z);
 }
 
 
@@ -271,7 +264,6 @@ inline void collect_neighbors_block(
   float kernel_radius_inv,
   float* density_acc,
   float* near_density_acc,
-  int*   nears_ids,
   float* nears_closeness,
   float* nears_dirs_x,
   float* nears_dirs_y,
@@ -280,15 +272,32 @@ inline void collect_neighbors_block(
   int max_nears,
   int i,            // current particle i
   int j_start,      // start of neighbor block
-  int mask_range
+  int lane_count
 ) {
   __m256 pi_x = _mm256_set1_ps(pos.x[i]);
   __m256 pi_y = _mm256_set1_ps(pos.y[i]);
   __m256 pi_z = _mm256_set1_ps(pos.z[i]);
 
-  __m256 px = _mm256_loadu_ps(&pos.x[j_start]);
-  __m256 py = _mm256_loadu_ps(&pos.y[j_start]);
-  __m256 pz = _mm256_loadu_ps(&pos.z[j_start]);
+  __m256 px;
+  __m256 py;
+  __m256 pz;
+  int mask_range;
+  if (lane_count == 8) {
+    px = _mm256_loadu_ps(&pos.x[j_start]);
+    py = _mm256_loadu_ps(&pos.y[j_start]);
+    pz = _mm256_loadu_ps(&pos.z[j_start]);
+    mask_range = 0xff;
+  }
+  else {
+    // A normal unaligned load can run past the z allocation when the particle
+    // capacity is full. Masked loads make the final partial block safe.
+    const __m256i lane_ids = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+    const __m256i load_mask = _mm256_cmpgt_epi32(_mm256_set1_epi32(lane_count), lane_ids);
+    px = _mm256_maskload_ps(&pos.x[j_start], load_mask);
+    py = _mm256_maskload_ps(&pos.y[j_start], load_mask);
+    pz = _mm256_maskload_ps(&pos.z[j_start], load_mask);
+    mask_range = (1 << lane_count) - 1;
+  }
 
   __m256 dx = _mm256_sub_ps(px, pi_x);
   __m256 dy = _mm256_sub_ps(py, pi_y);
@@ -299,11 +308,11 @@ inline void collect_neighbors_block(
     _mm256_mul_ps(dz, dz)
   );
 
-  __m256 length = _mm256_sqrt_ps(d2);
-
+  const __m256 radius_sq = _mm256_set1_ps(kernel_radius * kernel_radius);
+  const __m256 min_dist_sq = _mm256_set1_ps(1e-6f);
   __m256 mask_valid = _mm256_and_ps(
-    _mm256_cmp_ps(length, _mm256_set1_ps(kernel_radius), _CMP_LT_OQ),
-    _mm256_cmp_ps(length, _mm256_set1_ps(1e-3f), _CMP_GT_OQ)
+    _mm256_cmp_ps(d2, radius_sq, _CMP_LT_OQ),
+    _mm256_cmp_ps(d2, min_dist_sq, _CMP_GT_OQ)
   );
 
   // Exclude self-particle
@@ -313,41 +322,55 @@ inline void collect_neighbors_block(
 
   __m256 mask = _mm256_andnot_ps(mask_self, mask_valid);
   int mask_bits = _mm256_movemask_ps(mask) & mask_range;
+  if (mask_bits == 0)
+    return;
 
-  // Load inverse r and normalize
-  __m256 r = _mm256_add_ps(length, _mm256_set1_ps(1e-5f));
-  __m256 inv_r = _mm256_div_ps(_mm256_set1_ps(1.0f), r);
+  // Approximate 1/sqrt(d2), then use one Newton-Raphson refinement. Invalid
+  // lanes use 1 to avoid infinities/NaNs; they are discarded by mask_bits.
+  const __m256 one = _mm256_set1_ps(1.0f);
+  const __m256 safe_d2 = _mm256_blendv_ps(one, d2, mask);
+  __m256 inv_r = _mm256_rsqrt_ps(safe_d2);
+  const __m256 inv_r_sq = _mm256_mul_ps(inv_r, inv_r);
+  const __m256 correction = _mm256_sub_ps(
+    _mm256_set1_ps(1.5f),
+    _mm256_mul_ps(_mm256_set1_ps(0.5f), _mm256_mul_ps(safe_d2, inv_r_sq))
+  );
+  inv_r = _mm256_mul_ps(inv_r, correction);
+  const __m256 r = _mm256_mul_ps(safe_d2, inv_r);
+
   dx = _mm256_mul_ps(dx, inv_r);
   dy = _mm256_mul_ps(dy, inv_r);
   dz = _mm256_mul_ps(dz, inv_r);
 
   // Closeness
   __m256 q = _mm256_mul_ps(r, _mm256_set1_ps(kernel_radius_inv));
-  __m256 closeness = _mm256_sub_ps(_mm256_set1_ps(1.0f), q);
+  __m256 closeness = _mm256_sub_ps(one, q);
 
-  const float* c_ptr = reinterpret_cast<const float*>(&closeness);
-  const float* dx_ptr = reinterpret_cast<const float*>(&dx);
-  const float* dy_ptr = reinterpret_cast<const float*>(&dy);
-  const float* dz_ptr = reinterpret_cast<const float*>(&dz);
+  alignas(32) float c_values[8];
+  alignas(32) float dx_values[8];
+  alignas(32) float dy_values[8];
+  alignas(32) float dz_values[8];
+  _mm256_store_ps(c_values, closeness);
+  _mm256_store_ps(dx_values, dx);
+  _mm256_store_ps(dy_values, dy);
+  _mm256_store_ps(dz_values, dz);
 
   // Iterate over the 8 lanes
   // Skip if the mask is 0, means does not apply to this range or is too far
   int lane = 0;
   while (mask_bits) {
     if (mask_bits & 1) {
-      float c = c_ptr[lane];
+      float c = c_values[lane];
       float c_sq = c * c;
       float c_cu = c_sq * c;
 
       *density_acc += c_sq;
       *near_density_acc += c_cu;
 
-      int j = j_start + lane;
-      nears_ids[num_nears] = j;
       nears_closeness[num_nears] = c;
-      nears_dirs_x[num_nears] = dx_ptr[lane];
-      nears_dirs_y[num_nears] = dy_ptr[lane];
-      nears_dirs_z[num_nears] = dz_ptr[lane];
+      nears_dirs_x[num_nears] = dx_values[lane];
+      nears_dirs_y[num_nears] = dy_values[lane];
+      nears_dirs_z[num_nears] = dz_values[lane];
       ++num_nears;
       if (num_nears >= max_nears)
         break;
@@ -402,7 +425,7 @@ void ViscoelasticSim::resolveCollisions(float dt, int start, int end) {
   }
 }
 
-void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict deltas) {
+void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_positions) {
   float kernel_radius = mat.kernel_radius;
   float kernel_radius_inv = 1.0f / kernel_radius;
   float rest_density = mat.rest_density;
@@ -410,7 +433,6 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
   float near_stiffness = mat.near_stiffness * dt * dt;
 
   constexpr static int max_nears = 64;
-  int nears_ids[max_nears];
   float nears_closeness[max_nears];
 
   alignas(32) float nears_dirs_x[max_nears];
@@ -434,15 +456,15 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
 
         int count = last - j;
         // We process particles in blocks of 8.
-        // If the block is smaller than 8, pass a mask to discard those particles slots
-        int mask_range = (1 << std::min(8, count)) - 1;
+        // If the block is smaller than 8, use masked loads for those slots.
+        int lane_count = std::min(8, count);
         collect_neighbors_block(
           ppos,
           kernel_radius, kernel_radius_inv,
           &density, &near_density,
-          nears_ids, nears_closeness, nears_dirs_x, nears_dirs_y, nears_dirs_z,
+          nears_closeness, nears_dirs_x, nears_dirs_y, nears_dirs_z,
           num_nears, max_nears,
-          i, j, mask_range
+          i, j, lane_count
         );
       }
     }
@@ -454,13 +476,13 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
     pressure = std::min(1.0f, pressure);
     near_pressure = std::min(1.0f, near_pressure);
 
-    apply_displacements_simd(
+    apply_self_displacement_simd(
       pressure, near_pressure,
-      nears_ids, nears_closeness,
+      nears_closeness,
       nears_dirs_x, nears_dirs_y, nears_dirs_z,
       num_nears,
       i,
-      deltas
+      out_positions
     );
 
     });
@@ -514,7 +536,7 @@ void ViscoelasticSim::updateSpatialHash() {
 
 void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
   int num_jobs = (int)spatial_hash.cells_ranges.size();
-  runInParallel(num_jobs, num_threads * 3, [&](int start, int end, int job_id) {
+  runInParallel(num_jobs, num_threads * 6, [&](int start, int end, int job_id) {
     for (int i = start; i < end; ++i)
       processRange(dt, spatial_hash.cells_ranges[i], particles_frozen_pos, &particles_pos);
     });

@@ -83,7 +83,7 @@ struct ViscoelasticSim {
 
   void updateSpatialHash();
   void resolveCollisions(float dt, int start, int end);
-  void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict deltas);
+  void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_positions);
   void updateStep(float dt);
   void update(float dt);
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);
@@ -92,8 +92,12 @@ struct ViscoelasticSim {
   template< typename Fn >
   void runInParallel(int num_jobs, int num_splits, Fn fn) {
     PROFILE_SCOPED_NAMED("runInParallel");
+    if (num_jobs <= 0)
+      return;
+    num_splits = std::min(num_splits, num_jobs);
     int chunk_size = (num_jobs + num_splits - 1) / num_splits;
     std::vector<std::future<void>> jobs;
+    jobs.reserve(num_splits);
     for (int job_id = 0; job_id < num_splits; ++job_id) {
       int start = job_id * chunk_size;
       int end = std::min(start + chunk_size, num_jobs);

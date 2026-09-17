@@ -87,12 +87,15 @@ struct CPUSpatialSubdivision {
 		u32 n = 0;
 
 		Int3 j_grid = i_grid;
-		for (int iz = -1; iz < 2; ++iz) {
-			j_grid.z = i_grid.z + iz;
-			for (int iy = -1; iy < 2; ++iy) {
-				j_grid.y = i_grid.y + iy;
-				for (int ix = -1; ix < 2; ++ix) {
-					j_grid.x = i_grid.x + ix;
+		// cells_ranges and the particle arrays are ordered by y, x, then z.
+		// Visit neighbours in the same order to keep their particle ranges
+		// streaming through cache and to make adjacent ranges coalescible.
+		for (int iy = -1; iy < 2; ++iy) {
+			j_grid.y = i_grid.y + iy;
+			for (int ix = -1; ix < 2; ++ix) {
+				j_grid.x = i_grid.x + ix;
+				for (int iz = -1; iz < 2; ++iz) {
+					j_grid.z = i_grid.z + iz;
 
 					const CellInfo* cell_j = nullptr;
 					// Get the neighbour cell_id, rehashing the integer coords
@@ -112,9 +115,14 @@ struct CPUSpatialSubdivision {
 						continue;
 
 					// Keep the range
-					const CellRange& cell_range_j = cells_ranges[cell_j->range_idx];
-					near_ranges.ranges[n] = cell_range_j.range;
-					n += 1;
+					const Range& neighbour_range = cells_ranges[cell_j->range_idx].range;
+					if (n > 0 && near_ranges.ranges[n - 1].last == neighbour_range.first) {
+						near_ranges.ranges[n - 1].last = neighbour_range.last;
+					}
+					else {
+						near_ranges.ranges[n] = neighbour_range;
+						n += 1;
+					}
 				}
 			}
 		}

@@ -86,6 +86,19 @@ struct CPUSpatialSubdivision {
 		const auto& i_grid = cell_info.coords;
 		u32 n = 0;
 
+		// gridHash is separable into one XOR component per axis. Compute the
+		// three possible values for each axis once instead of performing three
+		// multiplications for every one of the 27 neighbours.
+		u32 hash_x[3];
+		u32 hash_y[3];
+		u32 hash_z[3];
+		for (int offset = -1; offset <= 1; ++offset) {
+			const u32 unsigned_offset = static_cast<u32>(offset);
+			hash_x[offset + 1] = (static_cast<u32>(i_grid.x) + unsigned_offset) * 83492791u;
+			hash_y[offset + 1] = (static_cast<u32>(i_grid.y) + unsigned_offset) * 689287499u;
+			hash_z[offset + 1] = (static_cast<u32>(i_grid.z) + unsigned_offset) * 283923481u;
+		}
+
 		Int3 j_grid = i_grid;
 		// cells_ranges and the particle arrays are ordered by y, x, then z.
 		// Visit neighbours in the same order to keep their particle ranges
@@ -98,8 +111,8 @@ struct CPUSpatialSubdivision {
 					j_grid.z = i_grid.z + iz;
 
 					const CellInfo* cell_j = nullptr;
-					// Get the neighbour cell_id, rehashing the integer coords
-					u32 jcell_id = gridHash(j_grid);
+					// Get the neighbour cell_id from the precomputed axis hashes.
+					u32 jcell_id = (hash_y[iy + 1] ^ hash_z[iz + 1] ^ hash_x[ix + 1]) & hash_mask;
 					
 					while (true) {
 						cell_j = &cells_info[jcell_id];
@@ -115,7 +128,12 @@ struct CPUSpatialSubdivision {
 						continue;
 
 					// Keep the range
-					const Range& neighbour_range = cells_ranges[cell_j->range_idx].range;
+					// Avoid a second dependent lookup through cells_ranges: findRanges
+					// has already cached the same interval in this CellInfo.
+					const Range neighbour_range = {
+						cell_j->first,
+						cell_j->first + cell_j->num_particles
+					};
 					if (n > 0 && near_ranges.ranges[n - 1].last == neighbour_range.first) {
 						near_ranges.ranges[n - 1].last = neighbour_range.last;
 					}
@@ -172,7 +190,10 @@ struct CPUSpatialSubdivision {
 	}
 
 	u32 gridHash(Int3 gridPos) const {
-		return (abs(((gridPos.y * 689287499) ^ (gridPos.z * 283923481) ^ ( gridPos.x * 83492791 )) & 0x7fffffff)) & hash_mask;
+		const u32 hash_y = static_cast<u32>(gridPos.y) * 689287499u;
+		const u32 hash_z = static_cast<u32>(gridPos.z) * 283923481u;
+		const u32 hash_x = static_cast<u32>(gridPos.x) * 83492791u;
+		return (hash_y ^ hash_z ^ hash_x) & hash_mask;
 	}
 
 	u32 hashOfCoord(VEC3 p) const {

@@ -204,22 +204,32 @@ inline void apply_displacements_simd(
 
 void simd_apply_relaxation_deltas(
   ParticlesVec& positions,
-  const std::vector<ParticlesVec>& worker_deltas,
+  std::vector<ParticlesVec>& worker_deltas,
   int start,
   int end
 ) {
   constexpr int step = 8;
   int i = start;
+  const __m256 zero = _mm256_setzero_ps();
 
   for (; i + step <= end; i += step) {
     __m256 px = _mm256_loadu_ps(&positions.x[i]);
     __m256 py = _mm256_loadu_ps(&positions.y[i]);
     __m256 pz = _mm256_loadu_ps(&positions.z[i]);
 
-    for (const ParticlesVec& deltas : worker_deltas) {
-      px = _mm256_add_ps(px, _mm256_loadu_ps(&deltas.x[i]));
-      py = _mm256_add_ps(py, _mm256_loadu_ps(&deltas.y[i]));
-      pz = _mm256_add_ps(pz, _mm256_loadu_ps(&deltas.z[i]));
+    for (ParticlesVec& deltas : worker_deltas) {
+      const __m256 dx = _mm256_loadu_ps(&deltas.x[i]);
+      const __m256 dy = _mm256_loadu_ps(&deltas.y[i]);
+      const __m256 dz = _mm256_loadu_ps(&deltas.z[i]);
+      px = _mm256_add_ps(px, dx);
+      py = _mm256_add_ps(py, dy);
+      pz = _mm256_add_ps(pz, dz);
+
+      // Leave the buffers ready for the next relaxation pass while their
+      // cache lines are already resident from the reduction loads.
+      _mm256_storeu_ps(&deltas.x[i], zero);
+      _mm256_storeu_ps(&deltas.y[i], zero);
+      _mm256_storeu_ps(&deltas.z[i], zero);
     }
 
     _mm256_storeu_ps(&positions.x[i], px);
@@ -231,10 +241,13 @@ void simd_apply_relaxation_deltas(
     float dx = 0.0f;
     float dy = 0.0f;
     float dz = 0.0f;
-    for (const ParticlesVec& deltas : worker_deltas) {
+    for (ParticlesVec& deltas : worker_deltas) {
       dx += deltas.x[i];
       dy += deltas.y[i];
       dz += deltas.z[i];
+      deltas.x[i] = 0.0f;
+      deltas.y[i] = 0.0f;
+      deltas.z[i] = 0.0f;
     }
     positions.add(i, dx, dy, dz);
   }
@@ -448,6 +461,8 @@ void ViscoelasticSim::addParticle(VEC3 pos, VEC3 vel, uint8_t particle_type) {
   particles_prev_pos.set(num_particles, pos);
   particles_vels.set(num_particles, vel);
   particles_type[num_particles] = particle_type;
+  for (ParticlesVec& deltas : relaxation_worker_deltas)
+    deltas.set(num_particles, VEC3::zero);
   ++num_particles;
 }
 
@@ -573,30 +588,31 @@ void ViscoelasticSim::updateSpatialHash() {
       particles_type[i] = aux_particles_type[j];
       });
     });
+}
 
-  // Cache the neighbour ranges once per spatial rebuild instead of repeating
-  // the 27-cell hash probes during relaxation.
-  const size_t num_cells = spatial_hash.cells_ranges.size();
+void ViscoelasticSim::cacheRanges() {
+  PROFILE_SCOPED_NAMED("cacheRanges");
+  // The spatial hash is immutable here and each job writes a distinct range,
+  // so the 27-cell neighbour lookups can be prepared independently.
+  const int num_cells = (int)spatial_hash.cells_ranges.size();
   relaxation_near_ranges.resize(num_cells);
-  for (size_t cell_idx = 0; cell_idx < num_cells; ++cell_idx) {
-    const auto& cell = spatial_hash.cells_ranges[cell_idx];
-    auto& near_ranges = relaxation_near_ranges[cell_idx];
-    spatial_hash.collectRanges(near_ranges, cell.cell_id);
-  }
-
+  runInParallel(num_cells, num_threads * 3, [&](int start, int end, int job_id) {
+    for (int cell_idx = start; cell_idx < end; ++cell_idx) {
+      const auto& cell = spatial_hash.cells_ranges[cell_idx];
+      spatial_hash.collectRanges(relaxation_near_ranges[cell_idx], cell.cell_id);
+    }
+    });
 }
 
 void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
   const int num_jobs = (int)spatial_hash.cells_ranges.size();
 
   // Each worker accumulates into its own full-sized buffer, so neighbour
-  // scatters never contend. The buffers are combined after all cell jobs end.
-  runInParallel(num_threads, num_threads, [&](int start, int end, int job_id) {
-    for (int i = start; i < end; ++i)
-      relaxation_worker_deltas[i].clearN(num_particles);
-    });
-
-  runInParallel(num_jobs, num_threads * 6, [&](int start, int end, int job_id) {
+  // scatters never contend. The reduction also clears each consumed delta,
+  // leaving the buffers ready for the next pass without a separate phase.
+  // More chunks keep faster cores useful near the end of the phase and limit
+  // how much work a slower core can hold past the rest of the workers.
+  runInParallel(num_jobs, num_threads * 12, [&](int start, int end, int job_id) {
     ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
     for (int cell_idx = start; cell_idx < end; ++cell_idx)
       processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
@@ -650,6 +666,12 @@ void ViscoelasticSim::updateStep(float dt) {
     TTimer tm;
     updateSpatialHash();
     saveTime(eSection::SpatialHash, tm);
+  }
+
+  {
+    TTimer tm;
+    cacheRanges();
+    saveTime(eSection::CacheRanges, tm);
   }
 
   // Apply external forces
@@ -738,8 +760,10 @@ void ViscoelasticSim::setNumThreads(int new_num_threads) {
   if (pool)
     delete pool;
   relaxation_worker_deltas.resize(num_threads);
-  for (ParticlesVec& deltas : relaxation_worker_deltas)
+  for (ParticlesVec& deltas : relaxation_worker_deltas) {
     deltas.resize(max_particles);
+    deltas.clearN(num_particles);
+  }
   pool = new ThreadPool(num_threads);
 }
 

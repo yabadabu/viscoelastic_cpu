@@ -9,6 +9,7 @@ struct ViscoelasticSim {
 
   enum eSection {
     SpatialHash,
+    CacheRanges,
     VelocitiesUpdate,
     PredictPositions,
     Relaxation,
@@ -90,6 +91,7 @@ struct ViscoelasticSim {
   void update(float dt);
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);
   void doubleDensityRelaxation(float dt);
+  void cacheRanges();
 
   template< typename Fn >
   void runInParallel(int num_jobs, int num_splits, Fn fn) {

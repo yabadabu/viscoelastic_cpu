@@ -366,7 +366,8 @@ struct ViscoelasticModule : public Module {
 
       float buffer_size_mbs = sim.num_particles * sizeof(VEC3) / ( 1024.f * 1024.f );
 
-      ImGui::Text("%1.6lf spatial_hash", sim.times[ ViscoelasticSim::eSection::SpatialHash] );
+      ImGui::Text("%1.6lf spatial_hash", sim.times[ViscoelasticSim::eSection::SpatialHash]);
+      ImGui::Text("%1.6lf cache ranges", sim.times[ ViscoelasticSim::eSection::CacheRanges] );
       ImGui::Text("%1.6lf velocities_update", sim.times[ViscoelasticSim::eSection::VelocitiesUpdate] );
       ImGui::Text("%1.6lf predict_position (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::PredictPositions], ( 4.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::PredictPositions]));
       ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));

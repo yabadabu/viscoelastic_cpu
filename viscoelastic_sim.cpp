@@ -325,18 +325,12 @@ inline void collect_neighbors_block(
   if (mask_bits == 0)
     return;
 
-  // Approximate 1/sqrt(d2), then use one Newton-Raphson refinement. Invalid
-  // lanes use 1 to avoid infinities/NaNs; they are discarded by mask_bits.
+  // Keep the original precise normalization. The squared-distance test above
+  // still lets us skip the square root and division for wholly rejected blocks.
   const __m256 one = _mm256_set1_ps(1.0f);
-  const __m256 safe_d2 = _mm256_blendv_ps(one, d2, mask);
-  __m256 inv_r = _mm256_rsqrt_ps(safe_d2);
-  const __m256 inv_r_sq = _mm256_mul_ps(inv_r, inv_r);
-  const __m256 correction = _mm256_sub_ps(
-    _mm256_set1_ps(1.5f),
-    _mm256_mul_ps(_mm256_set1_ps(0.5f), _mm256_mul_ps(safe_d2, inv_r_sq))
-  );
-  inv_r = _mm256_mul_ps(inv_r, correction);
-  const __m256 r = _mm256_mul_ps(safe_d2, inv_r);
+  const __m256 length = _mm256_sqrt_ps(d2);
+  const __m256 r = _mm256_add_ps(length, _mm256_set1_ps(1e-5f));
+  const __m256 inv_r = _mm256_div_ps(one, r);
 
   dx = _mm256_mul_ps(dx, inv_r);
   dy = _mm256_mul_ps(dy, inv_r);

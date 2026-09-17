@@ -466,7 +466,7 @@ void ViscoelasticSim::resolveCollisions(float dt, int start, int end) {
   }
 }
 
-void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas) {
+void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas) {
   float kernel_radius = mat.kernel_radius;
   float kernel_radius_inv = 1.0f / kernel_radius;
   float rest_density = mat.rest_density;
@@ -482,7 +482,7 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
   alignas(32) float nears_dirs_z[max_nears];
 
   //PROFILE_SCOPED_NAMED("CR");
-  spatial_hash.onEachParticleInCell(range, [&](int i, const CPUSpatialSubdivision::NearRanges& near_ranges) {
+  for (uint32_t i = range.range.first; i < range.range.last; ++i) {
     float density = 0.0f;
     float near_density = 0.0f;
     int num_nears = 0;
@@ -527,7 +527,7 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
       out_deltas
     );
 
-    });
+  }
 }
 
 
@@ -574,10 +574,20 @@ void ViscoelasticSim::updateSpatialHash() {
       });
     });
 
+  // Cache the neighbour ranges once per spatial rebuild instead of repeating
+  // the 27-cell hash probes during relaxation.
+  const size_t num_cells = spatial_hash.cells_ranges.size();
+  relaxation_near_ranges.resize(num_cells);
+  for (size_t cell_idx = 0; cell_idx < num_cells; ++cell_idx) {
+    const auto& cell = spatial_hash.cells_ranges[cell_idx];
+    auto& near_ranges = relaxation_near_ranges[cell_idx];
+    spatial_hash.collectRanges(near_ranges, cell.cell_id);
+  }
+
 }
 
 void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
-  int num_jobs = (int)spatial_hash.cells_ranges.size();
+  const int num_jobs = (int)spatial_hash.cells_ranges.size();
 
   // Each worker accumulates into its own full-sized buffer, so neighbour
   // scatters never contend. The buffers are combined after all cell jobs end.
@@ -588,8 +598,8 @@ void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
 
   runInParallel(num_jobs, num_threads * 6, [&](int start, int end, int job_id) {
     ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
-    for (int i = start; i < end; ++i)
-      processRange(dt, spatial_hash.cells_ranges[i], particles_frozen_pos, &worker_deltas);
+    for (int cell_idx = start; cell_idx < end; ++cell_idx)
+      processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
     });
 
   runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
@@ -598,8 +608,8 @@ void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
 }
 
 void ViscoelasticSim::doubleDensityRelaxation(float dt) {
-  for (auto& range : spatial_hash.cells_ranges)
-    processRange(dt, range, particles_frozen_pos, &particles_pos);
+  for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx)
+    processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &particles_pos);
 }
 
 void ViscoelasticSim::removeParticle(int id) {

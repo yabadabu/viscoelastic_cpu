@@ -572,22 +572,25 @@ void ViscoelasticSim::updateSpatialHash() {
 
   spatial_hash.setPoints(assigned_cells.data(), num_particles);
 
-  runInParallel(num_particles, num_threads * 4, [&](int start, int end, int job_id) {
+  {
     PROFILE_SCOPED_NAMED("sortParticles");
-    bool debug_particle_changed = false;
-    spatial_hash.sortParticles(start, end, [&](int j, int i) {
-      if (!debug_particle_changed && j == debug_particle) {
-        debug_particle_changed = true;
-        debug_particle = i;
-      }
-      assert(i >= 0 && i < max_particles);
-      assert(j >= 0 && j < max_particles);
-      particles_pos.set(i, aux_particles_pos.get(j));
-      particles_vels.set(i, aux_particles_vels.get(j));
-      particles_prev_pos.set(i, aux_particles_prev_pos.get(j));
-      particles_type[i] = aux_particles_type[j];
+    runInParallel(num_particles, num_threads * 4, [&](int start, int end, int job_id) {
+      bool debug_particle_changed = false;
+      spatial_hash.sortParticles(start, end, [&](int j, int i) {
+        if (!debug_particle_changed && j == debug_particle) {
+          debug_particle_changed = true;
+          debug_particle = i;
+        }
+        assert(i >= 0 && i < max_particles);
+        assert(j >= 0 && j < max_particles);
+        particles_pos.set(i, aux_particles_pos.get(j));
+        particles_vels.set(i, aux_particles_vels.get(j));
+        particles_prev_pos.set(i, aux_particles_prev_pos.get(j));
+        particles_type[i] = aux_particles_type[j];
+        });
       });
-    });
+  }
+
 }
 
 void ViscoelasticSim::cacheRanges() {
@@ -612,13 +615,13 @@ void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
   // leaving the buffers ready for the next pass without a separate phase.
   // More chunks keep faster cores useful near the end of the phase and limit
   // how much work a slower core can hold past the rest of the workers.
-  runInParallel(num_jobs, num_threads * 6, [&](int start, int end, int job_id) {
+  runInParallel(num_jobs, num_threads * 12, [&](int start, int end, int job_id) {
     ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
     for (int cell_idx = start; cell_idx < end; ++cell_idx)
       processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
     });
 
-  runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
+  runInParallel(num_particles, num_threads* 4, [&](int start, int end, int job_id) {
     simd_apply_relaxation_deltas(particles_pos, relaxation_worker_deltas, start, end);
     });
 }

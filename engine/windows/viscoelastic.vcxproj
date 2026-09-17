@@ -172,10 +172,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\cpu_spatial_subdivision.h" />
     <ClInclude Include="..\..\viscoelastic_sim.h" />
     <ClInclude Include="..\utils\randoms.h" />
     <ClInclude Include="..\utils\utils.h" />
-    <ClInclude Include="..\cpu_spatial_subdivision.h" />
     <ClInclude Include="..\..\data\shaders\constants.h" />
     <ClInclude Include="..\..\data\shaders\vertex_types.h" />
     <ClInclude Include="..\formats\json\json.h" />

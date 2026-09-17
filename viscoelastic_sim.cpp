@@ -572,7 +572,7 @@ void ViscoelasticSim::updateSpatialHash() {
 
   spatial_hash.setPoints(assigned_cells.data(), num_particles);
 
-  runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
+  runInParallel(num_particles, num_threads * 4, [&](int start, int end, int job_id) {
     PROFILE_SCOPED_NAMED("sortParticles");
     bool debug_particle_changed = false;
     spatial_hash.sortParticles(start, end, [&](int j, int i) {
@@ -596,7 +596,7 @@ void ViscoelasticSim::cacheRanges() {
   // so the 27-cell neighbour lookups can be prepared independently.
   const int num_cells = (int)spatial_hash.cells_ranges.size();
   relaxation_near_ranges.resize(num_cells);
-  runInParallel(num_cells, num_threads * 3, [&](int start, int end, int job_id) {
+  runInParallel(num_cells, num_threads * 6, [&](int start, int end, int job_id) {
     for (int cell_idx = start; cell_idx < end; ++cell_idx) {
       const auto& cell = spatial_hash.cells_ranges[cell_idx];
       spatial_hash.collectRanges(relaxation_near_ranges[cell_idx], cell.cell_id);
@@ -612,7 +612,7 @@ void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
   // leaving the buffers ready for the next pass without a separate phase.
   // More chunks keep faster cores useful near the end of the phase and limit
   // how much work a slower core can hold past the rest of the workers.
-  runInParallel(num_jobs, num_threads * 12, [&](int start, int end, int job_id) {
+  runInParallel(num_jobs, num_threads * 6, [&](int start, int end, int job_id) {
     ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
     for (int cell_idx = start; cell_idx < end; ++cell_idx)
       processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
@@ -768,10 +768,14 @@ void ViscoelasticSim::setNumThreads(int new_num_threads) {
 }
 
 void ViscoelasticSim::update(float delta_time) {
+  // Keep workers hot across the short parallel phases of the simulation. They
+  // park again before update returns, so rendering does not compete for CPU.
+  pool->beginUpdate();
   sdf.generateCompactStructs();
   float dt = delta_time / (float)num_substeps;
   TTimer tm;
   for (int i = 0; i < num_substeps; ++i)
     updateStep(dt);
+  pool->endUpdate();
   saveTime(eSection::Update, tm);
 }

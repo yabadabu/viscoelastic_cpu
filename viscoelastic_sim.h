@@ -100,18 +100,12 @@ struct ViscoelasticSim {
       return;
     num_splits = std::min(num_splits, num_jobs);
     int chunk_size = (num_jobs + num_splits - 1) / num_splits;
-    std::vector<std::future<void>> jobs;
-    jobs.reserve(num_splits);
-    for (int job_id = 0; job_id < num_splits; ++job_id) {
+    pool->dispatch(num_splits, [&](int job_id) {
       int start = job_id * chunk_size;
       int end = std::min(start + chunk_size, num_jobs);
-      jobs.emplace_back(pool->enqueue([&, start, end, job_id]() {
-        PROFILE_SCOPED_NAMED("C");
-        fn(start, end, job_id);
-        }));
-    }
-    for (auto& job : jobs)
-      job.get();
+      PROFILE_SCOPED_NAMED("C");
+      fn(start, end, job_id);
+      });
   }
 
   void saveTime(eSection section_id, TTimer& tm) {

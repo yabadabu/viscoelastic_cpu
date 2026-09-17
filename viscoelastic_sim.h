@@ -69,6 +69,11 @@ struct ViscoelasticSim {
   int                     debug_particle = -1;
 
   int num_threads = 12;
+  int sort_jobs_per_thread = 4;
+  int cache_jobs_per_thread = 6;
+  int relaxation_jobs_per_thread = 12;
+  int relaxation_reduce_jobs_per_thread = 4;
+  bool overlap_cache_and_prediction = true;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
   std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;
@@ -92,6 +97,8 @@ struct ViscoelasticSim {
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);
   void doubleDensityRelaxation(float dt);
   void cacheRanges();
+  void cacheRangesAndPredict(float dt);
+  void updatePredictedPositions(float dt);
 
   template< typename Fn >
   void runInParallel(int num_jobs, int num_splits, Fn fn) {

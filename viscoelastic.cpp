@@ -349,6 +349,14 @@ struct ViscoelasticModule : public Module {
     int num_threads = sim.num_threads;
     if (ImGui::DragInt("Num Threads", &num_threads, 0.1f, 1, max_threads))
       sim.setNumThreads(num_threads);
+    if (ImGui::TreeNode("Job Scheduler...")) {
+      ImGui::Checkbox("Overlap Cache + Predict", &sim.overlap_cache_and_prediction);
+      ImGui::DragInt("Sort Jobs / Thread", &sim.sort_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::DragInt("Cache Jobs / Thread", &sim.cache_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::DragInt("Relax Jobs / Thread", &sim.relaxation_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::DragInt("Reduce Jobs / Thread", &sim.relaxation_reduce_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::TreePop();
+    }
 
     if (ImGui::TreeNode("Simulation Params...")) {
       ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);

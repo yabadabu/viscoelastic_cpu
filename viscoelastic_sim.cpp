@@ -574,7 +574,7 @@ void ViscoelasticSim::updateSpatialHash() {
 
   {
     PROFILE_SCOPED_NAMED("sortParticles");
-    runInParallel(num_particles, num_threads * 4, [&](int start, int end, int job_id) {
+    runInParallel(num_particles, num_threads * sort_jobs_per_thread, [&](int start, int end, int job_id) {
       bool debug_particle_changed = false;
       spatial_hash.sortParticles(start, end, [&](int j, int i) {
         if (!debug_particle_changed && j == debug_particle) {
@@ -599,11 +599,106 @@ void ViscoelasticSim::cacheRanges() {
   // so the 27-cell neighbour lookups can be prepared independently.
   const int num_cells = (int)spatial_hash.cells_ranges.size();
   relaxation_near_ranges.resize(num_cells);
-  runInParallel(num_cells, num_threads * 6, [&](int start, int end, int job_id) {
+  runInParallel(num_cells, num_threads * cache_jobs_per_thread, [&](int start, int end, int job_id) {
     for (int cell_idx = start; cell_idx < end; ++cell_idx) {
       const auto& cell = spatial_hash.cells_ranges[cell_idx];
       spatial_hash.collectRanges(relaxation_near_ranges[cell_idx], cell.cell_id);
     }
+    });
+}
+
+void ViscoelasticSim::updatePredictedPositions(float dt) {
+  // Apply external forces.
+  {
+    TTimer tm;
+    PROFILE_SCOPED_NAMED("velocities");
+    VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
+    simd_add_velocity_scaled_by_type(particles_vels, particles_type, masses, delta_velocity, num_particles);
+    saveTime(eSection::VelocitiesUpdate, tm);
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("ext forces");
+    float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
+    attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
+    bool attrack_repel_active = attrack_repel != 0.0f;
+    if (attrack_repel_active) {
+      float interact_rad_sqr = interact_rad * interact_rad;
+
+      for (int i = 0; i < num_particles; ++i) {
+        VEC3 delta = particles_pos.get(i) - interact_point;
+        float dist_sq = delta.lengthSquared();
+        if (dist_sq > interact_rad_sqr || dist_sq < 0.1f)
+          continue;
+        const float dist = sqrtf(dist_sq);
+        const float inv_dist = 1.0f / dist;
+        delta *= inv_dist;
+        particles_vels.add(i, attrack_repel * (-delta));
+      }
+    }
+  }
+
+  {
+    TTimer tm;
+    PROFILE_SCOPED_NAMED("predict position");
+    particles_prev_pos.copyFrom(particles_pos, num_particles);
+    simd_update_positions(particles_pos, particles_vels, dt, num_particles);
+    saveTime(eSection::PredictPositions, tm);
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("freeze_positions");
+    particles_frozen_pos.copyFrom(particles_pos, num_particles);
+  }
+
+  if (in_2d) {
+    for (int i = 0; i < num_particles; ++i) {
+      particles_pos.x[i] = 0.01f;
+      particles_vels.x[i] = 0.0f;
+    }
+  }
+}
+
+void ViscoelasticSim::cacheRangesAndPredict(float dt) {
+  PROFILE_SCOPED_NAMED("cacheRangesAndPredict");
+
+  // Range caching depends only on the spatial hash produced above. The
+  // prediction pipeline mutates particle streams, so both can run safely in
+  // the same heterogeneous phase.
+  const int num_cells = (int)spatial_hash.cells_ranges.size();
+  relaxation_near_ranges.resize(num_cells);
+
+  if (num_cells == 0) {
+    updatePredictedPositions(dt);
+    return;
+  }
+
+  const int num_cache_jobs = std::min(num_cells, num_threads * cache_jobs_per_thread);
+  const int chunk_size = (num_cells + num_cache_jobs - 1) / num_cache_jobs;
+  std::atomic<int> cache_jobs_remaining{ num_cache_jobs };
+  TTimer cache_timer;
+
+  // Job zero is deliberately published first: one worker starts the serial
+  // particle pipeline while the other workers consume cache jobs. If it
+  // finishes early, that worker automatically helps with remaining ranges.
+  pool->dispatch(num_cache_jobs + 1, [&](int job_id) {
+    PROFILE_SCOPED_NAMED("C");
+    if (job_id == 0) {
+      updatePredictedPositions(dt);
+      return;
+    }
+
+    PROFILE_SCOPED_NAMED("cacheRanges");
+    const int cache_job_id = job_id - 1;
+    const int start = cache_job_id * chunk_size;
+    const int end = std::min(start + chunk_size, num_cells);
+    for (int cell_idx = start; cell_idx < end; ++cell_idx) {
+      const auto& cell = spatial_hash.cells_ranges[cell_idx];
+      spatial_hash.collectRanges(relaxation_near_ranges[cell_idx], cell.cell_id);
+    }
+
+    if (cache_jobs_remaining.fetch_sub(1, std::memory_order_acq_rel) == 1)
+      saveTime(eSection::CacheRanges, cache_timer);
     });
 }
 
@@ -615,13 +710,13 @@ void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
   // leaving the buffers ready for the next pass without a separate phase.
   // More chunks keep faster cores useful near the end of the phase and limit
   // how much work a slower core can hold past the rest of the workers.
-  runInParallel(num_jobs, num_threads * 12, [&](int start, int end, int job_id) {
+  runInParallel(num_jobs, num_threads * relaxation_jobs_per_thread, [&](int start, int end, int job_id) {
     ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
     for (int cell_idx = start; cell_idx < end; ++cell_idx)
       processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
     });
 
-  runInParallel(num_particles, num_threads* 4, [&](int start, int end, int job_id) {
+  runInParallel(num_particles, num_threads * relaxation_reduce_jobs_per_thread, [&](int start, int end, int job_id) {
     simd_apply_relaxation_deltas(particles_pos, relaxation_worker_deltas, start, end);
     });
 }
@@ -671,60 +766,16 @@ void ViscoelasticSim::updateStep(float dt) {
     saveTime(eSection::SpatialHash, tm);
   }
 
-  {
-    TTimer tm;
-    cacheRanges();
-    saveTime(eSection::CacheRanges, tm);
+  if (overlap_cache_and_prediction) {
+    cacheRangesAndPredict(dt);
   }
-
-  // Apply external forces
-  {
-    TTimer tm;
-    PROFILE_SCOPED_NAMED("velocities");
-    VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
-    simd_add_velocity_scaled_by_type(particles_vels, particles_type, masses, delta_velocity, num_particles);
-    saveTime(eSection::VelocitiesUpdate, tm);
-  }
-
-  {
-    PROFILE_SCOPED_NAMED("ext forces");
-    float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
-    attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
-    bool attrack_repel_active = attrack_repel != 0.0f;
-    if (attrack_repel_active) {
-      float interact_rad_sqr = interact_rad * interact_rad;
-
-      for (int i = 0; i < num_particles; ++i) {
-        VEC3 delta = particles_pos.get(i) - interact_point;
-        float dist_sq = delta.lengthSquared();
-        if (dist_sq > interact_rad_sqr || dist_sq < 0.1f)
-          continue;
-        const float dist = sqrtf(dist_sq);
-        const float inv_dist = 1.0f / dist;
-        delta *= inv_dist;
-        particles_vels.add(i, attrack_repel * (-delta));
-      }
+  else {
+    {
+      TTimer tm;
+      cacheRanges();
+      saveTime(eSection::CacheRanges, tm);
     }
-  }
-
-  {
-    TTimer tm;
-    PROFILE_SCOPED_NAMED("predict position");
-    particles_prev_pos.copyFrom(particles_pos, num_particles);
-    simd_update_positions(particles_pos, particles_vels, dt, num_particles);
-    saveTime(eSection::PredictPositions, tm);
-  }
-
-  {
-    PROFILE_SCOPED_NAMED("freeze_positions");
-    particles_frozen_pos.copyFrom(particles_pos, num_particles);
-  }
-
-  if (in_2d) {
-    for (int i = 0; i < num_particles; ++i) {
-      particles_pos.x[i] = 0.01f;
-      particles_vels.x[i] = 0.0f;
-    }
+    updatePredictedPositions(dt);
   }
 
   {

@@ -102,6 +102,11 @@ struct ViscoelasticModule : public Module {
 
   double                   time_render = 0.0f;
 
+  static constexpr int     update_time_history_capacity = 512;
+  float                    update_time_history[update_time_history_capacity] = {};
+  int                      update_time_history_count = 0;
+  int                      update_time_history_next = 0;
+
   VEC4                     colors[4] = { Color::Red, Color::Green, Color::Blue, Color::White };
   int                      num_particles_m0 = 2048;
   int                      num_particles_m1 = 2048;
@@ -122,6 +127,52 @@ struct ViscoelasticModule : public Module {
         idx = 3;
       sim.particles_type[i] = idx;
     }
+  }
+
+  void recordUpdateTime(double seconds) {
+    update_time_history[update_time_history_next] = (float)(seconds * 1000.0);
+    update_time_history_next = (update_time_history_next + 1) % update_time_history_capacity;
+    update_time_history_count = std::min(update_time_history_count + 1, update_time_history_capacity);
+  }
+
+  void renderUpdateTimeGraph() {
+    if (update_time_history_count == 0)
+      return;
+
+    float min_ms = FLT_MAX;
+    float max_ms = -FLT_MAX;
+    float sum_ms = 0.0f;
+    for (int i = 0; i < update_time_history_count; ++i) {
+      const float value = update_time_history[i];
+      min_ms = std::min(min_ms, value);
+      max_ms = std::max(max_ms, value);
+      sum_ms += value;
+    }
+
+    //min_ms = 2.2f;
+    //max_ms = 4.0f;
+
+    const float average_ms = sum_ms / (float)update_time_history_count;
+    const int latest_idx = (update_time_history_next + update_time_history_capacity - 1) % update_time_history_capacity;
+    const float latest_ms = update_time_history[latest_idx];
+    const float value_range = std::max(max_ms - min_ms, 0.05f);
+    const float scale_min = std::max(0.0f, min_ms - value_range * 0.1f);
+    const float scale_max = max_ms + value_range * 0.1f;
+    const int plot_offset = update_time_history_count == update_time_history_capacity ? update_time_history_next : 0;
+
+    char overlay[128];
+    snprintf(overlay, sizeof(overlay), "now %.3f  avg %.3f  min %.3f  max %.3f ms",
+      latest_ms, average_ms, min_ms, max_ms);
+    ImGui::PlotLines(
+      "Simulation update (last 100)",
+      update_time_history,
+      update_time_history_count,
+      plot_offset,
+      overlay,
+      scale_min,
+      scale_max,
+      ImVec2(ImGui::GetContentRegionAvail().x, 80.0f)
+    );
   }
 
   bool        use_cell_colors = false;
@@ -358,6 +409,8 @@ struct ViscoelasticModule : public Module {
       ImGui::TreePop();
     }
 
+    renderUpdateTimeGraph();
+
     if (ImGui::TreeNode("Simulation Params...")) {
       ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);
       ImGui::DragFloat("Rest Density", &sim.mat.rest_density, 0.1f);
@@ -529,7 +582,9 @@ struct ViscoelasticModule : public Module {
     if (!paused) {
       VEC3 gdir = getVectorFromYaw(deg2rad(gravity_direction));
       sim.mat.gravity = VEC3(0, gdir.x, gdir.z) * gravity_amount;
+      TTimer update_timer;
       sim.update(delta_time);
+      recordUpdateTime(update_timer.elapsed());
       debug_particle = sim.debug_particle;
 
       emitter.emit(sim);

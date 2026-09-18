@@ -2,50 +2,6 @@
 #include "viscoelastic_sim.h"
 #include <immintrin.h>
 
-// for (int i = 0; i < num_particles; ++i)
-//  pos.add(i, vel.get(i) * dt);
-void simd_update_positions(
-  ParticlesVec& pos, 
-  const ParticlesVec& vel, 
-  float dt, 
-  int num_particles
-) {
-  const int simd_width = 8;
-  const int simd_end = num_particles & ~(simd_width - 1); // round down to nearest multiple of 8
-
-  __m256 dt_vec = _mm256_set1_ps(dt);
-
-  for (int i = 0; i < simd_end; i += simd_width) {
-    // Load position and velocity components
-    __m256 px = _mm256_loadu_ps(&pos.x[i]);
-    __m256 py = _mm256_loadu_ps(&pos.y[i]);
-    __m256 pz = _mm256_loadu_ps(&pos.z[i]);
-
-    __m256 vx = _mm256_loadu_ps(&vel.x[i]);
-    __m256 vy = _mm256_loadu_ps(&vel.y[i]);
-    __m256 vz = _mm256_loadu_ps(&vel.z[i]);
-
-    // Multiply velocity by dt
-    vx = _mm256_mul_ps(vx, dt_vec);
-    vy = _mm256_mul_ps(vy, dt_vec);
-    vz = _mm256_mul_ps(vz, dt_vec);
-
-    // Add to positions
-    px = _mm256_add_ps(px, vx);
-    py = _mm256_add_ps(py, vy);
-    pz = _mm256_add_ps(pz, vz);
-
-    // Store back
-    _mm256_storeu_ps(&pos.x[i], px);
-    _mm256_storeu_ps(&pos.y[i], py);
-    _mm256_storeu_ps(&pos.z[i], pz);
-  }
-
-  // Fallback scalar for remainder
-  for (int i = simd_end; i < num_particles; ++i)
-    pos.add(i, vel.get(i) * dt);
-}
-
 // 0.171ms -> 0.026ms
 //for (int i = 0; i < num_particles; ++i) {
 //  particles_vels.set(i, (particles_pos.get(i) - particles_prev_pos.get(i)) * inv_dt);
@@ -202,6 +158,10 @@ inline void apply_displacements_simd(
   out_deltas->add(idx, acc_x, acc_y, acc_z);
 }
 
+// A worker-private touched map at 64-particle granularity was tested here.
+// It skipped roughly 55% of worker/range reads, but tracking and selecting the
+// ranges produced no measurable end-to-end gain at 32K or 64K particles. Keep
+// the dense streaming reduction: it is simpler and performs at least as well.
 void simd_apply_relaxation_deltas(
   ParticlesVec& positions,
   std::vector<ParticlesVec>& worker_deltas,
@@ -225,8 +185,6 @@ void simd_apply_relaxation_deltas(
       py = _mm256_add_ps(py, dy);
       pz = _mm256_add_ps(pz, dz);
 
-      // Leave the buffers ready for the next relaxation pass while their
-      // cache lines are already resident from the reduction loads.
       _mm256_storeu_ps(&deltas.x[i], zero);
       _mm256_storeu_ps(&deltas.y[i], zero);
       _mm256_storeu_ps(&deltas.z[i], zero);
@@ -253,65 +211,111 @@ void simd_apply_relaxation_deltas(
   }
 }
 
-
-// for (int i = 0; i < num_particles; ++i)
-//   particles_vels.add(i, delta_velocity * masses[particles_type[i]]);
-void simd_add_velocity_scaled_by_type(
+void simd_prepare_particles(
+  ParticlesVec& pos,
+  ParticlesVec& prev,
+  ParticlesVec& frozen,
   ParticlesVec& vels,
   const uint8_t* types,
-  const float* masses,         // Assumed size = 4
+  const float* masses,
   const VEC3& delta_velocity,
-  int num_particles
+  float dt,
+  bool in_2d,
+  float attract_repel,
+  const VEC3& interact_point,
+  float interact_rad,
+  int start,
+  int end
 ) {
-  const int step = 8;
-  int i = 0;
+  // Attraction/repulsion is an interactive, normally inactive path. Keep its
+  // exact per-particle ordering while still allowing independent chunks to run
+  // in parallel.
+  if (attract_repel != 0.0f) {
+    const float interact_rad_sq = interact_rad * interact_rad;
+    for (int i = start; i < end; ++i) {
+      const VEC3 old_pos = pos.get(i);
+      VEC3 velocity = vels.get(i) + delta_velocity * masses[types[i]];
+      VEC3 delta = old_pos - interact_point;
+      const float distance_sq = delta.lengthSquared();
+      if (distance_sq <= interact_rad_sq && distance_sq >= 0.1f)
+        velocity += attract_repel * (-delta * (1.0f / sqrtf(distance_sq)));
 
-  // Broadcast delta_velocity components
-  __m256 dx = _mm256_set1_ps(delta_velocity.x);
-  __m256 dy = _mm256_set1_ps(delta_velocity.y);
-  __m256 dz = _mm256_set1_ps(delta_velocity.z);
-
-  // Load masses into 256-bit register (assumes only 4 types)
-  alignas(32) float mass_lut[8] = {
-    masses[0], masses[1], masses[2], masses[3],
-    masses[0], masses[1], masses[2], masses[3]  // repeated for safety
-  };
-
-  for (; i + step <= num_particles; i += step) {
-    // Load 8 types
-    __m128i t8 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&types[i])); // 8 bytes
-    __m256i indices = _mm256_cvtepu8_epi32(t8);  // Convert 8x u8 to 8x i32
-
-    // Gather mass values using indices
-    __m256 m = _mm256_i32gather_ps(mass_lut, indices, 4);
-
-    // Compute scaled delta
-    __m256 vx = _mm256_mul_ps(dx, m);
-    __m256 vy = _mm256_mul_ps(dy, m);
-    __m256 vz = _mm256_mul_ps(dz, m);
-
-    // Load current velocity
-    __m256 v_old_x = _mm256_loadu_ps(&vels.x[i]);
-    __m256 v_old_y = _mm256_loadu_ps(&vels.y[i]);
-    __m256 v_old_z = _mm256_loadu_ps(&vels.z[i]);
-
-    // Add delta
-    v_old_x = _mm256_add_ps(v_old_x, vx);
-    v_old_y = _mm256_add_ps(v_old_y, vy);
-    v_old_z = _mm256_add_ps(v_old_z, vz);
-
-    // Store back
-    _mm256_storeu_ps(&vels.x[i], v_old_x);
-    _mm256_storeu_ps(&vels.y[i], v_old_y);
-    _mm256_storeu_ps(&vels.z[i], v_old_z);
+      const VEC3 predicted = old_pos + velocity * dt;
+      prev.set(i, old_pos);
+      frozen.set(i, predicted);
+      if (in_2d) {
+        pos.set(i, VEC3(0.01f, predicted.y, predicted.z));
+        velocity.x = 0.0f;
+      }
+      else {
+        pos.set(i, predicted);
+      }
+      vels.set(i, velocity);
+    }
+    return;
   }
 
-  // Scalar fallback for tail
-  for (; i < num_particles; ++i) {
-    float m = masses[types[i]];
-    vels.x[i] += delta_velocity.x * m;
-    vels.y[i] += delta_velocity.y * m;
-    vels.z[i] += delta_velocity.z * m;
+  constexpr int simd_width = 8;
+  const __m256 dt_vec = _mm256_set1_ps(dt);
+  const __m256 dv_x = _mm256_set1_ps(delta_velocity.x);
+  const __m256 dv_y = _mm256_set1_ps(delta_velocity.y);
+  const __m256 dv_z = _mm256_set1_ps(delta_velocity.z);
+  const __m256 zero = _mm256_setzero_ps();
+  const __m256 plane_x = _mm256_set1_ps(0.01f);
+  alignas(32) const float mass_lut[8] = {
+    masses[0], masses[1], masses[2], masses[3],
+    masses[0], masses[1], masses[2], masses[3]
+  };
+
+  int i = start;
+  for (; i + simd_width <= end; i += simd_width) {
+    const __m128i types8 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&types[i]));
+    const __m256i mass_indices = _mm256_cvtepu8_epi32(types8);
+    const __m256 mass = _mm256_i32gather_ps(mass_lut, mass_indices, 4);
+
+    const __m256 old_x = _mm256_loadu_ps(&pos.x[i]);
+    const __m256 old_y = _mm256_loadu_ps(&pos.y[i]);
+    const __m256 old_z = _mm256_loadu_ps(&pos.z[i]);
+    __m256 vel_x = _mm256_loadu_ps(&vels.x[i]);
+    __m256 vel_y = _mm256_loadu_ps(&vels.y[i]);
+    __m256 vel_z = _mm256_loadu_ps(&vels.z[i]);
+
+    vel_x = _mm256_add_ps(vel_x, _mm256_mul_ps(dv_x, mass));
+    vel_y = _mm256_add_ps(vel_y, _mm256_mul_ps(dv_y, mass));
+    vel_z = _mm256_add_ps(vel_z, _mm256_mul_ps(dv_z, mass));
+
+    const __m256 predicted_x = _mm256_add_ps(old_x, _mm256_mul_ps(vel_x, dt_vec));
+    const __m256 predicted_y = _mm256_add_ps(old_y, _mm256_mul_ps(vel_y, dt_vec));
+    const __m256 predicted_z = _mm256_add_ps(old_z, _mm256_mul_ps(vel_z, dt_vec));
+
+    _mm256_storeu_ps(&prev.x[i], old_x);
+    _mm256_storeu_ps(&prev.y[i], old_y);
+    _mm256_storeu_ps(&prev.z[i], old_z);
+    _mm256_storeu_ps(&frozen.x[i], predicted_x);
+    _mm256_storeu_ps(&frozen.y[i], predicted_y);
+    _mm256_storeu_ps(&frozen.z[i], predicted_z);
+    _mm256_storeu_ps(&pos.x[i], in_2d ? plane_x : predicted_x);
+    _mm256_storeu_ps(&pos.y[i], predicted_y);
+    _mm256_storeu_ps(&pos.z[i], predicted_z);
+    _mm256_storeu_ps(&vels.x[i], in_2d ? zero : vel_x);
+    _mm256_storeu_ps(&vels.y[i], vel_y);
+    _mm256_storeu_ps(&vels.z[i], vel_z);
+  }
+
+  for (; i < end; ++i) {
+    const VEC3 old_pos = pos.get(i);
+    VEC3 velocity = vels.get(i) + delta_velocity * masses[types[i]];
+    const VEC3 predicted = old_pos + velocity * dt;
+    prev.set(i, old_pos);
+    frozen.set(i, predicted);
+    if (in_2d) {
+      pos.set(i, VEC3(0.01f, predicted.y, predicted.z));
+      velocity.x = 0.0f;
+    }
+    else {
+      pos.set(i, predicted);
+    }
+    vels.set(i, velocity);
   }
 }
 
@@ -607,64 +611,43 @@ void ViscoelasticSim::cacheRanges() {
     });
 }
 
+void ViscoelasticSim::updatePredictedPositionsRange(float dt, int start, int end) {
+  PROFILE_SCOPED_NAMED("prepareParticles");
+  const VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
+  float attract_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
+  attract_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
+  simd_prepare_particles(
+    particles_pos,
+    particles_prev_pos,
+    particles_frozen_pos,
+    particles_vels,
+    particles_type,
+    masses,
+    delta_velocity,
+    dt,
+    in_2d,
+    attract_repel,
+    interact_point,
+    interact_rad,
+    start,
+    end);
+}
+
 void ViscoelasticSim::updatePredictedPositions(float dt) {
-  // Apply external forces.
-  {
-    TTimer tm;
-    PROFILE_SCOPED_NAMED("velocities");
-    VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
-    simd_add_velocity_scaled_by_type(particles_vels, particles_type, masses, delta_velocity, num_particles);
-    saveTime(eSection::VelocitiesUpdate, tm);
-  }
-
-  {
-    PROFILE_SCOPED_NAMED("ext forces");
-    float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
-    attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
-    bool attrack_repel_active = attrack_repel != 0.0f;
-    if (attrack_repel_active) {
-      float interact_rad_sqr = interact_rad * interact_rad;
-
-      for (int i = 0; i < num_particles; ++i) {
-        VEC3 delta = particles_pos.get(i) - interact_point;
-        float dist_sq = delta.lengthSquared();
-        if (dist_sq > interact_rad_sqr || dist_sq < 0.1f)
-          continue;
-        const float dist = sqrtf(dist_sq);
-        const float inv_dist = 1.0f / dist;
-        delta *= inv_dist;
-        particles_vels.add(i, attrack_repel * (-delta));
-      }
-    }
-  }
-
-  {
-    TTimer tm;
-    PROFILE_SCOPED_NAMED("predict position");
-    particles_prev_pos.copyFrom(particles_pos, num_particles);
-    simd_update_positions(particles_pos, particles_vels, dt, num_particles);
-    saveTime(eSection::PredictPositions, tm);
-  }
-
-  {
-    PROFILE_SCOPED_NAMED("freeze_positions");
-    particles_frozen_pos.copyFrom(particles_pos, num_particles);
-  }
-
-  if (in_2d) {
-    for (int i = 0; i < num_particles; ++i) {
-      particles_pos.x[i] = 0.01f;
-      particles_vels.x[i] = 0.0f;
-    }
-  }
+  TTimer timer;
+  const int num_jobs = std::max(1, std::min(prediction_jobs, num_threads));
+  runInParallel(num_particles, num_jobs, [&](int start, int end, int job_id) {
+    updatePredictedPositionsRange(dt, start, end);
+    });
+  saveTime(eSection::PredictPositions, timer);
 }
 
 void ViscoelasticSim::cacheRangesAndPredict(float dt) {
   PROFILE_SCOPED_NAMED("cacheRangesAndPredict");
 
-  // Range caching depends only on the spatial hash produced above. The
-  // prediction pipeline mutates particle streams, so both can run safely in
-  // the same heterogeneous phase.
+  // Range caching depends only on the spatial hash produced above. Particle
+  // preparation mutates independent array slices, so several preparation jobs
+  // can share this heterogeneous phase with the cache jobs.
   const int num_cells = (int)spatial_hash.cells_ranges.size();
   relaxation_near_ranges.resize(num_cells);
 
@@ -674,22 +657,30 @@ void ViscoelasticSim::cacheRangesAndPredict(float dt) {
   }
 
   const int num_cache_jobs = std::min(num_cells, num_threads * cache_jobs_per_thread);
+  const int num_prediction_jobs = std::min(num_particles, std::max(1, std::min(prediction_jobs, num_threads)));
   const int chunk_size = (num_cells + num_cache_jobs - 1) / num_cache_jobs;
+  const int prediction_chunk_size = (num_particles + num_prediction_jobs - 1) / num_prediction_jobs;
   std::atomic<int> cache_jobs_remaining{ num_cache_jobs };
+  std::atomic<int> prediction_jobs_remaining{ num_prediction_jobs };
   TTimer cache_timer;
+  TTimer prediction_timer;
 
-  // Job zero is deliberately published first: one worker starts the serial
-  // particle pipeline while the other workers consume cache jobs. If it
-  // finishes early, that worker automatically helps with remaining ranges.
-  pool->dispatch(num_cache_jobs + 1, [&](int job_id) {
+  // Publish preparation first so several workers start its contiguous chunks
+  // immediately. As each finishes, that worker automatically helps with the
+  // remaining cache ranges.
+  pool->dispatch(num_prediction_jobs + num_cache_jobs, [&](int job_id) {
     PROFILE_SCOPED_NAMED("C");
-    if (job_id == 0) {
-      updatePredictedPositions(dt);
+    if (job_id < num_prediction_jobs) {
+      const int start = job_id * prediction_chunk_size;
+      const int end = std::min(start + prediction_chunk_size, num_particles);
+      updatePredictedPositionsRange(dt, start, end);
+      if (prediction_jobs_remaining.fetch_sub(1, std::memory_order_acq_rel) == 1)
+        saveTime(eSection::PredictPositions, prediction_timer);
       return;
     }
 
     PROFILE_SCOPED_NAMED("cacheRanges");
-    const int cache_job_id = job_id - 1;
+    const int cache_job_id = job_id - num_prediction_jobs;
     const int start = cache_job_id * chunk_size;
     const int end = std::min(start + chunk_size, num_cells);
     for (int cell_idx = start; cell_idx < end; ++cell_idx) {
@@ -700,6 +691,192 @@ void ViscoelasticSim::cacheRangesAndPredict(float dt) {
     if (cache_jobs_remaining.fetch_sub(1, std::memory_order_acq_rel) == 1)
       saveTime(eSection::CacheRanges, cache_timer);
     });
+}
+
+void ViscoelasticSim::captureRelaxationAudit() {
+  RelaxationAudit& audit = relaxation_audit;
+  audit.valid = false;
+  audit.num_workers = (int)relaxation_worker_deltas.size();
+  audit.num_particles = num_particles;
+  audit.total_delta_slots = (uint64_t)audit.num_workers * (uint64_t)num_particles;
+  audit.nonzero_delta_slots = 0;
+  audit.total_simd_blocks = 0;
+  audit.active_simd_blocks = 0;
+  audit.total_range_worker_pairs = 0;
+  audit.active_range_worker_pairs = 0;
+  audit.minmax_delta_slots = 0;
+  audit.simd_aligned_minmax_delta_slots = 0;
+  audit.active_workers = 0;
+  audit.average_workers_per_particle = 0.0f;
+  audit.max_workers_per_particle = 0;
+  audit.average_workers_per_range = 0.0f;
+  audit.min_workers_per_range = 0;
+  audit.max_workers_per_range = 0;
+  audit.neighbour_candidates_available = 0;
+  audit.neighbour_candidates_checked = 0;
+  audit.neighbour_candidates_accepted = 0;
+  audit.neighbour_candidates_rejected = 0;
+  audit.neighbour_candidates_discarded_by_cap = 0;
+  audit.neighbour_candidates_skipped_by_cap = 0;
+  audit.neighbour_simd_blocks_checked = 0;
+  audit.neighbour_simd_blocks_active = 0;
+  audit.particles_at_neighbour_cap = 0;
+
+  constexpr int simd_width = 8;
+  const int range_size = audit.range_size;
+  const int num_ranges = (num_particles + range_size - 1) / range_size;
+  const int num_simd_blocks = (num_particles + simd_width - 1) / simd_width;
+  audit.workers_per_range.assign(num_ranges, 0.0f);
+  audit.worker_range_coverage_percent.assign(audit.num_workers, 0.0f);
+  audit.worker_min_touched_particle.assign(audit.num_workers, -1);
+  audit.worker_max_touched_particle.assign(audit.num_workers, -1);
+  audit.worker_nonzero_delta_slots.assign(audit.num_workers, 0);
+  std::vector<uint16_t> workers_per_particle(num_particles, 0);
+
+  audit.total_simd_blocks = (uint64_t)audit.num_workers * (uint64_t)num_simd_blocks;
+  audit.total_range_worker_pairs = (uint64_t)audit.num_workers * (uint64_t)num_ranges;
+
+  for (int worker_idx = 0; worker_idx < audit.num_workers; ++worker_idx) {
+    const ParticlesVec& deltas = relaxation_worker_deltas[worker_idx];
+    int worker_active_ranges = 0;
+    int worker_min_touched = num_particles;
+    int worker_max_touched = -1;
+    uint64_t worker_nonzero_slots = 0;
+
+    for (int range_idx = 0; range_idx < num_ranges; ++range_idx) {
+      const int range_start = range_idx * range_size;
+      const int range_end = std::min(range_start + range_size, num_particles);
+      bool range_active = false;
+
+      for (int block_start = range_start; block_start < range_end; block_start += simd_width) {
+        const int block_end = std::min(block_start + simd_width, range_end);
+        bool block_active = false;
+        for (int particle_idx = block_start; particle_idx < block_end; ++particle_idx) {
+          const bool nonzero = deltas.x[particle_idx] != 0.0f
+            || deltas.y[particle_idx] != 0.0f
+            || deltas.z[particle_idx] != 0.0f;
+          if (nonzero) {
+            ++audit.nonzero_delta_slots;
+            ++worker_nonzero_slots;
+            ++workers_per_particle[particle_idx];
+            worker_min_touched = std::min(worker_min_touched, particle_idx);
+            worker_max_touched = std::max(worker_max_touched, particle_idx);
+            block_active = true;
+          }
+        }
+        if (block_active) {
+          ++audit.active_simd_blocks;
+          range_active = true;
+        }
+      }
+
+      if (range_active) {
+        ++audit.active_range_worker_pairs;
+        ++worker_active_ranges;
+        audit.workers_per_range[range_idx] += 1.0f;
+      }
+
+    }
+
+    if (num_ranges > 0)
+      audit.worker_range_coverage_percent[worker_idx] = 100.0f * (float)worker_active_ranges / (float)num_ranges;
+
+    audit.worker_nonzero_delta_slots[worker_idx] = worker_nonzero_slots;
+    if (worker_max_touched >= 0) {
+      audit.worker_min_touched_particle[worker_idx] = worker_min_touched;
+      audit.worker_max_touched_particle[worker_idx] = worker_max_touched;
+      ++audit.active_workers;
+
+      const uint64_t span = (uint64_t)(worker_max_touched - worker_min_touched + 1);
+      const int aligned_start = worker_min_touched & ~(simd_width - 1);
+      const int aligned_end = std::min(num_particles, (worker_max_touched + simd_width) & ~(simd_width - 1));
+      audit.minmax_delta_slots += span;
+      audit.simd_aligned_minmax_delta_slots += (uint64_t)(aligned_end - aligned_start);
+    }
+  }
+
+  if (num_particles > 0) {
+    audit.average_workers_per_particle = (float)((double)audit.nonzero_delta_slots / (double)num_particles);
+    for (uint16_t count : workers_per_particle)
+      audit.max_workers_per_particle = std::max(audit.max_workers_per_particle, (int)count);
+  }
+
+  if (num_ranges > 0) {
+    audit.min_workers_per_range = audit.num_workers;
+    float total_workers_per_range = 0.0f;
+    for (float count : audit.workers_per_range) {
+      audit.min_workers_per_range = std::min(audit.min_workers_per_range, (int)count);
+      audit.max_workers_per_range = std::max(audit.max_workers_per_range, (int)count);
+      total_workers_per_range += count;
+    }
+    audit.average_workers_per_range = total_workers_per_range / (float)num_ranges;
+  }
+
+  // Replay only the neighbour acceptance test. This mirrors the eight-wide
+  // blocks and the 64-neighbour cap without doing normalization or correction
+  // math, and runs only for the explicitly requested audit frame.
+  constexpr int max_nears = 64;
+  const float radius_sq = mat.kernel_radius * mat.kernel_radius;
+  for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx) {
+    const auto& cell_range = spatial_hash.cells_ranges[cell_idx];
+    const auto& near_ranges = relaxation_near_ranges[cell_idx];
+
+    uint64_t available_per_particle = 0;
+    for (uint32_t range_idx = 0; range_idx < near_ranges.n; ++range_idx)
+      available_per_particle += near_ranges.ranges[range_idx].last - near_ranges.ranges[range_idx].first;
+
+    for (uint32_t i = cell_range.range.first; i < cell_range.range.last; ++i) {
+      const float pi_x = particles_frozen_pos.x[i];
+      const float pi_y = particles_frozen_pos.y[i];
+      const float pi_z = particles_frozen_pos.z[i];
+      int num_nears = 0;
+      uint64_t checked_for_particle = 0;
+      const uint64_t available_without_self = available_per_particle > 0 ? available_per_particle - 1 : 0;
+      audit.neighbour_candidates_available += available_without_self;
+
+      for (uint32_t range_idx = 0; range_idx < near_ranges.n && num_nears < max_nears; ++range_idx) {
+        const uint32_t first = near_ranges.ranges[range_idx].first;
+        const uint32_t last = near_ranges.ranges[range_idx].last;
+        for (uint32_t j_start = first; j_start < last && num_nears < max_nears; j_start += 8) {
+          ++audit.neighbour_simd_blocks_checked;
+          const uint32_t lane_count = std::min(8u, last - j_start);
+          int valid_in_block = 0;
+          int candidates_in_block = 0;
+          for (uint32_t lane = 0; lane < lane_count; ++lane) {
+            const uint32_t j = j_start + lane;
+            if (j == i)
+              continue;
+            ++candidates_in_block;
+            const float dx = particles_frozen_pos.x[j] - pi_x;
+            const float dy = particles_frozen_pos.y[j] - pi_y;
+            const float dz = particles_frozen_pos.z[j] - pi_z;
+            const float distance_sq = dx * dx + dy * dy + dz * dz;
+            if (distance_sq < radius_sq && distance_sq > 1e-6f)
+              ++valid_in_block;
+          }
+
+          if (valid_in_block > 0)
+            ++audit.neighbour_simd_blocks_active;
+
+          checked_for_particle += candidates_in_block;
+          audit.neighbour_candidates_checked += candidates_in_block;
+          audit.neighbour_candidates_rejected += candidates_in_block - valid_in_block;
+          const int accepted_in_block = std::min(valid_in_block, max_nears - num_nears);
+          audit.neighbour_candidates_accepted += accepted_in_block;
+          audit.neighbour_candidates_discarded_by_cap += valid_in_block - accepted_in_block;
+          num_nears += accepted_in_block;
+        }
+      }
+
+      if (num_nears == max_nears)
+        ++audit.particles_at_neighbour_cap;
+      if (available_without_self > checked_for_particle)
+        audit.neighbour_candidates_skipped_by_cap += available_without_self - checked_for_particle;
+    }
+  }
+
+  audit.valid = true;
+  audit.completed_this_update = true;
 }
 
 void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
@@ -715,6 +892,11 @@ void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
     for (int cell_idx = start; cell_idx < end; ++cell_idx)
       processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
     });
+
+  if (relaxation_audit.requested) {
+    captureRelaxationAudit();
+    relaxation_audit.requested = false;
+  }
 
   runInParallel(num_particles, num_threads * relaxation_reduce_jobs_per_thread, [&](int start, int end, int job_id) {
     simd_apply_relaxation_deltas(particles_pos, relaxation_worker_deltas, start, end);
@@ -822,6 +1004,7 @@ void ViscoelasticSim::setNumThreads(int new_num_threads) {
 }
 
 void ViscoelasticSim::update(float delta_time) {
+  relaxation_audit.completed_this_update = false;
   // Keep workers hot across the short parallel phases of the simulation. They
   // park again before update returns, so rendering does not compete for CPU.
   pool->beginUpdate();

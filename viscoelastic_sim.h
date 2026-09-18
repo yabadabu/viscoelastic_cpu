@@ -10,7 +10,6 @@ struct ViscoelasticSim {
   enum eSection {
     SpatialHash,
     CacheRanges,
-    VelocitiesUpdate,
     PredictPositions,
     Relaxation,
     VelocitiesFromPositions,
@@ -71,12 +70,50 @@ struct ViscoelasticSim {
   int num_threads = 12;
   int sort_jobs_per_thread = 4;
   int cache_jobs_per_thread = 6;
+  int prediction_jobs = 4;
   int relaxation_jobs_per_thread = 12;
   int relaxation_reduce_jobs_per_thread = 4;
   bool overlap_cache_and_prediction = true;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
   std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;
+
+  struct RelaxationAudit {
+    bool requested = false;
+    bool valid = false;
+    bool completed_this_update = false;
+    int num_workers = 0;
+    int num_particles = 0;
+    int range_size = 64;
+    uint64_t total_delta_slots = 0;
+    uint64_t nonzero_delta_slots = 0;
+    uint64_t total_simd_blocks = 0;
+    uint64_t active_simd_blocks = 0;
+    uint64_t total_range_worker_pairs = 0;
+    uint64_t active_range_worker_pairs = 0;
+    uint64_t minmax_delta_slots = 0;
+    uint64_t simd_aligned_minmax_delta_slots = 0;
+    int active_workers = 0;
+    float average_workers_per_particle = 0.0f;
+    int max_workers_per_particle = 0;
+    float average_workers_per_range = 0.0f;
+    int min_workers_per_range = 0;
+    int max_workers_per_range = 0;
+    uint64_t neighbour_candidates_available = 0;
+    uint64_t neighbour_candidates_checked = 0;
+    uint64_t neighbour_candidates_accepted = 0;
+    uint64_t neighbour_candidates_rejected = 0;
+    uint64_t neighbour_candidates_discarded_by_cap = 0;
+    uint64_t neighbour_candidates_skipped_by_cap = 0;
+    uint64_t neighbour_simd_blocks_checked = 0;
+    uint64_t neighbour_simd_blocks_active = 0;
+    uint64_t particles_at_neighbour_cap = 0;
+    std::vector<float> workers_per_range;
+    std::vector<float> worker_range_coverage_percent;
+    std::vector<int> worker_min_touched_particle;
+    std::vector<int> worker_max_touched_particle;
+    std::vector<uint64_t> worker_nonzero_delta_slots;
+  } relaxation_audit;
 
   void setNumThreads(int new_num_threads);
 
@@ -99,6 +136,8 @@ struct ViscoelasticSim {
   void cacheRanges();
   void cacheRangesAndPredict(float dt);
   void updatePredictedPositions(float dt);
+  void updatePredictedPositionsRange(float dt, int start, int end);
+  void captureRelaxationAudit();
 
   template< typename Fn >
   void runInParallel(int num_jobs, int num_splits, Fn fn) {

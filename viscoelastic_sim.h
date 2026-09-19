@@ -95,6 +95,7 @@ struct ViscoelasticSim {
   std::vector<uint32_t> spatial_particle_indices_in_cell;
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_provisional_unique_cells;
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_unique_cells;
+  std::vector<uint32_t> spatial_source_unique_indices;
   std::vector<uint32_t> spatial_unique_cell_ids;
 
   struct RelaxationAudit {

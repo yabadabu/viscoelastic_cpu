@@ -707,22 +707,32 @@ void ViscoelasticSim::assignCellsParallel() {
     num_unique_cells += spatial_bucket_unique_counts[bucket];
   }
   spatial_bucket_unique_offsets[num_buckets] = num_unique_cells;
-  spatial_unique_cells.resize(num_unique_cells);
+  spatial_unique_cells.clear();
+  spatial_unique_cells.reserve(num_unique_cells);
+  spatial_source_unique_indices.resize(num_unique_cells);
   spatial_unique_cell_ids.resize(num_unique_cells);
 
   {
-    PROFILE_SCOPED_NAMED("parallelCellCompactUnique");
-    runInParallel(num_buckets, num_buckets, [&](int start, int end, int job_id) {
-      for (int bucket = start; bucket < end; ++bucket) {
-        const uint32_t count = spatial_bucket_unique_counts[bucket];
-        const uint32_t source = spatial_bucket_starts[bucket];
-        const uint32_t destination = spatial_bucket_unique_offsets[bucket];
-        std::copy_n(
-          spatial_provisional_unique_cells.begin() + source,
-          count,
-          spatial_unique_cells.begin() + destination);
-      }
-      });
+    PROFILE_SCOPED_NAMED("orderUniqueCells");
+    // The particle arrays are sorted spatially by the previous frame. Emit a
+    // cell when its first particle is encountered so cells_ranges starts in
+    // the same coherent order as the serial assignCells path. This streaming
+    // pass is cheaper than feeding hash-bucket order into sortCells.
+    for (int particle_id = 0; particle_id < num_particles; ++particle_id) {
+      if (spatial_particle_indices_in_cell[particle_id] != 0)
+        continue;
+
+      const uint32_t bucket = assigned_cells[particle_id].cell_id & bucket_mask;
+      const uint32_t local_unique_idx = spatial_particle_unique_indices[particle_id];
+      const uint32_t source_unique_idx =
+        spatial_bucket_unique_offsets[bucket] + local_unique_idx;
+      const uint32_t provisional_idx =
+        spatial_bucket_starts[bucket] + local_unique_idx;
+      spatial_source_unique_indices[source_unique_idx] =
+        (uint32_t)spatial_unique_cells.size();
+      spatial_unique_cells.push_back(spatial_provisional_unique_cells[provisional_idx]);
+    }
+    assert(spatial_unique_cells.size() == num_unique_cells);
   }
 
   spatial_hash.setUniqueCells(
@@ -736,8 +746,9 @@ void ViscoelasticSim::assignCellsParallel() {
     runInParallel(num_particles, num_partitions, [&](int start, int end, int job_id) {
       for (int particle_id = start; particle_id < end; ++particle_id) {
         const uint32_t bucket = assigned_cells[particle_id].cell_id & bucket_mask;
-        const uint32_t unique_idx = spatial_bucket_unique_offsets[bucket] +
+        const uint32_t source_unique_idx = spatial_bucket_unique_offsets[bucket] +
           spatial_particle_unique_indices[particle_id];
+        const uint32_t unique_idx = spatial_source_unique_indices[source_unique_idx];
         spatial_hash.cells_per_vertex[particle_id] = {
           spatial_unique_cell_ids[unique_idx],
           spatial_particle_indices_in_cell[particle_id]

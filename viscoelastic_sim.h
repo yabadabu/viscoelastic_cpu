@@ -76,6 +76,7 @@ struct ViscoelasticSim {
   bool use_parallel_spatial_index = false;
   bool use_hierarchical_spatial_index = false;
   int spatial_hierarchy_macro_side = 4;
+  bool spatial_hierarchy_xy_columns = false;
   bool sort_hierarchical_neighbour_ranges = false;
   int spatial_index_buckets = 64;
   bool overlap_cache_and_prediction = true;
@@ -117,7 +118,13 @@ struct ViscoelasticSim {
   std::vector<uint32_t> hierarchy_macro_particle_cursors;
   std::vector<uint32_t> hierarchy_macro_particle_ids;
   std::vector<uint32_t> hierarchy_local_cell_counts;
+  std::vector<uint32_t> hierarchy_local_cell_ids;
+  std::vector<uint32_t> hierarchy_local_cell_cursors;
   std::vector<uint32_t> hierarchy_macro_occupied_cell_counts;
+  std::vector<int> hierarchy_macro_min_z;
+  std::vector<uint32_t> hierarchy_macro_z_spans;
+  std::vector<uint32_t> hierarchy_macro_cell_table_offsets;
+  std::vector<uint8_t> hierarchy_macro_sparse_fallbacks;
 
   struct SpatialHierarchyAudit {
     struct MacroStats {
@@ -132,12 +139,14 @@ struct ViscoelasticSim {
       float average_occupied_cells = 0.0f;
       int p95_occupied_cells = 0;
       int max_occupied_cells = 0;
+      float average_local_table_slots = 0.0f;
       float average_local_table_occupancy_percent = 0.0f;
     };
 
     bool requested = false;
     bool valid = false;
     bool completed_this_update = false;
+    bool xy_columns = false;
     int num_particles = 0;
     MacroStats configurations[3];
   } spatial_hierarchy_audit;
@@ -147,6 +156,7 @@ struct ViscoelasticSim {
     bool valid = false;
     bool completed_this_update = false;
     bool hierarchical = false;
+    bool xy_columns = false;
     bool sorted_by_particle_offset = false;
     int macro_side = 0;
     int num_cells = 0;

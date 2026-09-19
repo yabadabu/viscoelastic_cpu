@@ -293,13 +293,23 @@ struct ViscoelasticModule : public Module {
       return;
 
     ImGui::SeparatorText("Macro-cell distribution audit");
-    ImGui::Text("%d particles, %d workers", audit.num_particles, sim.num_threads);
+    ImGui::Text("%d particles, %d workers; %s", audit.num_particles, sim.num_threads,
+      audit.xy_columns ? "XY columns" : "XYZ blocks");
     for (const auto& stats : audit.configurations) {
-      ImGui::Text("Side %d (%d local slots): %d macros, %.2f jobs/worker",
-        stats.side,
-        stats.side * stats.side * stats.side,
-        stats.occupied_macros,
-        stats.macros_per_worker);
+      if (audit.xy_columns) {
+        ImGui::Text("XY side %d (avg %.1f dense slots): %d macros, %.2f jobs/worker",
+          stats.side,
+          stats.average_local_table_slots,
+          stats.occupied_macros,
+          stats.macros_per_worker);
+      }
+      else {
+        ImGui::Text("Side %d (%d local slots): %d macros, %.2f jobs/worker",
+          stats.side,
+          stats.side * stats.side * stats.side,
+          stats.occupied_macros,
+          stats.macros_per_worker);
+      }
       ImGui::Text("  Particles/macro: avg %.1f, p95 %d, max %d (%.2f%% of all particles)",
         stats.average_particles,
         stats.p95_particles,
@@ -331,8 +341,9 @@ struct ViscoelasticModule : public Module {
 
     ImGui::SeparatorText("Neighbour-range audit");
     if (audit.hierarchical) {
-      ImGui::Text("Hierarchy side %d; offset sort %s",
+      ImGui::Text("Hierarchy side %d (%s); offset sort %s",
         audit.macro_side,
+        audit.xy_columns ? "XY columns" : "XYZ blocks",
         audit.sorted_by_particle_offset ? "enabled" : "disabled");
     }
     else {
@@ -594,6 +605,8 @@ struct ViscoelasticModule : public Module {
         : (sim.spatial_hierarchy_macro_side == 8 ? 2 : 1);
       if (ImGui::Combo("Hierarchy Macro Side", &hierarchy_side_idx, "2\0" "4\0" "8\0\0"))
         sim.spatial_hierarchy_macro_side = 1 << (hierarchy_side_idx + 1);
+      ImGui::Checkbox("Hierarchy Uses XY Columns",
+        &sim.spatial_hierarchy_xy_columns);
       ImGui::Checkbox("Sort Hierarchy Neighbour Ranges",
         &sim.sort_hierarchical_neighbour_ranges);
       ImGui::DragInt("Spatial Index Buckets", &sim.spatial_index_buckets, 0.1f, 8, 128);

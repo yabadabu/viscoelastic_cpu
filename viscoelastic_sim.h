@@ -47,7 +47,7 @@ struct ViscoelasticSim {
   SDF::sdFunc             sdf;
   float                   friction = 2.0f;
   int                     num_particles = 0;
-  int                     max_particles = 65536;
+  int                     max_particles = 128 * 1024;
   float                   max_speed = 5.0;
 
   float                   masses[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
@@ -70,7 +70,7 @@ struct ViscoelasticSim {
   int num_threads = 12;
   int sort_jobs_per_thread = 4;
   int cache_jobs_per_thread = 6;
-  int prediction_jobs = 4;
+  int prediction_jobs = 8;
   int relaxation_jobs_per_thread = 12;
   int relaxation_reduce_jobs_per_thread = 4;
   bool overlap_cache_and_prediction = true;

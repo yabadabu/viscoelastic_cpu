@@ -295,7 +295,7 @@ struct ViscoelasticModule : public Module {
     //sdfCage();
     //addParticles(512);
     sdfLargeCage();
-    config3D_32K();
+    config3D_N( 64 * 1024 );
   }
 
   void sdfCage(  ) {
@@ -456,7 +456,7 @@ struct ViscoelasticModule : public Module {
     sim.saveTime(ViscoelasticSim::eSection::Render, tm);
   }
   
-  void config3D_32K() {
+  void config3D_N(int num_particles) {
     sim.mat.rest_density = 3.0f;
     sim.mat.near_stiffness = 1.0f;
     delta_time = 1.0f;
@@ -464,15 +464,15 @@ struct ViscoelasticModule : public Module {
     sim.mat.kernel_radius = 20.0f;
     gravity_amount = 0.1f;
     gravity_direction = -90.0f;
-    num_particles_m0 = 8192;
-    num_particles_m1 = 8192;
-    num_particles_m2 = 8192;
+    num_particles_m0 = num_particles / 4;
+    num_particles_m1 = num_particles / 4;
+    num_particles_m2 = num_particles / 4;
     sim.using_parallel = true;
     sim.num_particles = 0;
     sim.sdf.prims[3].transform.setPosition(VEC3(0, 0, -5.0));
     sim.sdf.prims[3].transformHasChanged();
     sim.in_2d = false;
-    addParticles(32 * 1024);
+    addParticles(num_particles);
     updateParticleTypes();
   }
 
@@ -570,7 +570,9 @@ struct ViscoelasticModule : public Module {
     if (ImGui::SmallButton("Remove All Particles"))
       sim.num_particles = 0;
 
-    if (ImGui::SmallButton("Config 2D 2K Particles")) {
+    ImGui::Text("Config:");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("2K")) {
       sim.mat.rest_density = 3.0f;
       sim.mat.near_stiffness = 1.0f;
       sim.friction = 1.0f;
@@ -590,25 +592,17 @@ struct ViscoelasticModule : public Module {
       updateParticleTypes();
     }
 
-    if (ImGui::SmallButton("Config 3D 8K Particles")) {
-      sim.mat.rest_density = 3.0f;
-      sim.mat.near_stiffness = 1.0f;
-      delta_time = 1.0f;
-      sim.max_speed = 5.0f;
-      sim.mat.kernel_radius = 20.0f;
-      gravity_amount = 0.1f;
-      gravity_direction = -90.0f;
-      num_particles_m0 = 3072;
-      num_particles_m1 = 3072;
-      num_particles_m2 = 3072;
-      sim.num_particles = 0;
-      sim.in_2d = false;
-      addParticles(8192);
-      updateParticleTypes();
-    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("8K"))
+      config3D_N(8 * 1024);
 
-    if (ImGui::SmallButton("Config 3D 32K Particles"))
-      config3D_32K();
+    ImGui::SameLine();
+    if (ImGui::SmallButton("32K"))
+      config3D_N(32 * 1024);
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton("64K"))
+      config3D_N(64 * 1024);
 
     if (ImGui::TreeNode("Colors..."))
     {

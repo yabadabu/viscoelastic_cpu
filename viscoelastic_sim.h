@@ -89,6 +89,7 @@ struct ViscoelasticSim {
   std::vector<uint32_t> spatial_bucket_unique_counts;
   std::vector<uint32_t> spatial_bucket_unique_offsets;
   std::vector<uint32_t> spatial_bucket_hash_offsets;
+  std::vector<uint32_t> spatial_partition_unique_offsets;
   std::vector<CPUSpatialSubdivision::Int3> spatial_local_hash_coords;
   std::vector<uint32_t> spatial_local_hash_unique_indices;
   std::vector<uint32_t> spatial_particle_unique_indices;
@@ -96,7 +97,6 @@ struct ViscoelasticSim {
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_provisional_unique_cells;
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_unique_cells;
   std::vector<uint32_t> spatial_source_unique_indices;
-  std::vector<uint32_t> spatial_unique_cell_ids;
 
   struct RelaxationAudit {
     bool requested = false;

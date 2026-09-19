@@ -267,7 +267,11 @@ struct CPUSpatialSubdivision {
 
 	Int3 gridCoords(VEC3 p) const {
 		const VEC3 d = (p) * grid_scale;
-		return Int3( (u32)floorf(d.x), (u32)floorf(d.y), (u32)floorf(d.z) );
+		// Keep negative coordinates negative. Converting a negative float directly
+		// to uint32_t is outside the representable range and has undefined results;
+		// the hash functions already convert the signed coordinate to uint32_t when
+		// they intentionally need its two's-complement bit pattern.
+		return Int3((int)floorf(d.x), (int)floorf(d.y), (int)floorf(d.z));
 	}
 
 	u32 gridHash(Int3 gridPos) const {

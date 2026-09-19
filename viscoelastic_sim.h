@@ -74,6 +74,9 @@ struct ViscoelasticSim {
   int relaxation_jobs_per_thread = 12;
   int relaxation_reduce_jobs_per_thread = 4;
   bool use_parallel_spatial_index = false;
+  bool use_hierarchical_spatial_index = false;
+  int spatial_hierarchy_macro_side = 4;
+  bool sort_hierarchical_neighbour_ranges = false;
   int spatial_index_buckets = 64;
   bool overlap_cache_and_prediction = true;
   ThreadPool* pool = nullptr;
@@ -97,6 +100,64 @@ struct ViscoelasticSim {
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_provisional_unique_cells;
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_unique_cells;
   std::vector<uint32_t> spatial_source_unique_indices;
+
+  struct HierarchyMacro {
+    CPUSpatialSubdivision::Int3 coords;
+    uint32_t particle_count = 0;
+    uint32_t source_idx = 0;
+    uint32_t particle_first = 0;
+    uint32_t cell_first = 0;
+  };
+  std::vector<CPUSpatialSubdivision::Int3> hierarchy_particle_macro_coords;
+  std::vector<uint16_t> hierarchy_particle_local_ids;
+  std::vector<HierarchyMacro> hierarchy_provisional_macros;
+  std::vector<HierarchyMacro> hierarchy_macros;
+  std::vector<uint32_t> hierarchy_source_macro_indices;
+  std::vector<uint32_t> hierarchy_macro_particle_offsets;
+  std::vector<uint32_t> hierarchy_macro_particle_cursors;
+  std::vector<uint32_t> hierarchy_macro_particle_ids;
+  std::vector<uint32_t> hierarchy_local_cell_counts;
+  std::vector<uint32_t> hierarchy_macro_occupied_cell_counts;
+
+  struct SpatialHierarchyAudit {
+    struct MacroStats {
+      int side = 0;
+      int occupied_macros = 0;
+      int occupied_small_cells = 0;
+      float macros_per_worker = 0.0f;
+      float average_particles = 0.0f;
+      int p95_particles = 0;
+      int max_particles = 0;
+      float largest_particle_percent = 0.0f;
+      float average_occupied_cells = 0.0f;
+      int p95_occupied_cells = 0;
+      int max_occupied_cells = 0;
+      float average_local_table_occupancy_percent = 0.0f;
+    };
+
+    bool requested = false;
+    bool valid = false;
+    bool completed_this_update = false;
+    int num_particles = 0;
+    MacroStats configurations[3];
+  } spatial_hierarchy_audit;
+
+  struct NeighbourRangeAudit {
+    bool requested = false;
+    bool valid = false;
+    bool completed_this_update = false;
+    bool hierarchical = false;
+    bool sorted_by_particle_offset = false;
+    int macro_side = 0;
+    int num_cells = 0;
+    uint64_t ranges_before = 0;
+    uint64_t ranges_after = 0;
+    int max_ranges_before = 0;
+    int max_ranges_after = 0;
+    float average_ranges_before = 0.0f;
+    float average_ranges_after = 0.0f;
+  } neighbour_range_audit;
+  std::vector<uint8_t> neighbour_range_counts_before_sort;
 
   struct RelaxationAudit {
     bool requested = false;
@@ -148,6 +209,7 @@ struct ViscoelasticSim {
 
   void updateSpatialHash();
   void assignCellsParallel();
+  void assignCellsHierarchical();
   void resolveCollisions(float dt, int start, int end);
   void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas);
   void updateStep(float dt);
@@ -155,9 +217,12 @@ struct ViscoelasticSim {
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);
   void doubleDensityRelaxation(float dt);
   void cacheRanges();
+  void cacheNearRanges(int cell_idx, bool capture_audit);
+  void finishNeighbourRangeAudit();
   void cacheRangesAndPredict(float dt);
   void updatePredictedPositions(float dt);
   void updatePredictedPositionsRange(float dt, int start, int end);
+  void captureSpatialHierarchyAudit();
   void captureRelaxationAudit();
 
   template< typename Fn >

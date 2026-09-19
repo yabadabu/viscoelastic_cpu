@@ -277,6 +277,84 @@ struct ViscoelasticModule : public Module {
       (unsigned long long)audit.neighbour_candidates_skipped_by_cap);
   }
 
+  void renderSpatialHierarchyAudit() {
+    if (ImGui::SmallButton("Audit macro-cell distribution"))
+      sim.spatial_hierarchy_audit.requested = true;
+    ImGui::SameLine();
+    ImGui::TextDisabled("one-shot; evaluates sides 2, 4 and 8");
+
+    if (sim.spatial_hierarchy_audit.requested) {
+      ImGui::TextDisabled("Macro-cell audit pending...");
+      return;
+    }
+
+    const auto& audit = sim.spatial_hierarchy_audit;
+    if (!audit.valid)
+      return;
+
+    ImGui::SeparatorText("Macro-cell distribution audit");
+    ImGui::Text("%d particles, %d workers", audit.num_particles, sim.num_threads);
+    for (const auto& stats : audit.configurations) {
+      ImGui::Text("Side %d (%d local slots): %d macros, %.2f jobs/worker",
+        stats.side,
+        stats.side * stats.side * stats.side,
+        stats.occupied_macros,
+        stats.macros_per_worker);
+      ImGui::Text("  Particles/macro: avg %.1f, p95 %d, max %d (%.2f%% of all particles)",
+        stats.average_particles,
+        stats.p95_particles,
+        stats.max_particles,
+        stats.largest_particle_percent);
+      ImGui::Text("  Cells/macro: avg %.1f, p95 %d, max %d; table %.1f%% occupied",
+        stats.average_occupied_cells,
+        stats.p95_occupied_cells,
+        stats.max_occupied_cells,
+        stats.average_local_table_occupancy_percent);
+      ImGui::Text("  Total occupied small cells: %d", stats.occupied_small_cells);
+    }
+  }
+
+  void renderNeighbourRangeAudit() {
+    if (ImGui::SmallButton("Audit neighbour ranges"))
+      sim.neighbour_range_audit.requested = true;
+    ImGui::SameLine();
+    ImGui::TextDisabled("one-shot; captures the active spatial layout");
+
+    if (sim.neighbour_range_audit.requested) {
+      ImGui::TextDisabled("Neighbour-range audit pending...");
+      return;
+    }
+
+    const auto& audit = sim.neighbour_range_audit;
+    if (!audit.valid)
+      return;
+
+    ImGui::SeparatorText("Neighbour-range audit");
+    if (audit.hierarchical) {
+      ImGui::Text("Hierarchy side %d; offset sort %s",
+        audit.macro_side,
+        audit.sorted_by_particle_offset ? "enabled" : "disabled");
+    }
+    else {
+      ImGui::Text("Non-hierarchical spatial layout");
+    }
+    ImGui::Text("%d cells; ranges/cell before: avg %.2f, max %d",
+      audit.num_cells,
+      audit.average_ranges_before,
+      audit.max_ranges_before);
+    ImGui::Text("Ranges/cell after: avg %.2f, max %d",
+      audit.average_ranges_after,
+      audit.max_ranges_after);
+    const double reduction = audit.ranges_before > 0
+      ? 100.0 * (double)(audit.ranges_before - audit.ranges_after) /
+        (double)audit.ranges_before
+      : 0.0;
+    ImGui::Text("Total ranges: %llu -> %llu (%.1f%% fewer)",
+      (unsigned long long)audit.ranges_before,
+      (unsigned long long)audit.ranges_after,
+      reduction);
+  }
+
   bool        use_cell_colors = false;
   bool        show_cells = false;
   bool        show_ids = false;
@@ -510,11 +588,21 @@ struct ViscoelasticModule : public Module {
       ImGui::DragInt("Relax Jobs / Thread", &sim.relaxation_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Reduce Jobs / Thread", &sim.relaxation_reduce_jobs_per_thread, 0.05f, 1, 32);
       ImGui::Checkbox("Parallel Spatial Index", &sim.use_parallel_spatial_index);
+      ImGui::Checkbox("Hierarchical Spatial Index", &sim.use_hierarchical_spatial_index);
+      int hierarchy_side_idx = sim.spatial_hierarchy_macro_side == 2
+        ? 0
+        : (sim.spatial_hierarchy_macro_side == 8 ? 2 : 1);
+      if (ImGui::Combo("Hierarchy Macro Side", &hierarchy_side_idx, "2\0" "4\0" "8\0\0"))
+        sim.spatial_hierarchy_macro_side = 1 << (hierarchy_side_idx + 1);
+      ImGui::Checkbox("Sort Hierarchy Neighbour Ranges",
+        &sim.sort_hierarchical_neighbour_ranges);
       ImGui::DragInt("Spatial Index Buckets", &sim.spatial_index_buckets, 0.1f, 8, 128);
       ImGui::TreePop();
     }
 
     renderUpdateTimeGraph();
+    renderSpatialHierarchyAudit();
+    renderNeighbourRangeAudit();
     renderRelaxationAudit();
 
     if (ImGui::TreeNode("Simulation Params...")) {
@@ -684,7 +772,8 @@ struct ViscoelasticModule : public Module {
       TTimer update_timer;
       sim.update(delta_time);
       const double update_seconds = update_timer.elapsed();
-      if (!sim.relaxation_audit.completed_this_update)
+      if (!sim.relaxation_audit.completed_this_update &&
+          !sim.spatial_hierarchy_audit.completed_this_update)
         recordUpdateTime(update_seconds);
       debug_particle = sim.debug_particle;
 

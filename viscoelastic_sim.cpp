@@ -1,6 +1,34 @@
 #include "platform.h"
 #include "viscoelastic_sim.h"
 #include <immintrin.h>
+#include <array>
+
+namespace {
+constexpr int kHierarchyMaxMacroSide = 8;
+constexpr int kHierarchyMaxLocalCellCount =
+  kHierarchyMaxMacroSide * kHierarchyMaxMacroSide * kHierarchyMaxMacroSide;
+
+void sortAndCoalesceNearRanges(CPUSpatialSubdivision::NearRanges& near_ranges) {
+  if (near_ranges.n < 2)
+    return;
+
+  std::sort(
+    near_ranges.ranges,
+    near_ranges.ranges + near_ranges.n,
+    [](const auto& a, const auto& b) { return a.first < b.first; });
+
+  uint32_t output_count = 1;
+  for (uint32_t i = 1; i < near_ranges.n; ++i) {
+    auto& previous = near_ranges.ranges[output_count - 1];
+    const auto current = near_ranges.ranges[i];
+    if (current.first <= previous.last)
+      previous.last = std::max(previous.last, current.last);
+    else
+      near_ranges.ranges[output_count++] = current;
+  }
+  near_ranges.n = output_count;
+}
+}
 
 // 0.171ms -> 0.026ms
 //for (int i = 0; i < num_particles; ++i) {
@@ -794,6 +822,333 @@ void ViscoelasticSim::assignCellsParallel() {
   }
 }
 
+void ViscoelasticSim::assignCellsHierarchical() {
+  PROFILE_SCOPED_NAMED("assignCellsHierarchical");
+
+  int macro_side = 4;
+  if (spatial_hierarchy_macro_side <= 2)
+    macro_side = 2;
+  else if (spatial_hierarchy_macro_side >= 8)
+    macro_side = 8;
+  spatial_hierarchy_macro_side = macro_side;
+  const int local_cell_count = macro_side * macro_side * macro_side;
+
+  int num_buckets = 8;
+  const int requested_buckets = std::max(8, std::min(spatial_index_buckets, 128));
+  while (num_buckets < requested_buckets)
+    num_buckets <<= 1;
+  const uint32_t bucket_mask = (uint32_t)num_buckets - 1;
+  const int num_partitions = std::max(1, std::min(num_threads, num_particles));
+  const size_t partition_bucket_count = (size_t)num_partitions * num_buckets;
+
+  auto macro_hash = [](const CPUSpatialSubdivision::Int3& coords) {
+    uint32_t hash = static_cast<uint32_t>(coords.x) * 0x8da6b343u;
+    hash ^= static_cast<uint32_t>(coords.y) * 0xd8163841u;
+    hash ^= static_cast<uint32_t>(coords.z) * 0xcb1ab31fu;
+    hash ^= hash >> 16;
+    hash *= 0x7feb352du;
+    hash ^= hash >> 15;
+    return hash;
+  };
+
+  spatial_bucket_counts.assign(partition_bucket_count, 0);
+  spatial_bucket_offsets.resize(partition_bucket_count);
+  spatial_bucket_starts.resize((size_t)num_buckets + 1);
+  spatial_bucket_particle_ids.resize(num_particles);
+  spatial_bucket_unique_counts.resize(num_buckets);
+  spatial_bucket_unique_offsets.resize((size_t)num_buckets + 1);
+  hierarchy_particle_macro_coords.resize(num_particles);
+  hierarchy_particle_local_ids.resize(num_particles);
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchyMacroHistogram");
+    runInParallel(num_particles, num_partitions, [&](int start, int end, int job_id) {
+      uint32_t* counts = spatial_bucket_counts.data() + (size_t)job_id * num_buckets;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const auto& cell = assigned_cells[particle_id].ipos;
+        int local_x = cell.x % macro_side;
+        int local_y = cell.y % macro_side;
+        int local_z = cell.z % macro_side;
+        if (local_x < 0) local_x += macro_side;
+        if (local_y < 0) local_y += macro_side;
+        if (local_z < 0) local_z += macro_side;
+        const CPUSpatialSubdivision::Int3 macro = {
+          (cell.x - local_x) / macro_side,
+          (cell.y - local_y) / macro_side,
+          (cell.z - local_z) / macro_side
+        };
+        assert(local_x >= 0 && local_x < macro_side);
+        assert(local_y >= 0 && local_y < macro_side);
+        assert(local_z >= 0 && local_z < macro_side);
+        hierarchy_particle_macro_coords[particle_id] = macro;
+        hierarchy_particle_local_ids[particle_id] =
+          (uint16_t)((local_y * macro_side + local_x) * macro_side + local_z);
+        ++counts[macro_hash(macro) & bucket_mask];
+      }
+      });
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchyMacroPrefixScan");
+    uint32_t particle_offset = 0;
+    for (int bucket = 0; bucket < num_buckets; ++bucket) {
+      spatial_bucket_starts[bucket] = particle_offset;
+      for (int partition = 0; partition < num_partitions; ++partition) {
+        const size_t idx = (size_t)partition * num_buckets + bucket;
+        spatial_bucket_offsets[idx] = particle_offset;
+        particle_offset += spatial_bucket_counts[idx];
+      }
+    }
+    spatial_bucket_starts[num_buckets] = particle_offset;
+    assert(particle_offset == (uint32_t)num_particles);
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchyMacroScatter");
+    runInParallel(num_particles, num_partitions, [&](int start, int end, int job_id) {
+      uint32_t* offsets = spatial_bucket_offsets.data() + (size_t)job_id * num_buckets;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const uint32_t bucket = macro_hash(hierarchy_particle_macro_coords[particle_id]) & bucket_mask;
+        spatial_bucket_particle_ids[offsets[bucket]++] = (uint32_t)particle_id;
+      }
+      });
+  }
+
+  spatial_bucket_hash_offsets.resize((size_t)num_buckets + 1);
+  uint32_t total_hash_capacity = 0;
+  for (int bucket = 0; bucket < num_buckets; ++bucket) {
+    spatial_bucket_hash_offsets[bucket] = total_hash_capacity;
+    const uint32_t particle_count =
+      spatial_bucket_starts[bucket + 1] - spatial_bucket_starts[bucket];
+    uint32_t capacity = 0;
+    if (particle_count > 0) {
+      capacity = 2;
+      while (capacity < particle_count * 2)
+        capacity <<= 1;
+    }
+    total_hash_capacity += capacity;
+  }
+  spatial_bucket_hash_offsets[num_buckets] = total_hash_capacity;
+  spatial_local_hash_coords.resize(total_hash_capacity);
+  spatial_local_hash_unique_indices.resize(total_hash_capacity);
+  spatial_particle_unique_indices.resize(num_particles);
+  spatial_particle_indices_in_cell.resize(num_particles);
+  hierarchy_provisional_macros.resize(num_particles);
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchyGroupMacros");
+    runInParallel(num_buckets, num_buckets, [&](int start, int end, int job_id) {
+      for (int bucket = start; bucket < end; ++bucket) {
+        const uint32_t hash_first = spatial_bucket_hash_offsets[bucket];
+        const uint32_t hash_last = spatial_bucket_hash_offsets[bucket + 1];
+        if (hash_first == hash_last) {
+          spatial_bucket_unique_counts[bucket] = 0;
+          continue;
+        }
+
+        std::fill(
+          spatial_local_hash_unique_indices.begin() + hash_first,
+          spatial_local_hash_unique_indices.begin() + hash_last,
+          UINT32_MAX);
+        const uint32_t local_hash_mask = hash_last - hash_first - 1;
+        const uint32_t particle_first = spatial_bucket_starts[bucket];
+        const uint32_t particle_last = spatial_bucket_starts[bucket + 1];
+        uint32_t unique_count = 0;
+
+        for (uint32_t i = particle_first; i < particle_last; ++i) {
+          const uint32_t particle_id = spatial_bucket_particle_ids[i];
+          const auto macro = hierarchy_particle_macro_coords[particle_id];
+          uint32_t hash_slot = hash_first + (macro_hash(macro) & local_hash_mask);
+
+          while (true) {
+            uint32_t& local_macro_idx = spatial_local_hash_unique_indices[hash_slot];
+            if (local_macro_idx == UINT32_MAX) {
+              local_macro_idx = unique_count++;
+              spatial_local_hash_coords[hash_slot] = macro;
+              hierarchy_provisional_macros[particle_first + local_macro_idx] = {
+                macro, 1, 0, 0, 0
+              };
+              spatial_particle_unique_indices[particle_id] = local_macro_idx;
+              break;
+            }
+
+            if (spatial_local_hash_coords[hash_slot] == macro) {
+              ++hierarchy_provisional_macros[particle_first + local_macro_idx].particle_count;
+              spatial_particle_unique_indices[particle_id] = local_macro_idx;
+              break;
+            }
+            hash_slot = hash_first + ((hash_slot - hash_first + 1) & local_hash_mask);
+          }
+        }
+        spatial_bucket_unique_counts[bucket] = unique_count;
+      }
+      });
+  }
+
+  uint32_t num_macros = 0;
+  for (int bucket = 0; bucket < num_buckets; ++bucket) {
+    spatial_bucket_unique_offsets[bucket] = num_macros;
+    num_macros += spatial_bucket_unique_counts[bucket];
+  }
+  spatial_bucket_unique_offsets[num_buckets] = num_macros;
+  hierarchy_macros.resize(num_macros);
+  hierarchy_source_macro_indices.resize(num_macros);
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchySortMacros");
+    for (int bucket = 0; bucket < num_buckets; ++bucket) {
+      const uint32_t count = spatial_bucket_unique_counts[bucket];
+      const uint32_t source = spatial_bucket_starts[bucket];
+      const uint32_t destination = spatial_bucket_unique_offsets[bucket];
+      for (uint32_t local_macro_idx = 0; local_macro_idx < count; ++local_macro_idx) {
+        auto macro = hierarchy_provisional_macros[source + local_macro_idx];
+        macro.source_idx = destination + local_macro_idx;
+        hierarchy_macros[destination + local_macro_idx] = macro;
+      }
+    }
+    std::sort(hierarchy_macros.begin(), hierarchy_macros.end(), [](const auto& a, const auto& b) {
+      if (a.coords.y != b.coords.y)
+        return a.coords.y < b.coords.y;
+      if (a.coords.x != b.coords.x)
+        return a.coords.x < b.coords.x;
+      return a.coords.z < b.coords.z;
+      });
+    for (uint32_t macro_idx = 0; macro_idx < num_macros; ++macro_idx)
+      hierarchy_source_macro_indices[hierarchy_macros[macro_idx].source_idx] = macro_idx;
+  }
+  hierarchy_macro_particle_offsets.resize((size_t)num_macros + 1);
+  uint32_t macro_particle_offset = 0;
+  for (uint32_t macro_idx = 0; macro_idx < num_macros; ++macro_idx) {
+    HierarchyMacro& macro = hierarchy_macros[macro_idx];
+    macro.particle_first = macro_particle_offset;
+    hierarchy_macro_particle_offsets[macro_idx] = macro_particle_offset;
+    macro_particle_offset += macro.particle_count;
+  }
+  hierarchy_macro_particle_offsets[num_macros] = macro_particle_offset;
+  assert(macro_particle_offset == (uint32_t)num_particles);
+  hierarchy_macro_particle_cursors.assign(
+    hierarchy_macro_particle_offsets.begin(),
+    hierarchy_macro_particle_offsets.end() - 1);
+  hierarchy_macro_particle_ids.resize(num_particles);
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchyScatterMacroParticles");
+    runInParallel(num_buckets, num_buckets, [&](int start, int end, int job_id) {
+      for (int bucket = start; bucket < end; ++bucket) {
+        const uint32_t first = spatial_bucket_starts[bucket];
+        const uint32_t last = spatial_bucket_starts[bucket + 1];
+        for (uint32_t i = first; i < last; ++i) {
+          const uint32_t particle_id = spatial_bucket_particle_ids[i];
+          const uint32_t source_macro_idx = spatial_bucket_unique_offsets[bucket] +
+            spatial_particle_unique_indices[particle_id];
+          const uint32_t macro_idx = hierarchy_source_macro_indices[source_macro_idx];
+          hierarchy_macro_particle_ids[hierarchy_macro_particle_cursors[macro_idx]++] = particle_id;
+        }
+      }
+      });
+  }
+
+  hierarchy_local_cell_counts.assign((size_t)num_macros * local_cell_count, 0);
+  hierarchy_macro_occupied_cell_counts.resize(num_macros);
+  {
+    PROFILE_SCOPED_NAMED("hierarchyCountLocalCells");
+    runInParallel(num_macros, num_macros, [&](int start, int end, int job_id) {
+      for (int macro_idx = start; macro_idx < end; ++macro_idx) {
+        uint32_t* counts = hierarchy_local_cell_counts.data() +
+          (size_t)macro_idx * local_cell_count;
+        const uint32_t first = hierarchy_macro_particle_offsets[macro_idx];
+        const uint32_t last = hierarchy_macro_particle_offsets[macro_idx + 1];
+        for (uint32_t i = first; i < last; ++i)
+          ++counts[hierarchy_particle_local_ids[hierarchy_macro_particle_ids[i]]];
+        uint32_t occupied = 0;
+        for (int local_id = 0; local_id < local_cell_count; ++local_id)
+          occupied += counts[local_id] != 0;
+        hierarchy_macro_occupied_cell_counts[macro_idx] = occupied;
+      }
+      });
+  }
+
+  uint32_t num_unique_cells = 0;
+  for (uint32_t macro_idx = 0; macro_idx < num_macros; ++macro_idx) {
+    hierarchy_macros[macro_idx].cell_first = num_unique_cells;
+    num_unique_cells += hierarchy_macro_occupied_cell_counts[macro_idx];
+  }
+  spatial_unique_cells.resize(num_unique_cells);
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchyBuildLocalCells");
+    runInParallel(num_macros, num_macros, [&](int start, int end, int job_id) {
+      for (int macro_idx = start; macro_idx < end; ++macro_idx) {
+        const HierarchyMacro& macro = hierarchy_macros[macro_idx];
+        const uint32_t* counts = hierarchy_local_cell_counts.data() +
+          (size_t)macro_idx * local_cell_count;
+        uint32_t local_cell_ids[kHierarchyMaxLocalCellCount];
+        uint32_t local_starts[kHierarchyMaxLocalCellCount];
+        uint32_t local_cursors[kHierarchyMaxLocalCellCount];
+        uint32_t particle_offset = macro.particle_first;
+        uint32_t cell_idx = macro.cell_first;
+
+        for (int local_id = 0; local_id < local_cell_count; ++local_id) {
+          local_starts[local_id] = particle_offset;
+          local_cursors[local_id] = particle_offset;
+          if (counts[local_id] == 0) {
+            local_cell_ids[local_id] = UINT32_MAX;
+            continue;
+          }
+
+          local_cell_ids[local_id] = cell_idx;
+          const int local_y = local_id / (macro_side * macro_side);
+          const int remainder = local_id % (macro_side * macro_side);
+          const int local_x = remainder / macro_side;
+          const int local_z = remainder % macro_side;
+          const CPUSpatialSubdivision::Int3 coords = {
+            macro.coords.x * macro_side + local_x,
+            macro.coords.y * macro_side + local_y,
+            macro.coords.z * macro_side + local_z
+          };
+          spatial_unique_cells[cell_idx] = {
+            coords,
+            spatial_hash.gridHash(coords),
+            counts[local_id],
+            cell_idx
+          };
+          particle_offset += counts[local_id];
+          ++cell_idx;
+        }
+        assert(particle_offset == macro.particle_first + macro.particle_count);
+        assert(cell_idx == macro.cell_first + hierarchy_macro_occupied_cell_counts[macro_idx]);
+
+        const uint32_t first = hierarchy_macro_particle_offsets[macro_idx];
+        const uint32_t last = hierarchy_macro_particle_offsets[macro_idx + 1];
+        for (uint32_t i = first; i < last; ++i) {
+          const uint32_t particle_id = hierarchy_macro_particle_ids[i];
+          const uint32_t local_id = hierarchy_particle_local_ids[particle_id];
+          const uint32_t destination = local_cursors[local_id]++;
+          spatial_particle_unique_indices[particle_id] = local_cell_ids[local_id];
+          spatial_particle_indices_in_cell[particle_id] = destination - local_starts[local_id];
+        }
+      }
+      });
+  }
+
+  spatial_hash.setCompactCells(
+    spatial_unique_cells.data(),
+    num_unique_cells,
+    num_particles);
+
+  {
+    PROFILE_SCOPED_NAMED("hierarchyMapParticles");
+    runInParallel(num_particles, num_partitions, [&](int start, int end, int job_id) {
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        spatial_hash.cells_per_vertex[particle_id] = {
+          spatial_particle_unique_indices[particle_id],
+          spatial_particle_indices_in_cell[particle_id]
+        };
+      }
+      });
+  }
+}
+
 void ViscoelasticSim::updateSpatialHash() {
 
   float inv_kernel_radius = 1.0f / mat.kernel_radius;
@@ -818,7 +1173,14 @@ void ViscoelasticSim::updateSpatialHash() {
       });
   }
 
-  if (use_parallel_spatial_index)
+  if (spatial_hierarchy_audit.requested) {
+    captureSpatialHierarchyAudit();
+    spatial_hierarchy_audit.requested = false;
+  }
+
+  if (use_hierarchical_spatial_index)
+    assignCellsHierarchical();
+  else if (use_parallel_spatial_index)
     assignCellsParallel();
   else
     spatial_hash.setPoints(assigned_cells.data(), num_particles);
@@ -844,18 +1206,194 @@ void ViscoelasticSim::updateSpatialHash() {
 
 }
 
+void ViscoelasticSim::captureSpatialHierarchyAudit() {
+  PROFILE_SCOPED_NAMED("captureSpatialHierarchyAudit");
+
+  struct MacroCoord {
+    int x, y, z;
+    bool operator==(const MacroCoord& other) const {
+      return x == other.x && y == other.y && z == other.z;
+    }
+  };
+  struct MacroCoordHash {
+    size_t operator()(const MacroCoord& coord) const {
+      uint32_t hash = static_cast<uint32_t>(coord.x) * 0x8da6b343u;
+      hash ^= static_cast<uint32_t>(coord.y) * 0xd8163841u;
+      hash ^= static_cast<uint32_t>(coord.z) * 0xcb1ab31fu;
+      hash ^= hash >> 16;
+      hash *= 0x7feb352du;
+      hash ^= hash >> 15;
+      return (size_t)hash;
+    }
+  };
+  struct MacroAccumulator {
+    uint32_t particles = 0;
+    std::array<uint64_t, 8> occupied_local_cells = {};
+  };
+
+  auto floor_div = [](int value, int divisor) {
+    int quotient = value / divisor;
+    const int remainder = value % divisor;
+    if (remainder < 0)
+      --quotient;
+    return quotient;
+  };
+  auto percentile95 = [](const std::vector<int>& sorted_values) {
+    if (sorted_values.empty())
+      return 0;
+    const size_t rank = ((sorted_values.size() * 95 + 99) / 100) - 1;
+    return sorted_values[std::min(rank, sorted_values.size() - 1)];
+  };
+
+  SpatialHierarchyAudit& audit = spatial_hierarchy_audit;
+  audit.valid = false;
+  audit.num_particles = num_particles;
+  constexpr int macro_sides[] = { 2, 4, 8 };
+
+  for (int configuration_idx = 0; configuration_idx < 3; ++configuration_idx) {
+    const int side = macro_sides[configuration_idx];
+    const int local_cell_capacity = side * side * side;
+    std::unordered_map<MacroCoord, MacroAccumulator, MacroCoordHash> macros;
+    macros.reserve(std::max(1, num_particles / local_cell_capacity));
+
+    for (int particle_id = 0; particle_id < num_particles; ++particle_id) {
+      const auto& cell = assigned_cells[particle_id].ipos;
+      const MacroCoord macro = {
+        floor_div(cell.x, side),
+        floor_div(cell.y, side),
+        floor_div(cell.z, side)
+      };
+      const int local_x = cell.x - macro.x * side;
+      const int local_y = cell.y - macro.y * side;
+      const int local_z = cell.z - macro.z * side;
+      assert(local_x >= 0 && local_x < side);
+      assert(local_y >= 0 && local_y < side);
+      assert(local_z >= 0 && local_z < side);
+      const int local_id = (local_y * side + local_x) * side + local_z;
+
+      MacroAccumulator& accumulator = macros[macro];
+      ++accumulator.particles;
+      accumulator.occupied_local_cells[local_id >> 6] |= 1ull << (local_id & 63);
+    }
+
+    std::vector<int> particle_counts;
+    std::vector<int> occupied_cell_counts;
+    particle_counts.reserve(macros.size());
+    occupied_cell_counts.reserve(macros.size());
+    uint64_t total_particles = 0;
+    uint64_t total_occupied_cells = 0;
+
+    for (const auto& entry : macros) {
+      const MacroAccumulator& accumulator = entry.second;
+      int occupied_cells = 0;
+      const int num_words = (local_cell_capacity + 63) / 64;
+      for (int word_idx = 0; word_idx < num_words; ++word_idx) {
+#ifdef _MSC_VER
+        occupied_cells += (int)__popcnt64(accumulator.occupied_local_cells[word_idx]);
+#else
+        occupied_cells += __builtin_popcountll(accumulator.occupied_local_cells[word_idx]);
+#endif
+      }
+      particle_counts.push_back((int)accumulator.particles);
+      occupied_cell_counts.push_back(occupied_cells);
+      total_particles += accumulator.particles;
+      total_occupied_cells += occupied_cells;
+    }
+
+    std::sort(particle_counts.begin(), particle_counts.end());
+    std::sort(occupied_cell_counts.begin(), occupied_cell_counts.end());
+    auto& stats = audit.configurations[configuration_idx];
+    stats = {};
+    stats.side = side;
+    stats.occupied_macros = (int)macros.size();
+    stats.occupied_small_cells = (int)total_occupied_cells;
+    stats.macros_per_worker = num_threads > 0 ? (float)macros.size() / (float)num_threads : 0.0f;
+    if (!particle_counts.empty()) {
+      stats.average_particles = (float)((double)total_particles / (double)particle_counts.size());
+      stats.p95_particles = percentile95(particle_counts);
+      stats.max_particles = particle_counts.back();
+      stats.largest_particle_percent = num_particles > 0
+        ? 100.0f * (float)stats.max_particles / (float)num_particles
+        : 0.0f;
+      stats.average_occupied_cells =
+        (float)((double)total_occupied_cells / (double)occupied_cell_counts.size());
+      stats.p95_occupied_cells = percentile95(occupied_cell_counts);
+      stats.max_occupied_cells = occupied_cell_counts.back();
+      stats.average_local_table_occupancy_percent =
+        100.0f * stats.average_occupied_cells / (float)local_cell_capacity;
+    }
+  }
+
+  audit.valid = true;
+  audit.completed_this_update = true;
+}
+
+void ViscoelasticSim::cacheNearRanges(int cell_idx, bool capture_audit) {
+  const auto& cell = spatial_hash.cells_ranges[cell_idx];
+  auto& near_ranges = relaxation_near_ranges[cell_idx];
+  spatial_hash.collectRanges(near_ranges, cell.cell_id);
+
+  if (capture_audit)
+    neighbour_range_counts_before_sort[cell_idx] = (uint8_t)near_ranges.n;
+
+  if (use_hierarchical_spatial_index && sort_hierarchical_neighbour_ranges)
+    sortAndCoalesceNearRanges(near_ranges);
+}
+
+void ViscoelasticSim::finishNeighbourRangeAudit() {
+  NeighbourRangeAudit& audit = neighbour_range_audit;
+  if (!audit.requested)
+    return;
+
+  audit.valid = true;
+  audit.completed_this_update = true;
+  audit.hierarchical = use_hierarchical_spatial_index;
+  audit.sorted_by_particle_offset =
+    use_hierarchical_spatial_index && sort_hierarchical_neighbour_ranges;
+  audit.macro_side = use_hierarchical_spatial_index ? spatial_hierarchy_macro_side : 0;
+  audit.num_cells = (int)relaxation_near_ranges.size();
+  audit.ranges_before = 0;
+  audit.ranges_after = 0;
+  audit.max_ranges_before = 0;
+  audit.max_ranges_after = 0;
+
+  for (int cell_idx = 0; cell_idx < audit.num_cells; ++cell_idx) {
+    const int before = neighbour_range_counts_before_sort[cell_idx];
+    const int after = (int)relaxation_near_ranges[cell_idx].n;
+    audit.ranges_before += before;
+    audit.ranges_after += after;
+    audit.max_ranges_before = std::max(audit.max_ranges_before, before);
+    audit.max_ranges_after = std::max(audit.max_ranges_after, after);
+  }
+
+  if (audit.num_cells > 0) {
+    audit.average_ranges_before =
+      (float)((double)audit.ranges_before / (double)audit.num_cells);
+    audit.average_ranges_after =
+      (float)((double)audit.ranges_after / (double)audit.num_cells);
+  }
+  else {
+    audit.average_ranges_before = 0.0f;
+    audit.average_ranges_after = 0.0f;
+  }
+  audit.requested = false;
+}
+
 void ViscoelasticSim::cacheRanges() {
   PROFILE_SCOPED_NAMED("cacheRanges");
   // The spatial hash is immutable here and each job writes a distinct range,
   // so the 27-cell neighbour lookups can be prepared independently.
   const int num_cells = (int)spatial_hash.cells_ranges.size();
   relaxation_near_ranges.resize(num_cells);
+  const bool capture_audit = neighbour_range_audit.requested;
+  if (capture_audit)
+    neighbour_range_counts_before_sort.assign(num_cells, 0);
   runInParallel(num_cells, num_threads * cache_jobs_per_thread, [&](int start, int end, int job_id) {
-    for (int cell_idx = start; cell_idx < end; ++cell_idx) {
-      const auto& cell = spatial_hash.cells_ranges[cell_idx];
-      spatial_hash.collectRanges(relaxation_near_ranges[cell_idx], cell.cell_id);
-    }
+    for (int cell_idx = start; cell_idx < end; ++cell_idx)
+      cacheNearRanges(cell_idx, capture_audit);
     });
+  if (capture_audit)
+    finishNeighbourRangeAudit();
 }
 
 void ViscoelasticSim::updatePredictedPositionsRange(float dt, int start, int end) {
@@ -897,9 +1435,14 @@ void ViscoelasticSim::cacheRangesAndPredict(float dt) {
   // can share this heterogeneous phase with the cache jobs.
   const int num_cells = (int)spatial_hash.cells_ranges.size();
   relaxation_near_ranges.resize(num_cells);
+  const bool capture_audit = neighbour_range_audit.requested;
+  if (capture_audit)
+    neighbour_range_counts_before_sort.assign(num_cells, 0);
 
   if (num_cells == 0) {
     updatePredictedPositions(dt);
+    if (capture_audit)
+      finishNeighbourRangeAudit();
     return;
   }
 
@@ -930,14 +1473,14 @@ void ViscoelasticSim::cacheRangesAndPredict(float dt) {
     const int cache_job_id = job_id - num_prediction_jobs;
     const int start = cache_job_id * chunk_size;
     const int end = std::min(start + chunk_size, num_cells);
-    for (int cell_idx = start; cell_idx < end; ++cell_idx) {
-      const auto& cell = spatial_hash.cells_ranges[cell_idx];
-      spatial_hash.collectRanges(relaxation_near_ranges[cell_idx], cell.cell_id);
-    }
+    for (int cell_idx = start; cell_idx < end; ++cell_idx)
+      cacheNearRanges(cell_idx, capture_audit);
 
     if (cache_jobs_remaining.fetch_sub(1, std::memory_order_acq_rel) == 1)
       saveTime(eSection::CacheRanges, cache_timer);
     });
+  if (capture_audit)
+    finishNeighbourRangeAudit();
 }
 
 void ViscoelasticSim::captureRelaxationAudit() {
@@ -1252,6 +1795,8 @@ void ViscoelasticSim::setNumThreads(int new_num_threads) {
 
 void ViscoelasticSim::update(float delta_time) {
   relaxation_audit.completed_this_update = false;
+  spatial_hierarchy_audit.completed_this_update = false;
+  neighbour_range_audit.completed_this_update = false;
   // Keep workers hot across the short parallel phases of the simulation. They
   // park again before update returns, so rendering does not compete for CPU.
   pool->beginUpdate();

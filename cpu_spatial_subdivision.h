@@ -24,12 +24,63 @@ struct CPUSpatialSubdivision {
 		u32  cell_id;
 	};
 
+	struct UniqueCell {
+		Int3 ipos;
+		u32  initial_cell_id;
+		u32  num_particles;
+	};
+
 	void setGridScale(float new_grid_scale) {
 		grid_scale = new_grid_scale;
 	}
 
 	void setPoints(AssignedCell* __restrict assigned_cells, u32 num_vtxs) {
 		assignCells(assigned_cells, num_vtxs);
+		sortCells();
+		findRanges();
+	}
+
+	// Parallel callers can group particles by exact grid coordinate first. This
+	// keeps open-addressed hash insertion serial (and deterministic) while
+	// reducing that serial work from one entry per particle to one per occupied
+	// cell. out_cell_ids maps each UniqueCell to its collision-resolved hash id.
+	void setUniqueCells(
+		const UniqueCell* __restrict unique_cells,
+		u32 num_unique_cells,
+		u32 num_vtxs,
+		u32* __restrict out_cell_ids
+	) {
+		PROFILE_SCOPED_NAMED("assignUniqueCells");
+		num_collisions = 0;
+		reserve(num_vtxs);
+		cells_ranges.clear();
+		cells_ranges.reserve(num_unique_cells);
+		current_tag++;
+
+		for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
+			const UniqueCell& unique_cell = unique_cells[unique_idx];
+			u32 cell_id = unique_cell.initial_cell_id;
+			while (true) {
+				CellInfo& cell_info = cells_info[cell_id];
+				if (cell_info.tag != current_tag) {
+					cell_info.tag = current_tag;
+					cell_info.num_particles = unique_cell.num_particles;
+					cell_info.range_idx = (u32)cells_ranges.size();
+					cell_info.coords = unique_cell.ipos;
+					cells_ranges.push_back({ cell_id });
+					break;
+				}
+
+				// Two unique entries must never describe the same coordinate.
+				assert(!(cell_info.coords == unique_cell.ipos));
+				cell_id = (cell_id + 1) & hash_mask;
+				// Match assignCells' metric: every particle in this cell would
+				// have traversed the same occupied collision slot.
+				num_collisions += unique_cell.num_particles;
+			}
+			out_cell_ids[unique_idx] = cell_id;
+		}
+
 		sortCells();
 		findRanges();
 	}

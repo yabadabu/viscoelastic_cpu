@@ -73,10 +73,29 @@ struct ViscoelasticSim {
   int prediction_jobs = 8;
   int relaxation_jobs_per_thread = 12;
   int relaxation_reduce_jobs_per_thread = 4;
+  bool use_parallel_spatial_index = false;
+  int spatial_index_buckets = 64;
   bool overlap_cache_and_prediction = true;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
   std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;
+
+  // Scratch storage for the optional histogram/prefix-scan/scatter spatial
+  // index builder. It is retained between frames to avoid allocator traffic.
+  std::vector<uint32_t> spatial_bucket_counts;
+  std::vector<uint32_t> spatial_bucket_offsets;
+  std::vector<uint32_t> spatial_bucket_starts;
+  std::vector<uint32_t> spatial_bucket_particle_ids;
+  std::vector<uint32_t> spatial_bucket_unique_counts;
+  std::vector<uint32_t> spatial_bucket_unique_offsets;
+  std::vector<uint32_t> spatial_bucket_hash_offsets;
+  std::vector<CPUSpatialSubdivision::Int3> spatial_local_hash_coords;
+  std::vector<uint32_t> spatial_local_hash_unique_indices;
+  std::vector<uint32_t> spatial_particle_unique_indices;
+  std::vector<uint32_t> spatial_particle_indices_in_cell;
+  std::vector<CPUSpatialSubdivision::UniqueCell> spatial_provisional_unique_cells;
+  std::vector<CPUSpatialSubdivision::UniqueCell> spatial_unique_cells;
+  std::vector<uint32_t> spatial_unique_cell_ids;
 
   struct RelaxationAudit {
     bool requested = false;
@@ -127,6 +146,7 @@ struct ViscoelasticSim {
   void getParticleIDsNear(std::vector<int>& out_ids, VEC3 ref_point, float rad) const;
 
   void updateSpatialHash();
+  void assignCellsParallel();
   void resolveCollisions(float dt, int start, int end);
   void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas);
   void updateStep(float dt);

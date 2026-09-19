@@ -550,6 +550,203 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
 }
 
 
+void ViscoelasticSim::assignCellsParallel() {
+  PROFILE_SCOPED_NAMED("assignCellsParallel");
+
+  // Buckets must be a power of two because we select them from the low hash
+  // bits. Normalize the UI value here so arbitrary intermediate values remain
+  // safe while dragging it.
+  int num_buckets = 8;
+  const int requested_buckets = std::max(8, std::min(spatial_index_buckets, 128));
+  while (num_buckets < requested_buckets)
+    num_buckets <<= 1;
+  spatial_index_buckets = num_buckets;
+
+  const int num_partitions = std::max(1, std::min(num_threads, num_particles));
+  const uint32_t bucket_mask = (uint32_t)num_buckets - 1;
+  const size_t partition_bucket_count = (size_t)num_partitions * num_buckets;
+
+  spatial_bucket_counts.assign(partition_bucket_count, 0);
+  spatial_bucket_offsets.resize(partition_bucket_count);
+  spatial_bucket_starts.resize((size_t)num_buckets + 1);
+  spatial_bucket_particle_ids.resize(num_particles);
+  spatial_bucket_unique_counts.resize(num_buckets);
+  spatial_bucket_unique_offsets.resize((size_t)num_buckets + 1);
+
+  {
+    PROFILE_SCOPED_NAMED("parallelCellHistogram");
+    runInParallel(num_particles, num_partitions, [&](int start, int end, int job_id) {
+      uint32_t* counts = spatial_bucket_counts.data() + (size_t)job_id * num_buckets;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const uint32_t bucket = assigned_cells[particle_id].cell_id & bucket_mask;
+        ++counts[bucket];
+      }
+      });
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("parallelCellPrefixScan");
+    uint32_t particle_offset = 0;
+    for (int bucket = 0; bucket < num_buckets; ++bucket) {
+      spatial_bucket_starts[bucket] = particle_offset;
+      for (int partition = 0; partition < num_partitions; ++partition) {
+        const size_t idx = (size_t)partition * num_buckets + bucket;
+        spatial_bucket_offsets[idx] = particle_offset;
+        particle_offset += spatial_bucket_counts[idx];
+      }
+    }
+    spatial_bucket_starts[num_buckets] = particle_offset;
+    assert(particle_offset == (uint32_t)num_particles);
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("parallelCellScatter");
+    runInParallel(num_particles, num_partitions, [&](int start, int end, int job_id) {
+      uint32_t* offsets = spatial_bucket_offsets.data() + (size_t)job_id * num_buckets;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const uint32_t bucket = assigned_cells[particle_id].cell_id & bucket_mask;
+        spatial_bucket_particle_ids[offsets[bucket]++] = (uint32_t)particle_id;
+      }
+      });
+  }
+
+  // Give every bucket a private, open-addressed table at <= 50% load. The
+  // tables occupy contiguous scratch storage but are initialized and mutated
+  // only by their owning bucket job.
+  spatial_bucket_hash_offsets.resize((size_t)num_buckets + 1);
+  uint32_t total_hash_capacity = 0;
+  for (int bucket = 0; bucket < num_buckets; ++bucket) {
+    spatial_bucket_hash_offsets[bucket] = total_hash_capacity;
+    const uint32_t particle_count =
+      spatial_bucket_starts[bucket + 1] - spatial_bucket_starts[bucket];
+    uint32_t capacity = 0;
+    if (particle_count > 0) {
+      capacity = 2;
+      while (capacity < particle_count * 2)
+        capacity <<= 1;
+    }
+    total_hash_capacity += capacity;
+  }
+  spatial_bucket_hash_offsets[num_buckets] = total_hash_capacity;
+  spatial_local_hash_coords.resize(total_hash_capacity);
+  spatial_local_hash_unique_indices.resize(total_hash_capacity);
+  spatial_particle_unique_indices.resize(num_particles);
+  spatial_particle_indices_in_cell.resize(num_particles);
+  spatial_provisional_unique_cells.resize(num_particles);
+
+  auto secondary_coord_hash = [](const CPUSpatialSubdivision::Int3& coords) {
+    uint32_t hash = static_cast<uint32_t>(coords.x) * 0x8da6b343u;
+    hash ^= static_cast<uint32_t>(coords.y) * 0xd8163841u;
+    hash ^= static_cast<uint32_t>(coords.z) * 0xcb1ab31fu;
+    hash ^= hash >> 16;
+    hash *= 0x7feb352du;
+    hash ^= hash >> 15;
+    return hash;
+  };
+
+  {
+    PROFILE_SCOPED_NAMED("parallelCellGroup");
+    runInParallel(num_buckets, num_buckets, [&](int start, int end, int job_id) {
+      for (int bucket = start; bucket < end; ++bucket) {
+        const uint32_t hash_first = spatial_bucket_hash_offsets[bucket];
+        const uint32_t hash_last = spatial_bucket_hash_offsets[bucket + 1];
+        if (hash_first == hash_last) {
+          spatial_bucket_unique_counts[bucket] = 0;
+          continue;
+        }
+
+        std::fill(
+          spatial_local_hash_unique_indices.begin() + hash_first,
+          spatial_local_hash_unique_indices.begin() + hash_last,
+          UINT32_MAX);
+
+        const uint32_t hash_mask = hash_last - hash_first - 1;
+        const uint32_t particle_first = spatial_bucket_starts[bucket];
+        const uint32_t particle_last = spatial_bucket_starts[bucket + 1];
+        uint32_t unique_count = 0;
+
+        for (uint32_t i = particle_first; i < particle_last; ++i) {
+          const uint32_t particle_id = spatial_bucket_particle_ids[i];
+          const auto coords = assigned_cells[particle_id].ipos;
+          uint32_t hash_slot = hash_first + (secondary_coord_hash(coords) & hash_mask);
+
+          while (true) {
+            uint32_t& local_unique_idx = spatial_local_hash_unique_indices[hash_slot];
+            if (local_unique_idx == UINT32_MAX) {
+              local_unique_idx = unique_count++;
+              spatial_local_hash_coords[hash_slot] = coords;
+              spatial_provisional_unique_cells[particle_first + local_unique_idx] = {
+                coords,
+                assigned_cells[particle_id].cell_id,
+                1
+              };
+              spatial_particle_unique_indices[particle_id] = local_unique_idx;
+              spatial_particle_indices_in_cell[particle_id] = 0;
+              break;
+            }
+
+            if (spatial_local_hash_coords[hash_slot] == coords) {
+              auto& unique_cell =
+                spatial_provisional_unique_cells[particle_first + local_unique_idx];
+              spatial_particle_unique_indices[particle_id] = local_unique_idx;
+              spatial_particle_indices_in_cell[particle_id] = unique_cell.num_particles++;
+              break;
+            }
+
+            hash_slot = hash_first + ((hash_slot - hash_first + 1) & hash_mask);
+          }
+        }
+        spatial_bucket_unique_counts[bucket] = unique_count;
+      }
+      });
+  }
+
+  uint32_t num_unique_cells = 0;
+  for (int bucket = 0; bucket < num_buckets; ++bucket) {
+    spatial_bucket_unique_offsets[bucket] = num_unique_cells;
+    num_unique_cells += spatial_bucket_unique_counts[bucket];
+  }
+  spatial_bucket_unique_offsets[num_buckets] = num_unique_cells;
+  spatial_unique_cells.resize(num_unique_cells);
+  spatial_unique_cell_ids.resize(num_unique_cells);
+
+  {
+    PROFILE_SCOPED_NAMED("parallelCellCompactUnique");
+    runInParallel(num_buckets, num_buckets, [&](int start, int end, int job_id) {
+      for (int bucket = start; bucket < end; ++bucket) {
+        const uint32_t count = spatial_bucket_unique_counts[bucket];
+        const uint32_t source = spatial_bucket_starts[bucket];
+        const uint32_t destination = spatial_bucket_unique_offsets[bucket];
+        std::copy_n(
+          spatial_provisional_unique_cells.begin() + source,
+          count,
+          spatial_unique_cells.begin() + destination);
+      }
+      });
+  }
+
+  spatial_hash.setUniqueCells(
+    spatial_unique_cells.data(),
+    num_unique_cells,
+    num_particles,
+    spatial_unique_cell_ids.data());
+
+  {
+    PROFILE_SCOPED_NAMED("parallelCellParticleMap");
+    runInParallel(num_particles, num_partitions, [&](int start, int end, int job_id) {
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const uint32_t bucket = assigned_cells[particle_id].cell_id & bucket_mask;
+        const uint32_t unique_idx = spatial_bucket_unique_offsets[bucket] +
+          spatial_particle_unique_indices[particle_id];
+        spatial_hash.cells_per_vertex[particle_id] = {
+          spatial_unique_cell_ids[unique_idx],
+          spatial_particle_indices_in_cell[particle_id]
+        };
+      }
+      });
+  }
+}
+
 void ViscoelasticSim::updateSpatialHash() {
 
   float inv_kernel_radius = 1.0f / mat.kernel_radius;
@@ -574,7 +771,10 @@ void ViscoelasticSim::updateSpatialHash() {
       });
   }
 
-  spatial_hash.setPoints(assigned_cells.data(), num_particles);
+  if (use_parallel_spatial_index)
+    assignCellsParallel();
+  else
+    spatial_hash.setPoints(assigned_cells.data(), num_particles);
 
   {
     PROFILE_SCOPED_NAMED("sortParticles");

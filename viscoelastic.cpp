@@ -509,6 +509,8 @@ struct ViscoelasticModule : public Module {
       ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);
       ImGui::DragInt("Relax Jobs / Thread", &sim.relaxation_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Reduce Jobs / Thread", &sim.relaxation_reduce_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::Checkbox("Parallel Spatial Index", &sim.use_parallel_spatial_index);
+      ImGui::DragInt("Spatial Index Buckets", &sim.spatial_index_buckets, 0.1f, 8, 128);
       ImGui::TreePop();
     }
 

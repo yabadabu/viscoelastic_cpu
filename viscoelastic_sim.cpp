@@ -1193,7 +1193,7 @@ void ViscoelasticSim::assignCellsHierarchical() {
     hierarchy_macros[macro_idx].cell_first = num_unique_cells;
     num_unique_cells += hierarchy_macro_occupied_cell_counts[macro_idx];
   }
-  spatial_unique_cells.resize(num_unique_cells);
+  spatial_hash.prepareCompactCells(num_unique_cells, num_particles);
 
   if (xy_columns) {
     PROFILE_SCOPED_NAMED("hierarchyBuildXYColumns");
@@ -1202,6 +1202,7 @@ void ViscoelasticSim::assignCellsHierarchical() {
         const HierarchyMacro& macro = hierarchy_macros[macro_idx];
         const uint32_t first = hierarchy_macro_particle_offsets[macro_idx];
         const uint32_t last = hierarchy_macro_particle_offsets[macro_idx + 1];
+        uint32_t particle_offset = macro.particle_first;
         uint32_t cell_idx = macro.cell_first;
         if (hierarchy_macro_sparse_fallbacks[macro_idx]) {
           uint32_t i = first;
@@ -1214,20 +1215,20 @@ void ViscoelasticSim::assignCellsHierarchical() {
               ++cell_last;
 
             const uint32_t particle_count = cell_last - i;
-            spatial_unique_cells[cell_idx] = {
+            spatial_hash.setCompactCellMetadata(
+              cell_idx,
               coords,
-              spatial_hash.gridHash(coords),
               particle_count,
-              cell_idx
-            };
-            for (uint32_t particle_offset = 0;
-                 particle_offset < particle_count;
-                 ++particle_offset) {
+              particle_offset);
+            for (uint32_t idx_in_cell = 0;
+                 idx_in_cell < particle_count;
+                 ++idx_in_cell) {
               const uint32_t particle_id =
-                hierarchy_macro_particle_ids[i + particle_offset];
+                hierarchy_macro_particle_ids[i + idx_in_cell];
               spatial_particle_unique_indices[particle_id] = cell_idx;
-              spatial_particle_indices_in_cell[particle_id] = particle_offset;
+              spatial_particle_indices_in_cell[particle_id] = idx_in_cell;
             }
+            particle_offset += particle_count;
             ++cell_idx;
             i = cell_last;
           }
@@ -1257,12 +1258,12 @@ void ViscoelasticSim::assignCellsHierarchical() {
               };
               cell_ids[table_idx] = cell_idx;
               cursors[table_idx] = 0;
-              spatial_unique_cells[cell_idx] = {
+              spatial_hash.setCompactCellMetadata(
+                cell_idx,
                 coords,
-                spatial_hash.gridHash(coords),
                 particle_count,
-                cell_idx
-              };
+                particle_offset);
+              particle_offset += particle_count;
               ++cell_idx;
             }
           }
@@ -1277,6 +1278,7 @@ void ViscoelasticSim::assignCellsHierarchical() {
             spatial_particle_indices_in_cell[particle_id] = cursors[table_idx]++;
           }
         }
+        assert(particle_offset == macro.particle_first + macro.particle_count);
         assert(cell_idx == macro.cell_first +
           hierarchy_macro_occupied_cell_counts[macro_idx]);
       }
@@ -1313,12 +1315,11 @@ void ViscoelasticSim::assignCellsHierarchical() {
             macro.coords.y * macro_side + local_y,
             macro.coords.z * macro_side + local_z
           };
-          spatial_unique_cells[cell_idx] = {
+          spatial_hash.setCompactCellMetadata(
+            cell_idx,
             coords,
-            spatial_hash.gridHash(coords),
             counts[local_id],
-            cell_idx
-          };
+            particle_offset);
           particle_offset += counts[local_id];
           ++cell_idx;
         }
@@ -1338,10 +1339,7 @@ void ViscoelasticSim::assignCellsHierarchical() {
       });
   }
 
-  spatial_hash.setCompactCells(
-    spatial_unique_cells.data(),
-    num_unique_cells,
-    num_particles);
+  spatial_hash.finishCompactCells(num_unique_cells);
 
   {
     PROFILE_SCOPED_NAMED("hierarchyMapParticles");

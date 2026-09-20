@@ -52,6 +52,28 @@ struct CPUSpatialSubdivision {
 		u32 num_vtxs
 	) {
 		PROFILE_SCOPED_NAMED("buildCompactSpatialIndex");
+		prepareCompactCells(num_unique_cells, num_vtxs);
+		{
+			PROFILE_SCOPED_NAMED("compactEmitMetadata");
+			u32 particle_offset = 0;
+			for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
+				const UniqueCell& unique_cell = sorted_unique_cells[unique_idx];
+				setCompactCellMetadata(
+					unique_idx,
+					unique_cell.ipos,
+					unique_cell.num_particles,
+					particle_offset);
+				particle_offset += unique_cell.num_particles;
+			}
+			assert(particle_offset == num_vtxs);
+		}
+		buildCompactLookup(num_unique_cells);
+	}
+
+	// Prepare the shared compact arrays before disjoint workers publish their
+	// cells. setCompactCellMetadata is safe to call concurrently for different
+	// unique_idx values.
+	void prepareCompactCells(u32 num_unique_cells, u32 num_vtxs) {
 		using_compact_lookup = true;
 		num_collisions = 0;
 		reserve(num_vtxs);
@@ -60,42 +82,61 @@ struct CPUSpatialSubdivision {
 		compact_hash_tags.resize(num_cells, 0);
 		compact_hash_heads.resize(num_cells);
 		compact_cell_next.resize(num_unique_cells);
+	}
 
-		u32 particle_offset = 0;
-		for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
-			const UniqueCell& unique_cell = sorted_unique_cells[unique_idx];
-			CellInfo& cell_info = cells_info[unique_idx];
-			cell_info.tag = current_tag;
-			cell_info.num_particles = unique_cell.num_particles;
-			cell_info.range_idx = unique_idx;
-			cell_info.first = particle_offset;
-			cell_info.coords = unique_cell.ipos;
-			cells_ranges[unique_idx] = {
-				unique_idx,
-				{ particle_offset, particle_offset + unique_cell.num_particles }
-			};
-			particle_offset += unique_cell.num_particles;
+	void setCompactCellMetadata(
+		u32 unique_idx,
+		const Int3& coords,
+		u32 num_particles,
+		u32 particle_offset
+	) {
+		CellInfo& cell_info = cells_info[unique_idx];
+		cell_info.tag = current_tag;
+		cell_info.num_particles = num_particles;
+		cell_info.range_idx = unique_idx;
+		cell_info.first = particle_offset;
+		cell_info.coords = coords;
+		cells_ranges[unique_idx] = {
+			unique_idx,
+			{ particle_offset, particle_offset + num_particles }
+		};
+	}
 
-			const u32 hash = unique_cell.initial_cell_id;
-			u32 previous_head = UINT32_MAX;
-			if (compact_hash_tags[hash] == current_tag) {
-				previous_head = compact_hash_heads[hash];
-				// Preserve a useful collision metric for the compact lookup: the
-				// number of candidate coordinates preceding this cell in its chain.
+	void finishCompactCells(u32 num_unique_cells) {
+		PROFILE_SCOPED_NAMED("buildCompactSpatialIndex");
+		buildCompactLookup(num_unique_cells);
+	}
+
+	void buildCompactLookup(u32 num_unique_cells) {
+
+		{
+			PROFILE_SCOPED_NAMED("compactBuildLookup");
+			for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
+				const u32 hash = gridHash(cells_info[unique_idx].coords);
+				u32 previous_head = UINT32_MAX;
+				if (compact_hash_tags[hash] == current_tag)
+					previous_head = compact_hash_heads[hash];
+				else
+					compact_hash_tags[hash] = current_tag;
+				compact_cell_next[unique_idx] = previous_head;
+				compact_hash_heads[hash] = unique_idx;
+			}
+		}
+
+		{
+			PROFILE_SCOPED_NAMED("compactCollisionMetric");
+			// Count the older entries following each cell. This is identical to
+			// counting the existing chain immediately before that cell is inserted.
+			for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
 				u32 candidates_before = 0;
-				for (u32 candidate = previous_head;
+				for (u32 candidate = compact_cell_next[unique_idx];
 					 candidate != UINT32_MAX;
 					 candidate = compact_cell_next[candidate])
 					++candidates_before;
-				num_collisions += candidates_before * unique_cell.num_particles;
+				num_collisions +=
+					candidates_before * cells_info[unique_idx].num_particles;
 			}
-			else {
-				compact_hash_tags[hash] = current_tag;
-			}
-			compact_cell_next[unique_idx] = previous_head;
-			compact_hash_heads[hash] = unique_idx;
 		}
-		assert(particle_offset == num_vtxs);
 	}
 
 	template< typename Fn >

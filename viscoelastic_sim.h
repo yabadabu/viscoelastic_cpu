@@ -148,7 +148,7 @@ struct ViscoelasticSim {
     bool completed_this_update = false;
     bool xy_columns = false;
     int num_particles = 0;
-    MacroStats configurations[3];
+    MacroStats configurations[4];
   } spatial_hierarchy_audit;
 
   struct NeighbourRangeAudit {

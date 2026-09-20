@@ -281,7 +281,7 @@ struct ViscoelasticModule : public Module {
     if (ImGui::SmallButton("Audit macro-cell distribution"))
       sim.spatial_hierarchy_audit.requested = true;
     ImGui::SameLine();
-    ImGui::TextDisabled("one-shot; evaluates sides 2, 4 and 8");
+    ImGui::TextDisabled("one-shot; evaluates sides 1, 2, 4 and 8");
 
     if (sim.spatial_hierarchy_audit.requested) {
       ImGui::TextDisabled("Macro-cell audit pending...");
@@ -600,11 +600,14 @@ struct ViscoelasticModule : public Module {
       ImGui::DragInt("Reduce Jobs / Thread", &sim.relaxation_reduce_jobs_per_thread, 0.05f, 1, 32);
       ImGui::Checkbox("Parallel Spatial Index", &sim.use_parallel_spatial_index);
       ImGui::Checkbox("Hierarchical Spatial Index", &sim.use_hierarchical_spatial_index);
-      int hierarchy_side_idx = sim.spatial_hierarchy_macro_side == 2
+      int hierarchy_side_idx = sim.spatial_hierarchy_macro_side == 1
         ? 0
-        : (sim.spatial_hierarchy_macro_side == 8 ? 2 : 1);
-      if (ImGui::Combo("Hierarchy Macro Side", &hierarchy_side_idx, "2\0" "4\0" "8\0\0"))
-        sim.spatial_hierarchy_macro_side = 1 << (hierarchy_side_idx + 1);
+        : (sim.spatial_hierarchy_macro_side == 2
+          ? 1
+          : (sim.spatial_hierarchy_macro_side == 8 ? 3 : 2));
+      if (ImGui::Combo("Hierarchy Macro Side", &hierarchy_side_idx,
+                      "1\0" "2\0" "4\0" "8\0\0"))
+        sim.spatial_hierarchy_macro_side = 1 << hierarchy_side_idx;
       ImGui::Checkbox("Hierarchy Uses XY Columns",
         &sim.spatial_hierarchy_xy_columns);
       ImGui::Checkbox("Sort Hierarchy Neighbour Ranges",

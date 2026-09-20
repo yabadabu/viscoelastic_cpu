@@ -826,7 +826,9 @@ void ViscoelasticSim::assignCellsHierarchical() {
   PROFILE_SCOPED_NAMED("assignCellsHierarchical");
 
   int macro_side = 4;
-  if (spatial_hierarchy_macro_side <= 2)
+  if (spatial_hierarchy_macro_side <= 1)
+    macro_side = 1;
+  else if (spatial_hierarchy_macro_side <= 2)
     macro_side = 2;
   else if (spatial_hierarchy_macro_side >= 8)
     macro_side = 8;
@@ -1457,9 +1459,9 @@ void ViscoelasticSim::captureSpatialHierarchyAudit() {
   audit.valid = false;
   audit.xy_columns = spatial_hierarchy_xy_columns;
   audit.num_particles = num_particles;
-  constexpr int macro_sides[] = { 2, 4, 8 };
+  constexpr int macro_sides[] = { 1, 2, 4, 8 };
 
-  for (int configuration_idx = 0; configuration_idx < 3; ++configuration_idx) {
+  for (int configuration_idx = 0; configuration_idx < 4; ++configuration_idx) {
     const int side = macro_sides[configuration_idx];
     const int fixed_local_cell_capacity = side * side * side;
     std::unordered_map<MacroCoord, MacroAccumulator, MacroCoordHash> macros;

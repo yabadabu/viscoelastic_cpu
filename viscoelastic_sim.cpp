@@ -822,6 +822,287 @@ void ViscoelasticSim::assignCellsParallel() {
   }
 }
 
+bool ViscoelasticSim::assignCellsBoundedXY() {
+  PROFILE_SCOPED_NAMED("assignCellsBoundedXY");
+
+  if (mat.kernel_radius <= 0.0f ||
+      spatial_xy_bound_world_min >= spatial_xy_bound_world_max)
+    return false;
+
+  const float world_to_grid = world_scale / mat.kernel_radius;
+  const int min_cell =
+    (int)floorf(spatial_xy_bound_world_min * world_to_grid);
+  const int max_cell =
+    (int)floorf(spatial_xy_bound_world_max * world_to_grid);
+  const int64_t width_64 = (int64_t)max_cell - min_cell + 1;
+  if (width_64 <= 0)
+    return false;
+
+  const uint64_t num_columns_64 = (uint64_t)width_64 * width_64;
+  const int num_partitions = std::max(1, std::min(num_threads, num_particles));
+  const uint64_t histogram_slots = num_columns_64 * num_partitions;
+  // Keep accidentally huge interactive bounds from allocating an excessive
+  // private histogram. Such a frame simply uses the selected legacy builder.
+  if (num_columns_64 > 1024ull * 1024ull ||
+      histogram_slots > SIZE_MAX / sizeof(uint32_t))
+    return false;
+
+  const uint32_t width = (uint32_t)width_64;
+  const uint32_t num_columns = (uint32_t)num_columns_64;
+  const bool histogram_layout_changed =
+    bounded_xy_partition_histograms.size() != (size_t)histogram_slots ||
+    bounded_xy_partition_touched_columns.size() != (size_t)num_partitions;
+  if (histogram_layout_changed) {
+    bounded_xy_partition_histograms.assign((size_t)histogram_slots, 0);
+    bounded_xy_partition_touched_columns.clear();
+    bounded_xy_partition_touched_columns.resize(num_partitions);
+    bounded_xy_column_counts.assign(num_columns, 0);
+    bounded_xy_occupied_columns.clear();
+  }
+  else {
+    // Scatter leaves the private histogram entries as end cursors. Only the
+    // columns occupied in the previous frame can be non-zero, so clear those
+    // sparse entries rather than the full partitions * columns table.
+    for (uint32_t column : bounded_xy_occupied_columns) {
+      bounded_xy_column_counts[column] = 0;
+      for (int partition = 0; partition < num_partitions; ++partition) {
+        bounded_xy_partition_histograms[
+          (size_t)partition * num_columns + column] = 0;
+      }
+    }
+    bounded_xy_occupied_columns.clear();
+  }
+  bounded_xy_particle_columns.resize(num_particles);
+  bounded_xy_partition_out_of_bounds.assign(num_partitions, 0);
+
+  // Stage 1: compute integer coordinates and a private exact-XY histogram for
+  // each stable particle partition. No hash cell id is generated.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYHistogram");
+    runInParallel(num_particles, num_partitions,
+      [&](int start, int end, int partition) {
+      uint32_t* histogram = bounded_xy_partition_histograms.data() +
+        (size_t)partition * num_columns;
+      auto& touched_columns =
+        bounded_xy_partition_touched_columns[partition];
+      touched_columns.clear();
+      bool out_of_bounds = false;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const auto coords =
+          spatial_hash.gridCoords(aux_particles_pos.get(particle_id));
+        assigned_cells[particle_id] = { coords, 0 };
+        if (coords.x < min_cell || coords.x > max_cell ||
+            coords.y < min_cell || coords.y > max_cell) {
+          bounded_xy_particle_columns[particle_id] = UINT32_MAX;
+          out_of_bounds = true;
+          continue;
+        }
+
+        const uint32_t column =
+          (uint32_t)(coords.y - min_cell) * width +
+          (uint32_t)(coords.x - min_cell);
+        bounded_xy_particle_columns[particle_id] = column;
+        if (histogram[column]++ == 0)
+          touched_columns.push_back(column);
+      }
+      bounded_xy_partition_out_of_bounds[partition] = out_of_bounds;
+      });
+  }
+
+  if (std::any_of(
+        bounded_xy_partition_out_of_bounds.begin(),
+        bounded_xy_partition_out_of_bounds.end(),
+        [](uint8_t value) { return value != 0; })) {
+    // The histogram contains this failed frame's counts. Force a full clear
+    // before the next bounded attempt rather than carrying sparse state across
+    // the legacy fallback.
+    bounded_xy_partition_histograms.clear();
+    bounded_xy_partition_touched_columns.clear();
+    bounded_xy_occupied_columns.clear();
+    return false;
+  }
+
+  // Stage 2: merge only the locally occupied columns, then prefix those
+  // columns in XY order. In the normal liquid distribution this visits a few
+  // thousand partition/column pairs rather than every possible column once
+  // per partition.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYPrefix");
+    bounded_xy_column_particle_offsets.resize((size_t)num_columns + 1);
+    bounded_xy_occupied_columns.reserve(
+      std::min<uint32_t>(num_columns, (uint32_t)num_particles));
+
+    for (int partition = 0; partition < num_partitions; ++partition) {
+      const uint32_t* histogram = bounded_xy_partition_histograms.data() +
+        (size_t)partition * num_columns;
+      for (uint32_t column :
+           bounded_xy_partition_touched_columns[partition]) {
+        if (bounded_xy_column_counts[column] == 0)
+          bounded_xy_occupied_columns.push_back(column);
+        bounded_xy_column_counts[column] += histogram[column];
+      }
+    }
+    std::sort(
+      bounded_xy_occupied_columns.begin(),
+      bounded_xy_occupied_columns.end());
+
+    uint32_t top = 0;
+    for (uint32_t column : bounded_xy_occupied_columns) {
+      bounded_xy_column_particle_offsets[column] = top;
+      uint32_t column_count = 0;
+      for (int partition = 0; partition < num_partitions; ++partition) {
+        const size_t histogram_idx =
+          (size_t)partition * num_columns + column;
+        const uint32_t local_count =
+          bounded_xy_partition_histograms[histogram_idx];
+        bounded_xy_partition_histograms[histogram_idx] = column_count;
+        column_count += local_count;
+      }
+      assert(column_count == bounded_xy_column_counts[column]);
+      top += column_count;
+      bounded_xy_column_particle_offsets[column + 1] = top;
+    }
+    assert(top == (uint32_t)num_particles);
+  }
+
+  // Stage 3: the same partitions scatter into disjoint slices of every
+  // column, using the cursor computed above.
+  bounded_xy_column_particle_ids.resize(num_particles);
+  {
+    PROFILE_SCOPED_NAMED("boundedXYScatter");
+    runInParallel(num_particles, num_partitions,
+      [&](int start, int end, int partition) {
+      uint32_t* cursors = bounded_xy_partition_histograms.data() +
+        (size_t)partition * num_columns;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const uint32_t column = bounded_xy_particle_columns[particle_id];
+        const uint32_t destination =
+          bounded_xy_column_particle_offsets[column] + cursors[column]++;
+        bounded_xy_column_particle_ids[destination] = particle_id;
+      }
+      });
+  }
+
+  // Stage 4: columns are independent. Sort each by Z and count its occupied
+  // cells. One dispatcher job per occupied column gives dynamic balancing when
+  // the liquid distribution is uneven.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYSortColumns");
+    bounded_xy_column_unique_counts.assign(num_columns, 0);
+    pool->dispatch((int)bounded_xy_occupied_columns.size(), [&](int job_id) {
+      PROFILE_SCOPED_NAMED("sortXYColumn");
+      const uint32_t column = bounded_xy_occupied_columns[job_id];
+      const uint32_t first = bounded_xy_column_particle_offsets[column];
+      const uint32_t last = bounded_xy_column_particle_offsets[column + 1];
+      auto begin = bounded_xy_column_particle_ids.begin() + first;
+      auto end = bounded_xy_column_particle_ids.begin() + last;
+      bool already_sorted = true;
+      uint32_t unique_count = 0;
+      int previous_z = 0;
+      for (auto it = begin; it != end; ++it) {
+        const int z = assigned_cells[*it].ipos.z;
+        if (it != begin && z < previous_z)
+          already_sorted = false;
+        if (it == begin || z != previous_z) {
+          ++unique_count;
+        }
+        previous_z = z;
+      }
+
+      if (!already_sorted) {
+        std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
+          return assigned_cells[particle_a].ipos.z <
+            assigned_cells[particle_b].ipos.z;
+        });
+        unique_count = 0;
+        for (auto it = begin; it != end; ++it) {
+          const int z = assigned_cells[*it].ipos.z;
+          if (it == begin || z != previous_z)
+            ++unique_count;
+          previous_z = z;
+        }
+      }
+      bounded_xy_column_unique_counts[column] = unique_count;
+    });
+  }
+
+  uint32_t num_unique_cells = 0;
+  {
+    PROFILE_SCOPED_NAMED("boundedXYCellPrefix");
+    bounded_xy_column_cell_offsets.resize(num_columns);
+    for (uint32_t column : bounded_xy_occupied_columns) {
+      bounded_xy_column_cell_offsets[column] = num_unique_cells;
+      num_unique_cells += bounded_xy_column_unique_counts[column];
+    }
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("prepareDirectColumns");
+    spatial_hash.prepareDirectColumns(
+      min_cell,
+      min_cell,
+      max_cell,
+      max_cell,
+      num_unique_cells,
+      num_particles);
+  }
+
+  // Emit compact cell metadata and the source-particle mapping. Cells are now
+  // globally ordered by Y, X, Z, matching neighbour traversal order.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYEmitCells");
+    pool->dispatch((int)bounded_xy_occupied_columns.size(), [&](int job_id) {
+      PROFILE_SCOPED_NAMED("emitXYColumn");
+      const uint32_t column = bounded_xy_occupied_columns[job_id];
+      const uint32_t first = bounded_xy_column_particle_offsets[column];
+      const uint32_t last = bounded_xy_column_particle_offsets[column + 1];
+      uint32_t cell_idx = bounded_xy_column_cell_offsets[column];
+      uint32_t particle_offset = first;
+      const int x = min_cell + (int)(column % width);
+      const int y = min_cell + (int)(column / width);
+
+      spatial_hash.setDirectColumn(
+        x, y, cell_idx, bounded_xy_column_unique_counts[column]);
+      uint32_t i = first;
+      while (i < last) {
+        const int z =
+          assigned_cells[bounded_xy_column_particle_ids[i]].ipos.z;
+        uint32_t cell_last = i + 1;
+        while (cell_last < last &&
+               assigned_cells[bounded_xy_column_particle_ids[cell_last]].ipos.z == z)
+          ++cell_last;
+
+        const uint32_t particle_count = cell_last - i;
+        spatial_hash.setCompactCellMetadata(
+          cell_idx,
+          { x, y, z },
+          particle_count,
+          particle_offset);
+        for (uint32_t idx_in_cell = 0;
+             idx_in_cell < particle_count;
+             ++idx_in_cell) {
+          const uint32_t particle_id =
+            bounded_xy_column_particle_ids[i + idx_in_cell];
+          spatial_hash.cells_per_vertex[particle_id] = {
+            cell_idx,
+            idx_in_cell
+          };
+        }
+
+        particle_offset += particle_count;
+        ++cell_idx;
+        i = cell_last;
+      }
+      assert(particle_offset == last);
+      assert(cell_idx == bounded_xy_column_cell_offsets[column] +
+        bounded_xy_column_unique_counts[column]);
+    });
+  }
+
+  spatial_hash.finishCompactCells(num_unique_cells);
+  return true;
+}
+
 void ViscoelasticSim::assignCellsHierarchical() {
   PROFILE_SCOPED_NAMED("assignCellsHierarchical");
 
@@ -1365,8 +1646,13 @@ void ViscoelasticSim::updateSpatialHash() {
   particles_vels.swap(aux_particles_vels);
   particles_prev_pos.swap(aux_particles_prev_pos);
   std::swap(particles_type, aux_particles_type);
-  {
-    // Precompute for each particle it's icoords and cell_id
+
+  const bool used_bounded_xy =
+    use_bounded_xy_spatial_index && assignCellsBoundedXY();
+  if (!used_bounded_xy) {
+    // Legacy builders require both integer coordinates and a hash cell id.
+    // The bounded path computes its coordinates inside the histogram pass and
+    // never executes this hash calculation unless it has to fall back.
     PROFILE_SCOPED_NAMED("assignedCells");
     runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
       for (int i = start; i < end; ++i) {
@@ -1383,12 +1669,14 @@ void ViscoelasticSim::updateSpatialHash() {
     spatial_hierarchy_audit.requested = false;
   }
 
-  if (use_hierarchical_spatial_index)
-    assignCellsHierarchical();
-  else if (use_parallel_spatial_index)
-    assignCellsParallel();
-  else
-    spatial_hash.setPoints(assigned_cells.data(), num_particles);
+  if (!used_bounded_xy) {
+    if (use_hierarchical_spatial_index)
+      assignCellsHierarchical();
+    else if (use_parallel_spatial_index)
+      assignCellsParallel();
+    else
+      spatial_hash.setPoints(assigned_cells.data(), num_particles);
+  }
 
   {
     PROFILE_SCOPED_NAMED("sortParticles");

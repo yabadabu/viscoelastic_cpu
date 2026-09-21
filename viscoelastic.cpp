@@ -598,6 +598,12 @@ struct ViscoelasticModule : public Module {
       ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);
       ImGui::DragInt("Relax Jobs / Thread", &sim.relaxation_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Reduce Jobs / Thread", &sim.relaxation_reduce_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::Checkbox("Bounded XY Column Index",
+        &sim.use_bounded_xy_spatial_index);
+      ImGui::DragFloat("Spatial XY Bound Min",
+        &sim.spatial_xy_bound_world_min, 0.1f, -100.0f, 0.0f);
+      ImGui::DragFloat("Spatial XY Bound Max",
+        &sim.spatial_xy_bound_world_max, 0.1f, 0.0f, 100.0f);
       ImGui::Checkbox("Parallel Spatial Index", &sim.use_parallel_spatial_index);
       ImGui::Checkbox("Hierarchical Spatial Index", &sim.use_hierarchical_spatial_index);
       int hierarchy_side_idx = sim.spatial_hierarchy_macro_side == 1

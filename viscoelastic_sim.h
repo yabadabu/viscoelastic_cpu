@@ -75,6 +75,9 @@ struct ViscoelasticSim {
   int relaxation_reduce_jobs_per_thread = 4;
   bool use_parallel_spatial_index = false;
   bool use_hierarchical_spatial_index = false;
+  bool use_bounded_xy_spatial_index = false;
+  float spatial_xy_bound_world_min = -20.0f;
+  float spatial_xy_bound_world_max = 20.0f;
   int spatial_hierarchy_macro_side = 4;
   bool spatial_hierarchy_xy_columns = false;
   bool sort_hierarchical_neighbour_ranges = false;
@@ -101,6 +104,20 @@ struct ViscoelasticSim {
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_provisional_unique_cells;
   std::vector<CPUSpatialSubdivision::UniqueCell> spatial_unique_cells;
   std::vector<uint32_t> spatial_source_unique_indices;
+
+  // Scratch storage for the bounded exact-XY-column builder. Histogram rows
+  // belong to stable particle partitions (not physical worker identities), so
+  // the scatter pass can reuse each row as a private cursor array.
+  std::vector<uint32_t> bounded_xy_partition_histograms;
+  std::vector<std::vector<uint32_t>> bounded_xy_partition_touched_columns;
+  std::vector<uint32_t> bounded_xy_particle_columns;
+  std::vector<uint32_t> bounded_xy_column_counts;
+  std::vector<uint32_t> bounded_xy_column_particle_offsets;
+  std::vector<uint32_t> bounded_xy_column_particle_ids;
+  std::vector<uint32_t> bounded_xy_occupied_columns;
+  std::vector<uint32_t> bounded_xy_column_unique_counts;
+  std::vector<uint32_t> bounded_xy_column_cell_offsets;
+  std::vector<uint8_t> bounded_xy_partition_out_of_bounds;
 
   struct HierarchyMacro {
     CPUSpatialSubdivision::Int3 coords;
@@ -220,6 +237,7 @@ struct ViscoelasticSim {
   void updateSpatialHash();
   void assignCellsParallel();
   void assignCellsHierarchical();
+  bool assignCellsBoundedXY();
   void resolveCollisions(float dt, int start, int end);
   void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas);
   void updateStep(float dt);

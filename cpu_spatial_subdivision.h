@@ -37,6 +37,7 @@ struct CPUSpatialSubdivision {
 
 	void setPoints(AssignedCell* __restrict assigned_cells, u32 num_vtxs) {
 		using_compact_lookup = false;
+		using_direct_column_lookup = false;
 		assignCells(assigned_cells, num_vtxs);
 		sortCells();
 		findRanges();
@@ -75,6 +76,7 @@ struct CPUSpatialSubdivision {
 	// unique_idx values.
 	void prepareCompactCells(u32 num_unique_cells, u32 num_vtxs) {
 		using_compact_lookup = true;
+		using_direct_column_lookup = false;
 		num_collisions = 0;
 		reserve(num_vtxs);
 		cells_ranges.resize(num_unique_cells);
@@ -82,6 +84,46 @@ struct CPUSpatialSubdivision {
 		compact_hash_tags.resize(num_cells, 0);
 		compact_hash_heads.resize(num_cells);
 		compact_cell_next.resize(num_unique_cells);
+	}
+
+	struct DirectColumn {
+		u32 tag = 0;
+		u32 first_cell = 0;
+		u32 num_cells = 0;
+	};
+
+	// The bounded XY builder emits compact cells ordered by column, then Z.
+	// Store only the cell interval for each XY column; Z remains unbounded and
+	// is resolved with a binary search over that short sorted interval.
+	void prepareDirectColumns(
+		int min_x,
+		int min_y,
+		int max_x,
+		int max_y,
+		u32 num_unique_cells,
+		u32 num_vtxs
+	) {
+		assert(min_x <= max_x && min_y <= max_y);
+		prepareCompactCells(num_unique_cells, num_vtxs);
+		direct_min_x = min_x;
+		direct_min_y = min_y;
+		direct_max_x = max_x;
+		direct_max_y = max_y;
+		direct_width = (u32)((int64_t)max_x - min_x + 1);
+		direct_columns.resize(
+			(size_t)direct_width * ((int64_t)max_y - min_y + 1));
+		using_direct_column_lookup = true;
+	}
+
+	void setDirectColumn(int x, int y, u32 first_cell, u32 cell_count) {
+		assert(using_direct_column_lookup);
+		assert(x >= direct_min_x && x <= direct_max_x);
+		assert(y >= direct_min_y && y <= direct_max_y);
+		assert((uint64_t)first_cell + cell_count <= cells_ranges.size());
+		DirectColumn& column = direct_columns[directColumnIndex(x, y)];
+		column.tag = current_tag;
+		column.first_cell = first_cell;
+		column.num_cells = cell_count;
 	}
 
 	void setCompactCellMetadata(
@@ -104,7 +146,8 @@ struct CPUSpatialSubdivision {
 
 	void finishCompactCells(u32 num_unique_cells) {
 		PROFILE_SCOPED_NAMED("buildCompactSpatialIndex");
-		buildCompactLookup(num_unique_cells);
+		if (!using_direct_column_lookup)
+			buildCompactLookup(num_unique_cells);
 	}
 
 	void buildCompactLookup(u32 num_unique_cells) {
@@ -190,6 +233,58 @@ struct CPUSpatialSubdivision {
 		const CellInfo& cell_info = cells_info[cell_id];
 		const auto& i_grid = cell_info.coords;
 		u32 n = 0;
+
+		if (using_direct_column_lookup) {
+			const int first_y = std::max(i_grid.y - 1, direct_min_y);
+			const int last_y = std::min(i_grid.y + 1, direct_max_y);
+			const int first_x = std::max(i_grid.x - 1, direct_min_x);
+			const int last_x = std::min(i_grid.x + 1, direct_max_x);
+			const int first_z = i_grid.z - 1;
+			const int last_z = i_grid.z + 1;
+
+			for (int y = first_y; y <= last_y; ++y) {
+				for (int x = first_x; x <= last_x; ++x) {
+					const DirectColumn& column =
+						direct_columns[directColumnIndex(x, y)];
+					if (column.tag != current_tag)
+						continue;
+
+					u32 first = column.first_cell;
+					u32 last = first + column.num_cells;
+					// Find the first cell whose Z can be a neighbour.
+					while (first < last) {
+						const u32 middle = first + (last - first) / 2;
+						if (cells_info[middle].coords.z < first_z)
+							first = middle + 1;
+						else
+							last = middle;
+					}
+
+					const u32 column_end =
+						column.first_cell + column.num_cells;
+					for (u32 neighbour_id = first;
+						 neighbour_id < column_end &&
+						 cells_info[neighbour_id].coords.z <= last_z;
+						 ++neighbour_id) {
+						const CellInfo& neighbour = cells_info[neighbour_id];
+						const Range neighbour_range = {
+							neighbour.first,
+							neighbour.first + neighbour.num_particles
+						};
+						if (n > 0 &&
+							near_ranges.ranges[n - 1].last == neighbour_range.first) {
+							near_ranges.ranges[n - 1].last = neighbour_range.last;
+						}
+						else {
+							near_ranges.ranges[n] = neighbour_range;
+							++n;
+						}
+					}
+				}
+			}
+			near_ranges.n = n;
+			return;
+		}
 
 		// gridHash is separable into one XOR component per axis. Compute the
 		// three possible values for each axis once instead of performing three
@@ -328,12 +423,24 @@ struct CPUSpatialSubdivision {
 
 	u32 num_collisions = 0;
 	bool using_compact_lookup = false;
+	bool using_direct_column_lookup = false;
 	std::vector<u32> compact_hash_tags;
 	std::vector<u32> compact_hash_heads;
 	std::vector<u32> compact_cell_next;
+	std::vector<DirectColumn> direct_columns;
 
 private:
 	u32 current_tag = 0;
+	int direct_min_x = 0;
+	int direct_min_y = 0;
+	int direct_max_x = -1;
+	int direct_max_y = -1;
+	u32 direct_width = 0;
+
+	size_t directColumnIndex(int x, int y) const {
+		return (size_t)(y - direct_min_y) * direct_width +
+			(u32)(x - direct_min_x);
+	}
 
 	void assignCells(AssignedCell* __restrict assigned_cells, u32 num_vtxs) {
 		PROFILE_SCOPED_NAMED("assignCells");
@@ -394,7 +501,7 @@ private:
 	void reserve(u32 in_num_points) {
 		num_points = in_num_points;
 		cells_per_vertex.resize(num_points);
-		cells_info.resize(num_cells);
+		cells_info.resize(std::max<u32>(num_cells, in_num_points));
 	}
 
 	static uint32_t morton3D(uint32_t x, uint32_t y, uint32_t z) {

@@ -852,28 +852,31 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
   const bool histogram_layout_changed =
     bounded_xy_partition_histograms.size() != (size_t)histogram_slots ||
     bounded_xy_partition_touched_columns.size() != (size_t)num_partitions;
-  if (histogram_layout_changed) {
-    bounded_xy_partition_histograms.assign((size_t)histogram_slots, 0);
-    bounded_xy_partition_touched_columns.clear();
-    bounded_xy_partition_touched_columns.resize(num_partitions);
-    bounded_xy_column_counts.assign(num_columns, 0);
-    bounded_xy_occupied_columns.clear();
-  }
-  else {
-    // Scatter leaves the private histogram entries as end cursors. Only the
-    // columns occupied in the previous frame can be non-zero, so clear those
-    // sparse entries rather than the full partitions * columns table.
-    for (uint32_t column : bounded_xy_occupied_columns) {
-      bounded_xy_column_counts[column] = 0;
-      for (int partition = 0; partition < num_partitions; ++partition) {
-        bounded_xy_partition_histograms[
-          (size_t)partition * num_columns + column] = 0;
-      }
+  {
+    PROFILE_SCOPED_NAMED("assignCellsBoundedXY");
+    if (histogram_layout_changed) {
+      bounded_xy_partition_histograms.assign((size_t)histogram_slots, 0);
+      bounded_xy_partition_touched_columns.clear();
+      bounded_xy_partition_touched_columns.resize(num_partitions);
+      bounded_xy_column_counts.assign(num_columns, 0);
+      bounded_xy_occupied_columns.clear();
     }
-    bounded_xy_occupied_columns.clear();
+    else {
+      // Scatter leaves the private histogram entries as end cursors. Only the
+      // columns occupied in the previous frame can be non-zero, so clear those
+      // sparse entries rather than the full partitions * columns table.
+      for (uint32_t column : bounded_xy_occupied_columns) {
+        bounded_xy_column_counts[column] = 0;
+        for (int partition = 0; partition < num_partitions; ++partition) {
+          bounded_xy_partition_histograms[
+            (size_t)partition * num_columns + column] = 0;
+        }
+      }
+      bounded_xy_occupied_columns.clear();
+    }
+    bounded_xy_particle_columns.resize(num_particles);
+    bounded_xy_partition_out_of_bounds.assign(num_partitions, 0);
   }
-  bounded_xy_particle_columns.resize(num_particles);
-  bounded_xy_partition_out_of_bounds.assign(num_partitions, 0);
 
   // Stage 1: compute integer coordinates and a private exact-XY histogram for
   // each stable particle partition. No hash cell id is generated.
@@ -988,7 +991,9 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
   // the liquid distribution is uneven.
   {
     PROFILE_SCOPED_NAMED("boundedXYSortColumns");
-    bounded_xy_column_unique_counts.assign(num_columns, 0);
+    // Every occupied entry is overwritten by its column job and empty entries
+    // are never read. Keep the storage but do not clear all possible columns.
+    bounded_xy_column_unique_counts.resize(num_columns);
     pool->dispatch((int)bounded_xy_occupied_columns.size(), [&](int job_id) {
       PROFILE_SCOPED_NAMED("sortXYColumn");
       const uint32_t column = bounded_xy_occupied_columns[job_id];
@@ -1047,10 +1052,13 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
       num_particles);
   }
 
-  // Emit compact cell metadata and the source-particle mapping. Cells are now
+  // Emit compact cell metadata and reorder the particle streams while the
+  // final source-to-destination order is already being traversed. Cells are
   // globally ordered by Y, X, Z, matching neighbour traversal order.
   {
     PROFILE_SCOPED_NAMED("boundedXYEmitCells");
+    const int source_debug_particle = debug_particle;
+    std::atomic<int> reordered_debug_particle{ -1 };
     pool->dispatch((int)bounded_xy_occupied_columns.size(), [&](int job_id) {
       PROFILE_SCOPED_NAMED("emitXYColumn");
       const uint32_t column = bounded_xy_occupied_columns[job_id];
@@ -1083,10 +1091,17 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
              ++idx_in_cell) {
           const uint32_t particle_id =
             bounded_xy_column_particle_ids[i + idx_in_cell];
-          spatial_hash.cells_per_vertex[particle_id] = {
-            cell_idx,
-            idx_in_cell
-          };
+          const uint32_t destination = particle_offset + idx_in_cell;
+          particles_pos.set(destination, aux_particles_pos.get(particle_id));
+          particles_vels.set(destination, aux_particles_vels.get(particle_id));
+          particles_prev_pos.set(
+            destination,
+            aux_particles_prev_pos.get(particle_id));
+          particles_type[destination] = aux_particles_type[particle_id];
+          if ((int)particle_id == source_debug_particle)
+            reordered_debug_particle.store(
+              (int)destination,
+              std::memory_order_relaxed);
         }
 
         particle_offset += particle_count;
@@ -1097,6 +1112,12 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
       assert(cell_idx == bounded_xy_column_cell_offsets[column] +
         bounded_xy_column_unique_counts[column]);
     });
+    if (source_debug_particle >= 0) {
+      const int destination =
+        reordered_debug_particle.load(std::memory_order_relaxed);
+      if (destination >= 0)
+        debug_particle = destination;
+    }
   }
 
   spatial_hash.finishCompactCells(num_unique_cells);
@@ -1647,6 +1668,12 @@ void ViscoelasticSim::updateSpatialHash() {
   particles_prev_pos.swap(aux_particles_prev_pos);
   std::swap(particles_type, aux_particles_type);
 
+  {
+    PROFILE_SCOPED_NAMED("wakeUpThreads!");
+    runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
+      });
+  }
+
   const bool used_bounded_xy =
     use_bounded_xy_spatial_index && assignCellsBoundedXY();
   if (!used_bounded_xy) {
@@ -1678,7 +1705,7 @@ void ViscoelasticSim::updateSpatialHash() {
       spatial_hash.setPoints(assigned_cells.data(), num_particles);
   }
 
-  {
+  if (!used_bounded_xy) {
     PROFILE_SCOPED_NAMED("sortParticles");
     runInParallel(num_particles, num_threads * sort_jobs_per_thread, [&](int start, int end, int job_id) {
       bool debug_particle_changed = false;

@@ -246,6 +246,7 @@ struct ViscoelasticSim {
   void doubleDensityRelaxation(float dt);
   void cacheRanges();
   void cacheNearRanges(int cell_idx, bool capture_audit);
+  void cacheDirectColumnRanges(uint32_t column, bool capture_audit);
   void finishNeighbourRangeAudit();
   void cacheRangesAndPredict(float dt);
   void updatePredictedPositions(float dt);

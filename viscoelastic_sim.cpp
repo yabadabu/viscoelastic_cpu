@@ -1668,11 +1668,11 @@ void ViscoelasticSim::updateSpatialHash() {
   particles_prev_pos.swap(aux_particles_prev_pos);
   std::swap(particles_type, aux_particles_type);
 
-  {
-    PROFILE_SCOPED_NAMED("wakeUpThreads!");
-    runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
-      });
-  }
+  //{
+  //  PROFILE_SCOPED_NAMED("wakeUpThreads!");
+  //  runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
+  //    });
+  //}
 
   const bool used_bounded_xy =
     use_bounded_xy_spatial_index && assignCellsBoundedXY();
@@ -1890,6 +1890,81 @@ void ViscoelasticSim::cacheNearRanges(int cell_idx, bool capture_audit) {
     sortAndCoalesceNearRanges(near_ranges);
 }
 
+void ViscoelasticSim::cacheDirectColumnRanges(
+    uint32_t column,
+    bool capture_audit) {
+  PROFILE_SCOPED_NAMED("cacheZColumn");
+
+  const uint32_t first_target = bounded_xy_column_cell_offsets[column];
+  const uint32_t target_count = bounded_xy_column_unique_counts[column];
+  const uint32_t target_end = first_target + target_count;
+  assert(target_end <= spatial_hash.cells_ranges.size());
+  if (first_target == target_end)
+    return;
+
+  const auto& target_coords = spatial_hash.cells_info[first_target].coords;
+  for (uint32_t target_id = first_target;
+       target_id < target_end;
+       ++target_id) {
+    assert(spatial_hash.cells_info[target_id].coords.x == target_coords.x);
+    assert(spatial_hash.cells_info[target_id].coords.y == target_coords.y);
+    relaxation_near_ranges[target_id].n = 0;
+  }
+
+  // Both the target and neighbour column intervals are sorted by Z. For each
+  // neighbouring XY column, advance one lower-bound cursor monotonically as
+  // target Z increases instead of restarting with a binary search per cell.
+  for (int y = target_coords.y - 1; y <= target_coords.y + 1; ++y) {
+    for (int x = target_coords.x - 1; x <= target_coords.x + 1; ++x) {
+      const auto* neighbour_column = spatial_hash.findDirectColumn(x, y);
+      if (neighbour_column == nullptr)
+        continue;
+
+      uint32_t neighbour_cursor = neighbour_column->first_cell;
+      const uint32_t neighbour_end =
+        neighbour_cursor + neighbour_column->num_cells;
+      for (uint32_t target_id = first_target;
+           target_id < target_end;
+           ++target_id) {
+        const int target_z = spatial_hash.cells_info[target_id].coords.z;
+        while (neighbour_cursor < neighbour_end &&
+               spatial_hash.cells_info[neighbour_cursor].coords.z < target_z - 1)
+          ++neighbour_cursor;
+
+        auto& near_ranges = relaxation_near_ranges[target_id];
+        uint32_t neighbour_id = neighbour_cursor;
+        while (neighbour_id < neighbour_end &&
+               spatial_hash.cells_info[neighbour_id].coords.z <= target_z + 1) {
+          const auto& neighbour = spatial_hash.cells_info[neighbour_id];
+          const CPUSpatialSubdivision::Range neighbour_range = {
+            neighbour.first,
+            neighbour.first + neighbour.num_particles
+          };
+          if (near_ranges.n > 0 &&
+              near_ranges.ranges[near_ranges.n - 1].last ==
+                neighbour_range.first) {
+            near_ranges.ranges[near_ranges.n - 1].last = neighbour_range.last;
+          }
+          else {
+            assert(near_ranges.n < CPUSpatialSubdivision::NearRanges::max_ranges);
+            near_ranges.ranges[near_ranges.n++] = neighbour_range;
+          }
+          ++neighbour_id;
+        }
+      }
+    }
+  }
+
+  if (capture_audit) {
+    for (uint32_t target_id = first_target;
+         target_id < target_end;
+         ++target_id) {
+      neighbour_range_counts_before_sort[target_id] =
+        (uint8_t)relaxation_near_ranges[target_id].n;
+    }
+  }
+}
+
 void ViscoelasticSim::finishNeighbourRangeAudit() {
   NeighbourRangeAudit& audit = neighbour_range_audit;
   if (!audit.requested)
@@ -1932,17 +2007,38 @@ void ViscoelasticSim::finishNeighbourRangeAudit() {
 
 void ViscoelasticSim::cacheRanges() {
   PROFILE_SCOPED_NAMED("cacheRanges");
-  // The spatial hash is immutable here and each job writes a distinct range,
-  // so the 27-cell neighbour lookups can be prepared independently.
   const int num_cells = (int)spatial_hash.cells_ranges.size();
+  const bool cache_direct_columns =
+    spatial_hash.using_direct_column_lookup;
+  const int num_cache_units = cache_direct_columns
+    ? (int)bounded_xy_occupied_columns.size()
+    : num_cells;
   relaxation_near_ranges.resize(num_cells);
   const bool capture_audit = neighbour_range_audit.requested;
   if (capture_audit)
     neighbour_range_counts_before_sort.assign(num_cells, 0);
-  runInParallel(num_cells, num_threads * cache_jobs_per_thread, [&](int start, int end, int job_id) {
-    for (int cell_idx = start; cell_idx < end; ++cell_idx)
-      cacheNearRanges(cell_idx, capture_audit);
-    });
+  if (cache_direct_columns) {
+    runInParallel(
+      num_cache_units,
+      num_threads * cache_jobs_per_thread,
+      [&](int start, int end, int job_id) {
+      for (int column_idx = start; column_idx < end; ++column_idx) {
+        cacheDirectColumnRanges(
+          bounded_xy_occupied_columns[column_idx],
+          capture_audit);
+      }
+      });
+  }
+  else {
+    // Legacy layouts cache each cell independently through their lookup.
+    runInParallel(
+      num_cells,
+      num_threads * cache_jobs_per_thread,
+      [&](int start, int end, int job_id) {
+      for (int cell_idx = start; cell_idx < end; ++cell_idx)
+        cacheNearRanges(cell_idx, capture_audit);
+      });
+  }
   if (capture_audit)
     finishNeighbourRangeAudit();
 }
@@ -1985,21 +2081,28 @@ void ViscoelasticSim::cacheRangesAndPredict(float dt) {
   // preparation mutates independent array slices, so several preparation jobs
   // can share this heterogeneous phase with the cache jobs.
   const int num_cells = (int)spatial_hash.cells_ranges.size();
+  const bool cache_direct_columns =
+    spatial_hash.using_direct_column_lookup;
+  const int num_cache_units = cache_direct_columns
+    ? (int)bounded_xy_occupied_columns.size()
+    : num_cells;
   relaxation_near_ranges.resize(num_cells);
   const bool capture_audit = neighbour_range_audit.requested;
   if (capture_audit)
     neighbour_range_counts_before_sort.assign(num_cells, 0);
 
-  if (num_cells == 0) {
+  if (num_cache_units == 0) {
     updatePredictedPositions(dt);
     if (capture_audit)
       finishNeighbourRangeAudit();
     return;
   }
 
-  const int num_cache_jobs = std::min(num_cells, num_threads * cache_jobs_per_thread);
+  const int num_cache_jobs =
+    std::min(num_cache_units, num_threads * cache_jobs_per_thread);
   const int num_prediction_jobs = std::min(num_particles, std::max(1, std::min(prediction_jobs, num_threads)));
-  const int chunk_size = (num_cells + num_cache_jobs - 1) / num_cache_jobs;
+  const int chunk_size =
+    (num_cache_units + num_cache_jobs - 1) / num_cache_jobs;
   const int prediction_chunk_size = (num_particles + num_prediction_jobs - 1) / num_prediction_jobs;
   std::atomic<int> cache_jobs_remaining{ num_cache_jobs };
   std::atomic<int> prediction_jobs_remaining{ num_prediction_jobs };
@@ -2023,9 +2126,18 @@ void ViscoelasticSim::cacheRangesAndPredict(float dt) {
     PROFILE_SCOPED_NAMED("cacheRanges");
     const int cache_job_id = job_id - num_prediction_jobs;
     const int start = cache_job_id * chunk_size;
-    const int end = std::min(start + chunk_size, num_cells);
-    for (int cell_idx = start; cell_idx < end; ++cell_idx)
-      cacheNearRanges(cell_idx, capture_audit);
+    const int end = std::min(start + chunk_size, num_cache_units);
+    if (cache_direct_columns) {
+      for (int column_idx = start; column_idx < end; ++column_idx) {
+        cacheDirectColumnRanges(
+          bounded_xy_occupied_columns[column_idx],
+          capture_audit);
+      }
+    }
+    else {
+      for (int cell_idx = start; cell_idx < end; ++cell_idx)
+        cacheNearRanges(cell_idx, capture_audit);
+    }
 
     if (cache_jobs_remaining.fetch_sub(1, std::memory_order_acq_rel) == 1)
       saveTime(eSection::CacheRanges, cache_timer);

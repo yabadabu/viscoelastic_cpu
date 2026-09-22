@@ -126,6 +126,18 @@ struct CPUSpatialSubdivision {
 		column.num_cells = cell_count;
 	}
 
+	// Return the current frame's exact-Z-sorted cell interval for an XY
+	// column. The bounded cache builder uses this to merge-walk neighbouring
+	// columns instead of performing a binary search for every target cell.
+	const DirectColumn* findDirectColumn(int x, int y) const {
+		if (!using_direct_column_lookup ||
+			x < direct_min_x || x > direct_max_x ||
+			y < direct_min_y || y > direct_max_y)
+			return nullptr;
+		const DirectColumn& column = direct_columns[directColumnIndex(x, y)];
+		return column.tag == current_tag ? &column : nullptr;
+	}
+
 	void setCompactCellMetadata(
 		u32 unique_idx,
 		const Int3& coords,

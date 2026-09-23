@@ -1,6 +1,6 @@
 # Introduction
 
-This document describes the approach I have taken to perform a particle simulation in 3D using only the CPU's. The process allows to update 32K particles with collisions using 12 CPU's in just 4ms per update. Today it's more common to perform these type of simulations using the GPU, but I wanted to explore first the use of the CPU's.
+This document describes the approach I have taken to perform a particle simulation in 3D using only the CPU's. The process allows to update 32K particles with collisions using 12 CPU's in less than 3ms per update. Today it's more common to perform these type of simulations using the GPU, but I wanted to explore first the use of the CPU's.
 
 [![Watch the video](results/sim00.png)](https://www.youtube.com/watch?v=duHcCjZ-u30)
 The sample code focus on the simulation and uses a small C++ framework with DirectX 11 to draw a small sprite on each particle position. 
@@ -8,7 +8,6 @@ The sample code focus on the simulation and uses a small C++ framework with Dire
 The simulation is based on the repository from https://github.com/kotsoft/particle_based_viscoelastic_fluid, and uses code from the following repo (all included):
 - ImGui (https://github.com/ocornut/imgui),
 - ImGuizmo (https://github.com/CedricGuillemet/ImGuizmo)
-- ThreadPool (https://github.com/progschj/ThreadPool)
 
 ## Build
 
@@ -23,6 +22,29 @@ From a shell in the root of the repository, type:
     $ make RELEASE=1 -j
     $ ./demo_OSX
 
+## Recent Improvements
+
+- Replaced the original scheduler with a persistent phase dispatcher as described in the Thread Pool. Workers stay active throughout the simulation update and sleep during rendering. That reduced a lot the time to start small parallel jobs.
+
+- Made job counts configurable independently of the number of worker threads, improving load balancing on heterogeneous CPUs. In my laptop some jobs of the same type clerly takes close to double time compared to the same jobs in another thread.
+
+- Overlapped particle preparation—forces, velocity integration and predicted positions—with neighbor-range caching.
+
+- Added the bounded parallel XY-column spatial index. Private histograms, a sparse occupied-column prefix, and independent Z sorting avoid the serial hash construction in normal scenes.
+
+- Fused cell emission with particle-stream reordering, removing a separate particle-sorting pass.
+
+- Changed neighbor-range caching to merge-walk Z-sorted columns instead of performing repeated binary searches.
+
+- Retained the sparse serial hash grid as a safety fallback when particles leave the configured XY bounds.
+
+- Fused relaxation-delta reduction and clearing into one pass.    
+
+Example measured improvements:
+
+- On a modern 20-thread system with 64K particles, total update time decreased from approximately 5.2 ms on the original branch to 2.6 ms.
+- On a 24-core Threadripper 3960X, spatial-index construction decreased from approximately 3.0 ms to 0.6 ms, while total update time decreased from 6.1 ms to 3.9 ms using 24-threads
+
 ## Particles
 
 The simulation requires to store for each particle:
@@ -36,7 +58,7 @@ We will store each information in a separate linear buffer, using a SoA (Structu
 
 ## Spatial Index
 
-The objective is to be able to quickly find for each particle, all the particles nearby in a radius R, and have all the particles in each cell in a continuous region of memory.
+The objective is to be able to quickly find, for each particle, all the nearby particles in a radius R, and have all the particles in each cell in a continuous region of memory. We also want to store the cells in the order we are going to process during the simulation.
 
 For this we are going to split the 3D space in a regular grid of cells of fixed size. Each cell has 26 neighbours in 3D space.
 We will identify each cell uniquely by its own 3D integer coordinates:
@@ -46,6 +68,10 @@ We will identify each cell uniquely by its own 3D integer coordinates:
 ```
 
 ![Particle Cells](results/particle_cells.png)
+
+The simulation has two complementary spatial-index paths. The bounded XY-column index is the normal, multithreaded fast path. The sparse hash grid is retained as an automatic fallback for frames whose particle distribution does not fit inside the configured XY bounds.
+
+### Option A: Sparse hash fallback — unbounded, serial construction
 
 Because we don't know the 3D limits of our simulation, we will store the information for a limited number of cells, say 64K cells for example. 
 We are going to generate a hash number for each cell_coords and use it to assign each coords to a planar array, using the lower bits of the hash.
@@ -120,6 +146,19 @@ This stage can be run in parallel, as each particle already has a unique index a
 
 At this point, we have a list of cells containing particles. Each cell has a base and count where we can access all the particles associated to the cell in a linear buffer.
 For 32K particles, this takes about 1.4ms
+
+### Option B: Bounded XY-column index — parallel fast path
+
+The default implementation uses a bounded direct lookup for XY columns while leaving Z unbounded:
+
+- Particle ranges build private XY-column histograms in parallel and record only the columns they touch.
+- A sparse prefix over occupied columns assigns disjoint output ranges without scanning every possible column for every worker.
+- Particles are scattered into their XY columns, then each column is independently sorted by Z.
+- Cell metadata and reordered particle streams are emitted together.
+- Neighbour ranges are cached by merge-walking the Z-sorted cells of adjacent XY columns, avoiding a binary search for every cell.
+- If any particle leaves the configured XY bounds, that frame uses the original serial spatial hash.
+
+The bounded directory is dense in XY, even though only occupied columns are processed afterward. Its memory consumption is proportional to XY area × particle partitions. Automatically expanding it to include a very distant particle could therefore allocate a large amount of mostly empty memory. When any particle leaves the configured bounds, the complete frame falls back to the sparse hash grid. Z remains unbounded in both cases.
 
 ## Simulation
 
@@ -264,31 +303,27 @@ Finally, with 64K particles, increasing the number of threads brings some nice i
 ![Particle Cells in 2D](results/sim01.png)
 ![Particle Cells in 2D](results/sim02.png)
 
+## Thread Pool
+
+The simulation uses a persistent phase dispatcher rather than creating threads for every operation.
+
+At the beginning of an update, all workers are awakened once. They remain active between the short simulation phases, avoiding repeated operating-system wake-up delays. When the update finishes, workers park on a condition variable so they do not compete with rendering.
+
+For each parallel phase, the main thread publishes a callback and a number of jobs. Workers dynamically claim jobs using an atomic counter. Creating more jobs than workers improves load balancing when cores have different performance or when some particle or cell ranges contain more work than others.
+
+The submitting thread currently waits for the workers but does not execute jobs itself. The first phase of the simulation still show some wake-up latency because the workers were parked by the operating system.
+
 ## Conclusions
 
 - More threads does not mean better performance
 - Multithreading pays off when enough independent work is pushed
 
-## Improvements
+## Future Improvements
 
-- I have been testing an approach to generate the spatial index using multiple threads, but only pays off when more particles are being simulated
 - The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)
 - We can always start the simulation of the next frame while doing the rendering and waiting for the GPU.
 - Testing with different data alignments
 - Testing with AVX512
 - Test other CPU's
 - Move it to GPU
-
-## Multithread generation of the Spatial Index (incomplete)
-
-Generating the list of unique cell_id's and associate each particle with a unique position in a linear buffer, so that subsequent queries run in parallel is the purpose of this section. The proposed solution is the following:
-
-- Each thread iterates over a range of particles.
-- For each particle, compute the cell_id as normal
-- Compute the group_id = cell_id & 7
-- Each thread creates 8 groups, and stores each particle_id associated to each group
-		groups[ group_id ].push_back( particle_id )
-- At this points, each thread has organized the particles in 8 buckets
-- Using a std::atomic<int> each thread allocates the number of particles for each group
-
 

@@ -73,39 +73,14 @@ struct ViscoelasticSim {
   int prediction_jobs = 8;
   int relaxation_jobs_per_thread = 12;
   int relaxation_reduce_jobs_per_thread = 4;
-  bool use_parallel_spatial_index = false;
-  bool use_hierarchical_spatial_index = false;
-  bool use_bounded_xy_spatial_index = false;
   float spatial_xy_bound_world_min = -20.0f;
   float spatial_xy_bound_world_max = 20.0f;
-  int spatial_hierarchy_macro_side = 4;
-  bool spatial_hierarchy_xy_columns = false;
-  bool sort_hierarchical_neighbour_ranges = false;
-  int spatial_index_buckets = 64;
   bool overlap_cache_and_prediction = true;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
   std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;
 
-  // Scratch storage for the optional histogram/prefix-scan/scatter spatial
-  // index builder. It is retained between frames to avoid allocator traffic.
-  std::vector<uint32_t> spatial_bucket_counts;
-  std::vector<uint32_t> spatial_bucket_offsets;
-  std::vector<uint32_t> spatial_bucket_starts;
-  std::vector<uint32_t> spatial_bucket_particle_ids;
-  std::vector<uint32_t> spatial_bucket_unique_counts;
-  std::vector<uint32_t> spatial_bucket_unique_offsets;
-  std::vector<uint32_t> spatial_bucket_hash_offsets;
-  std::vector<uint32_t> spatial_partition_unique_offsets;
-  std::vector<CPUSpatialSubdivision::Int3> spatial_local_hash_coords;
-  std::vector<uint32_t> spatial_local_hash_unique_indices;
-  std::vector<uint32_t> spatial_particle_unique_indices;
-  std::vector<uint32_t> spatial_particle_indices_in_cell;
-  std::vector<CPUSpatialSubdivision::UniqueCell> spatial_provisional_unique_cells;
-  std::vector<CPUSpatialSubdivision::UniqueCell> spatial_unique_cells;
-  std::vector<uint32_t> spatial_source_unique_indices;
-
-  // Scratch storage for the bounded exact-XY-column builder. Histogram rows
+  // Scratch storage for the bounded exact-XY-column index. Histogram rows
   // belong to stable particle partitions (not physical worker identities), so
   // the scatter pass can reuse each row as a private cursor array.
   std::vector<uint32_t> bounded_xy_partition_histograms;
@@ -118,73 +93,6 @@ struct ViscoelasticSim {
   std::vector<uint32_t> bounded_xy_column_unique_counts;
   std::vector<uint32_t> bounded_xy_column_cell_offsets;
   std::vector<uint8_t> bounded_xy_partition_out_of_bounds;
-
-  struct HierarchyMacro {
-    CPUSpatialSubdivision::Int3 coords;
-    uint32_t particle_count = 0;
-    uint32_t source_idx = 0;
-    uint32_t particle_first = 0;
-    uint32_t cell_first = 0;
-  };
-  std::vector<CPUSpatialSubdivision::Int3> hierarchy_particle_macro_coords;
-  std::vector<uint16_t> hierarchy_particle_local_ids;
-  std::vector<HierarchyMacro> hierarchy_provisional_macros;
-  std::vector<HierarchyMacro> hierarchy_macros;
-  std::vector<uint32_t> hierarchy_source_macro_indices;
-  std::vector<uint32_t> hierarchy_macro_particle_offsets;
-  std::vector<uint32_t> hierarchy_macro_particle_cursors;
-  std::vector<uint32_t> hierarchy_macro_particle_ids;
-  std::vector<uint32_t> hierarchy_local_cell_counts;
-  std::vector<uint32_t> hierarchy_local_cell_ids;
-  std::vector<uint32_t> hierarchy_local_cell_cursors;
-  std::vector<uint32_t> hierarchy_macro_occupied_cell_counts;
-  std::vector<int> hierarchy_macro_min_z;
-  std::vector<uint32_t> hierarchy_macro_z_spans;
-  std::vector<uint32_t> hierarchy_macro_cell_table_offsets;
-  std::vector<uint8_t> hierarchy_macro_sparse_fallbacks;
-
-  struct SpatialHierarchyAudit {
-    struct MacroStats {
-      int side = 0;
-      int occupied_macros = 0;
-      int occupied_small_cells = 0;
-      float macros_per_worker = 0.0f;
-      float average_particles = 0.0f;
-      int p95_particles = 0;
-      int max_particles = 0;
-      float largest_particle_percent = 0.0f;
-      float average_occupied_cells = 0.0f;
-      int p95_occupied_cells = 0;
-      int max_occupied_cells = 0;
-      float average_local_table_slots = 0.0f;
-      float average_local_table_occupancy_percent = 0.0f;
-    };
-
-    bool requested = false;
-    bool valid = false;
-    bool completed_this_update = false;
-    bool xy_columns = false;
-    int num_particles = 0;
-    MacroStats configurations[4];
-  } spatial_hierarchy_audit;
-
-  struct NeighbourRangeAudit {
-    bool requested = false;
-    bool valid = false;
-    bool completed_this_update = false;
-    bool hierarchical = false;
-    bool xy_columns = false;
-    bool sorted_by_particle_offset = false;
-    int macro_side = 0;
-    int num_cells = 0;
-    uint64_t ranges_before = 0;
-    uint64_t ranges_after = 0;
-    int max_ranges_before = 0;
-    int max_ranges_after = 0;
-    float average_ranges_before = 0.0f;
-    float average_ranges_after = 0.0f;
-  } neighbour_range_audit;
-  std::vector<uint8_t> neighbour_range_counts_before_sort;
 
   struct RelaxationAudit {
     bool requested = false;
@@ -235,8 +143,6 @@ struct ViscoelasticSim {
   void getParticleIDsNear(std::vector<int>& out_ids, VEC3 ref_point, float rad) const;
 
   void updateSpatialHash();
-  void assignCellsParallel();
-  void assignCellsHierarchical();
   bool assignCellsBoundedXY();
   void resolveCollisions(float dt, int start, int end);
   void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas);
@@ -245,13 +151,11 @@ struct ViscoelasticSim {
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);
   void doubleDensityRelaxation(float dt);
   void cacheRanges();
-  void cacheNearRanges(int cell_idx, bool capture_audit);
-  void cacheDirectColumnRanges(uint32_t column, bool capture_audit);
-  void finishNeighbourRangeAudit();
+  void cacheNearRanges(int cell_idx);
+  void cacheDirectColumnRanges(uint32_t column);
   void cacheRangesAndPredict(float dt);
   void updatePredictedPositions(float dt);
   void updatePredictedPositionsRange(float dt, int start, int end);
-  void captureSpatialHierarchyAudit();
   void captureRelaxationAudit();
 
   template< typename Fn >

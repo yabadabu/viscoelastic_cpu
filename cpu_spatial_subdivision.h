@@ -24,66 +24,15 @@ struct CPUSpatialSubdivision {
 		u32  cell_id;
 	};
 
-	struct UniqueCell {
-		Int3 ipos;
-		u32  initial_cell_id;
-		u32  num_particles;
-		u32  source_idx;
-	};
-
 	void setGridScale(float new_grid_scale) {
 		grid_scale = new_grid_scale;
 	}
 
 	void setPoints(AssignedCell* __restrict assigned_cells, u32 num_vtxs) {
-		using_compact_lookup = false;
 		using_direct_column_lookup = false;
 		assignCells(assigned_cells, num_vtxs);
 		sortCells();
 		findRanges();
-	}
-
-	// Compact representation used by the parallel builder. Cells are already
-	// spatially sorted, so ranges can be emitted directly. Generation-tagged
-	// hash chains avoid clearing or prefix-scanning the full hash table while
-	// still resolving collisions by comparing the exact grid coordinate.
-	void setCompactCells(
-		const UniqueCell* __restrict sorted_unique_cells,
-		u32 num_unique_cells,
-		u32 num_vtxs
-	) {
-		PROFILE_SCOPED_NAMED("buildCompactSpatialIndex");
-		prepareCompactCells(num_unique_cells, num_vtxs);
-		{
-			PROFILE_SCOPED_NAMED("compactEmitMetadata");
-			u32 particle_offset = 0;
-			for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
-				const UniqueCell& unique_cell = sorted_unique_cells[unique_idx];
-				setCompactCellMetadata(
-					unique_idx,
-					unique_cell.ipos,
-					unique_cell.num_particles,
-					particle_offset);
-				particle_offset += unique_cell.num_particles;
-			}
-			assert(particle_offset == num_vtxs);
-		}
-		buildCompactLookup(num_unique_cells);
-	}
-
-	// Prepare the shared compact arrays before disjoint workers publish their
-	// cells. setCompactCellMetadata is safe to call concurrently for different
-	// unique_idx values.
-	void prepareCompactCells(u32 num_unique_cells, u32 num_vtxs) {
-		using_compact_lookup = true;
-		using_direct_column_lookup = false;
-		num_collisions = 0;
-		reserve(num_vtxs);
-		cells_ranges.resize(num_unique_cells);
-		current_tag++;
-		compact_hash_tags.resize(num_cells, 0);
-		compact_hash_heads.resize(num_cells);
-		compact_cell_next.resize(num_unique_cells);
 	}
 
 	struct DirectColumn {
@@ -92,7 +41,7 @@ struct CPUSpatialSubdivision {
 		u32 num_cells = 0;
 	};
 
-	// The bounded XY builder emits compact cells ordered by column, then Z.
+	// The bounded XY builder emits cells ordered by column, then Z.
 	// Store only the cell interval for each XY column; Z remains unbounded and
 	// is resolved with a binary search over that short sorted interval.
 	void prepareDirectColumns(
@@ -104,7 +53,11 @@ struct CPUSpatialSubdivision {
 		u32 num_vtxs
 	) {
 		assert(min_x <= max_x && min_y <= max_y);
-		prepareCompactCells(num_unique_cells, num_vtxs);
+		using_direct_column_lookup = false;
+		num_collisions = 0;
+		reserve(num_vtxs);
+		cells_ranges.resize(num_unique_cells);
+		current_tag++;
 		direct_min_x = min_x;
 		direct_min_y = min_y;
 		direct_max_x = max_x;
@@ -138,7 +91,7 @@ struct CPUSpatialSubdivision {
 		return column.tag == current_tag ? &column : nullptr;
 	}
 
-	void setCompactCellMetadata(
+	void setDirectCellMetadata(
 		u32 unique_idx,
 		const Int3& coords,
 		u32 num_particles,
@@ -154,44 +107,6 @@ struct CPUSpatialSubdivision {
 			unique_idx,
 			{ particle_offset, particle_offset + num_particles }
 		};
-	}
-
-	void finishCompactCells(u32 num_unique_cells) {
-		PROFILE_SCOPED_NAMED("buildCompactSpatialIndex");
-		if (!using_direct_column_lookup)
-			buildCompactLookup(num_unique_cells);
-	}
-
-	void buildCompactLookup(u32 num_unique_cells) {
-
-		{
-			PROFILE_SCOPED_NAMED("compactBuildLookup");
-			for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
-				const u32 hash = gridHash(cells_info[unique_idx].coords);
-				u32 previous_head = UINT32_MAX;
-				if (compact_hash_tags[hash] == current_tag)
-					previous_head = compact_hash_heads[hash];
-				else
-					compact_hash_tags[hash] = current_tag;
-				compact_cell_next[unique_idx] = previous_head;
-				compact_hash_heads[hash] = unique_idx;
-			}
-		}
-
-		{
-			PROFILE_SCOPED_NAMED("compactCollisionMetric");
-			// Count the older entries following each cell. This is identical to
-			// counting the existing chain immediately before that cell is inserted.
-			for (u32 unique_idx = 0; unique_idx < num_unique_cells; ++unique_idx) {
-				u32 candidates_before = 0;
-				for (u32 candidate = compact_cell_next[unique_idx];
-					 candidate != UINT32_MAX;
-					 candidate = compact_cell_next[candidate])
-					++candidates_before;
-				num_collisions +=
-					candidates_before * cells_info[unique_idx].num_particles;
-			}
-		}
 	}
 
 	template< typename Fn >
@@ -326,35 +241,16 @@ struct CPUSpatialSubdivision {
 					// Get the neighbour cell_id from the precomputed axis hashes.
 					u32 jcell_id = (hash_y[iy + 1] ^ hash_z[iz + 1] ^ hash_x[ix + 1]) & hash_mask;
 
-					if (using_compact_lookup) {
-						if (compact_hash_tags[jcell_id] == current_tag) {
-							for (u32 candidate = compact_hash_heads[jcell_id];
-								 candidate != UINT32_MAX;
-								 candidate = compact_cell_next[candidate]) {
-								const CellInfo& candidate_info = cells_info[candidate];
-								if (candidate_info.coords == j_grid) {
-									cell_j = &candidate_info;
-									break;
-								}
-							}
-						}
-						if (cell_j == nullptr)
-							continue;
+					while (true) {
+						cell_j = &cells_info[jcell_id];
+						// If the cell is not used, fine, otherwise the coord must match.
+						if ((cell_j->tag != current_tag) || (cell_j->coords == j_grid))
+							break;
+						jcell_id = (jcell_id + 1) & hash_mask;
 					}
-					else {
-						while (true) {
-							cell_j = &cells_info[jcell_id];
-							// If the cell is not used, fine, otherwise the coord must match
-							if ((cell_j->tag != current_tag) || (cell_j->coords == j_grid))
-								break;
-							// or it means we need to find the next cell (open address hash)
-							jcell_id = (jcell_id + 1) & hash_mask;
-						}
 
-						// Confirm again the cell contains data in this frame
-						if (cell_j->tag != current_tag)
-							continue;
-					}
+					if (cell_j->tag != current_tag)
+						continue;
 
 					// Keep the range
 					// Avoid a second dependent lookup through cells_ranges: findRanges
@@ -434,11 +330,7 @@ struct CPUSpatialSubdivision {
 	}
 
 	u32 num_collisions = 0;
-	bool using_compact_lookup = false;
 	bool using_direct_column_lookup = false;
-	std::vector<u32> compact_hash_tags;
-	std::vector<u32> compact_hash_heads;
-	std::vector<u32> compact_cell_next;
 	std::vector<DirectColumn> direct_columns;
 
 private:

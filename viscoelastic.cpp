@@ -608,6 +608,8 @@ struct ViscoelasticModule : public Module {
       sim.setNumThreads(num_threads);
     if (ImGui::TreeNode("Job Scheduler...")) {
       ImGui::Checkbox("Overlap Cache + Predict", &sim.overlap_cache_and_prediction);
+      ImGui::Checkbox("SIMD Mask Compaction (A/B)",
+        &sim.simd_mask_compaction);
       ImGui::DragInt("Sort Jobs / Thread", &sim.sort_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Cache Jobs / Thread", &sim.cache_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);

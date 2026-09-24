@@ -88,6 +88,24 @@ inline float hsum256_ps(__m256 v) {
   return _mm_cvtss_f32(sum3);
 }
 
+struct alignas(32) SIMDCompressPermutationTable {
+  alignas(32) int lanes[256][8];
+
+  SIMDCompressPermutationTable() {
+    for (int mask = 0; mask < 256; ++mask) {
+      int output_lane = 0;
+      for (int input_lane = 0; input_lane < 8; ++input_lane) {
+        if ((mask & (1 << input_lane)) != 0)
+          lanes[mask][output_lane++] = input_lane;
+      }
+      while (output_lane < 8)
+        lanes[mask][output_lane++] = 0;
+    }
+  }
+};
+
+static const SIMDCompressPermutationTable simd_compress_permutations;
+
 inline void apply_displacements_simd(
   float pressure,
   float near_pressure,
@@ -102,6 +120,7 @@ inline void apply_displacements_simd(
 ) {
   const int step = 8;
   int i = 0;
+  //PROFILE_SCOPED_NAMED("displace");
 
   __m256 p = _mm256_set1_ps(pressure);
   __m256 np = _mm256_set1_ps(near_pressure);
@@ -333,6 +352,7 @@ inline void collect_neighbors_block(
   float* nears_dirs_z,
   int& num_nears,
   int max_nears,
+  bool use_mask_compaction,
   int i,            // current particle i
   int j_start,      // start of neighbor block
   int lane_count
@@ -402,6 +422,64 @@ inline void collect_neighbors_block(
   // Closeness
   __m256 q = _mm256_mul_ps(r, _mm256_set1_ps(kernel_radius_inv));
   __m256 closeness = _mm256_sub_ps(one, q);
+
+  if (use_mask_compaction) {
+    const int available = max_nears - num_nears;
+    int accepted_bits = mask_bits;
+    int accepted_count = __popcnt((unsigned int)accepted_bits);
+
+    // Preserve the original lowest-lane-first behavior at the neighbour cap.
+    if (accepted_count > available) {
+      int remaining_bits = accepted_bits;
+      accepted_bits = 0;
+      for (int accepted = 0; accepted < available; ++accepted) {
+        const int lowest_bit = remaining_bits & -remaining_bits;
+        accepted_bits |= lowest_bit;
+        remaining_bits &= remaining_bits - 1;
+      }
+      accepted_count = available;
+    }
+
+    __m256 accepted_mask = mask;
+    if (accepted_bits != mask_bits || lane_count != 8) {
+      const __m256i lane_bits =
+        _mm256_setr_epi32(1, 2, 4, 8, 16, 32, 64, 128);
+      const __m256i selected_bits = _mm256_set1_epi32(accepted_bits);
+      accepted_mask = _mm256_castsi256_ps(_mm256_cmpeq_epi32(
+        _mm256_and_si256(selected_bits, lane_bits),
+        lane_bits));
+    }
+
+    const __m256 accepted_closeness =
+      _mm256_and_ps(closeness, accepted_mask);
+    const __m256 closeness_sq =
+      _mm256_mul_ps(accepted_closeness, accepted_closeness);
+    *density_acc += hsum256_ps(closeness_sq);
+    *near_density_acc += hsum256_ps(
+      _mm256_mul_ps(closeness_sq, accepted_closeness));
+
+    const __m256i permutation = _mm256_load_si256(
+      reinterpret_cast<const __m256i*>(
+        simd_compress_permutations.lanes[accepted_bits]));
+    const __m256 compact_closeness =
+      _mm256_permutevar8x32_ps(closeness, permutation);
+    const __m256 compact_dx = _mm256_permutevar8x32_ps(dx, permutation);
+    const __m256 compact_dy = _mm256_permutevar8x32_ps(dy, permutation);
+    const __m256 compact_dz = _mm256_permutevar8x32_ps(dz, permutation);
+    const __m256i compact_ids =
+      _mm256_permutevar8x32_epi32(indices, permutation);
+
+    // The caller provides seven padding entries, allowing full vector stores
+    // even when fewer than eight neighbours remain before the cap.
+    _mm256_storeu_ps(&nears_closeness[num_nears], compact_closeness);
+    _mm256_storeu_ps(&nears_dirs_x[num_nears], compact_dx);
+    _mm256_storeu_ps(&nears_dirs_y[num_nears], compact_dy);
+    _mm256_storeu_ps(&nears_dirs_z[num_nears], compact_dz);
+    _mm256_storeu_si256(
+      reinterpret_cast<__m256i*>(&nears_ids[num_nears]), compact_ids);
+    num_nears += accepted_count;
+    return;
+  }
 
   alignas(32) float c_values[8];
   alignas(32) float dx_values[8];
@@ -493,12 +571,13 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
   float near_stiffness = mat.near_stiffness * dt * dt;
 
   constexpr static int max_nears = 64;
-  int nears_ids[max_nears];
-  float nears_closeness[max_nears];
+  constexpr static int padded_nears = max_nears + 7;
+  int nears_ids[padded_nears];
+  float nears_closeness[padded_nears];
 
-  alignas(32) float nears_dirs_x[max_nears];
-  alignas(32) float nears_dirs_y[max_nears];
-  alignas(32) float nears_dirs_z[max_nears];
+  alignas(32) float nears_dirs_x[padded_nears];
+  alignas(32) float nears_dirs_y[padded_nears];
+  alignas(32) float nears_dirs_z[padded_nears];
 
   //PROFILE_SCOPED_NAMED("CR");
   for (uint32_t i = range.range.first; i < range.range.last; ++i) {
@@ -526,6 +605,7 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
           &density, &near_density,
           nears_ids, nears_closeness, nears_dirs_x, nears_dirs_y, nears_dirs_z,
           num_nears, max_nears,
+          simd_mask_compaction,
           i, j, lane_count
         );
       }

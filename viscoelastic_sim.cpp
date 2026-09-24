@@ -506,7 +506,8 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
     float near_density = 0.0f;
     int num_nears = 0;
 
-    // Iterate over all 27 non-empty surrounding cells
+    // Iterate over at most nine merged XY-column particle ranges. Each range
+    // contains the occupied neighbour cells from target Z - 1 through Z + 1.
     using u32 = uint32_t;
     for (u32 r = 0; r < near_ranges.n && num_nears < max_nears; ++r) {
 
@@ -938,36 +939,56 @@ void ViscoelasticSim::cacheDirectColumnRanges(
       if (neighbour_column == nullptr)
         continue;
 
-      uint32_t neighbour_cursor = neighbour_column->first_cell;
+      uint32_t first_neighbour = neighbour_column->first_cell;
+      uint32_t after_neighbour = first_neighbour;
       const uint32_t neighbour_end =
-        neighbour_cursor + neighbour_column->num_cells;
+        first_neighbour + neighbour_column->num_cells;
       for (uint32_t target_id = first_target;
            target_id < target_end;
            ++target_id) {
         const int target_z = spatial_hash.cells_info[target_id].coords.z;
-        while (neighbour_cursor < neighbour_end &&
-               spatial_hash.cells_info[neighbour_cursor].coords.z < target_z - 1)
-          ++neighbour_cursor;
+        while (first_neighbour < neighbour_end &&
+               spatial_hash.cells_info[first_neighbour].coords.z < target_z - 1)
+          ++first_neighbour;
+
+        after_neighbour = std::max(after_neighbour, first_neighbour);
+        while (after_neighbour < neighbour_end &&
+               spatial_hash.cells_info[after_neighbour].coords.z <= target_z + 1)
+          ++after_neighbour;
+
+        if (first_neighbour == after_neighbour)
+          continue;
+
+#ifndef NDEBUG
+        // All occupied cells in one direct column are emitted consecutively.
+        // Keep that invariant explicit because the combined range relies on it.
+        for (uint32_t neighbour_id = first_neighbour + 1;
+             neighbour_id < after_neighbour;
+             ++neighbour_id) {
+          const auto& previous = spatial_hash.cells_info[neighbour_id - 1];
+          const auto& current = spatial_hash.cells_info[neighbour_id];
+          assert(previous.first + previous.num_particles == current.first);
+        }
+#endif
+
+        const auto& first_cell =
+          spatial_hash.cells_info[first_neighbour];
+        const auto& last_cell =
+          spatial_hash.cells_info[after_neighbour - 1];
+        const CPUSpatialSubdivision::Range column_range = {
+          first_cell.first,
+          last_cell.first + last_cell.num_particles
+        };
 
         auto& near_ranges = relaxation_near_ranges[target_id];
-        uint32_t neighbour_id = neighbour_cursor;
-        while (neighbour_id < neighbour_end &&
-               spatial_hash.cells_info[neighbour_id].coords.z <= target_z + 1) {
-          const auto& neighbour = spatial_hash.cells_info[neighbour_id];
-          const CPUSpatialSubdivision::Range neighbour_range = {
-            neighbour.first,
-            neighbour.first + neighbour.num_particles
-          };
-          if (near_ranges.n > 0 &&
-              near_ranges.ranges[near_ranges.n - 1].last ==
-                neighbour_range.first) {
-            near_ranges.ranges[near_ranges.n - 1].last = neighbour_range.last;
-          }
-          else {
-            assert(near_ranges.n < CPUSpatialSubdivision::NearRanges::max_ranges);
-            near_ranges.ranges[near_ranges.n++] = neighbour_range;
-          }
-          ++neighbour_id;
+        if (near_ranges.n > 0 &&
+            near_ranges.ranges[near_ranges.n - 1].last ==
+              column_range.first) {
+          near_ranges.ranges[near_ranges.n - 1].last = column_range.last;
+        }
+        else {
+          assert(near_ranges.n < CPUSpatialSubdivision::NearRanges::max_ranges);
+          near_ranges.ranges[near_ranges.n++] = column_range;
         }
       }
     }

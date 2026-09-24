@@ -150,7 +150,9 @@ struct CPUSpatialSubdivision {
 	std::vector< CellRange > cells_ranges;
 
 	struct NearRanges {
-		constexpr static int max_ranges = 3 * 3 * 3;
+		// Cells are ordered by Y, X, Z, so the three relevant Z cells in
+		// each neighbouring XY column form one contiguous particle range.
+		constexpr static int max_ranges = 3 * 3;
 		u32   n = 0;
 		Range ranges[max_ranges];
 	};
@@ -203,6 +205,7 @@ struct CPUSpatialSubdivision {
 							near_ranges.ranges[n - 1].last = neighbour_range.last;
 						}
 						else {
+							assert(n < NearRanges::max_ranges);
 							near_ranges.ranges[n] = neighbour_range;
 							++n;
 						}
@@ -263,6 +266,7 @@ struct CPUSpatialSubdivision {
 						near_ranges.ranges[n - 1].last = neighbour_range.last;
 					}
 					else {
+						assert(n < NearRanges::max_ranges);
 						near_ranges.ranges[n] = neighbour_range;
 						n += 1;
 					}

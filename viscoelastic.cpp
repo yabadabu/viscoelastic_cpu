@@ -271,6 +271,79 @@ struct ViscoelasticModule : public Module {
       (unsigned long long)audit.neighbour_simd_blocks_active,
       (unsigned long long)audit.neighbour_simd_blocks_checked,
       skippedPercent(audit.neighbour_simd_blocks_active, audit.neighbour_simd_blocks_checked));
+    ImGui::Text("Empty after one axis: X %.1f%%, Y %.1f%%, Z %.1f%%",
+      percent(audit.neighbour_simd_blocks_empty_x, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_y, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_z, audit.neighbour_simd_blocks_checked));
+    ImGui::Text("Empty after two axes: XY %.1f%%, XZ %.1f%%, YZ %.1f%%",
+      percent(audit.neighbour_simd_blocks_empty_xy, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_xz, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_yz, audit.neighbour_simd_blocks_checked));
+
+    struct StagedLoadOrder {
+      const char* name;
+      uint64_t empty_first;
+      uint64_t empty_pair;
+    };
+    const StagedLoadOrder staged_orders[] = {
+      { "X -> Y -> Z", audit.neighbour_simd_blocks_empty_x, audit.neighbour_simd_blocks_empty_xy },
+      { "X -> Z -> Y", audit.neighbour_simd_blocks_empty_x, audit.neighbour_simd_blocks_empty_xz },
+      { "Y -> X -> Z", audit.neighbour_simd_blocks_empty_y, audit.neighbour_simd_blocks_empty_xy },
+      { "Y -> Z -> X", audit.neighbour_simd_blocks_empty_y, audit.neighbour_simd_blocks_empty_yz },
+      { "Z -> X -> Y", audit.neighbour_simd_blocks_empty_z, audit.neighbour_simd_blocks_empty_xz },
+      { "Z -> Y -> X", audit.neighbour_simd_blocks_empty_z, audit.neighbour_simd_blocks_empty_yz }
+    };
+    const StagedLoadOrder* best_order = &staged_orders[0];
+    for (const StagedLoadOrder& order : staged_orders) {
+      if (order.empty_first + order.empty_pair >
+          best_order->empty_first + best_order->empty_pair)
+        best_order = &order;
+    }
+    const uint64_t total_coordinate_stream_loads =
+      audit.neighbour_simd_blocks_checked * 3;
+    const uint64_t avoidable_coordinate_stream_loads =
+      best_order->empty_first + best_order->empty_pair;
+    ImGui::Text("Best staged order: %s; estimated %.1f%% coordinate stream loads avoided",
+      best_order->name,
+      percent(avoidable_coordinate_stream_loads, total_coordinate_stream_loads));
+
+    const char* regular_cell_class_names[] = {
+      "Current cell", "Face cells", "Edge cells", "Corner cells"
+    };
+    const char* half_size_cell_class_names[] = {
+      "Current cell", "One-axis offsets", "Two-axis offsets",
+      "Three-axis offsets"
+    };
+    const bool regular_cells =
+      audit.neighbour_cell_radius_xy == 1 &&
+      audit.neighbour_cell_radius_z == 1;
+    const char** cell_class_names = regular_cells
+      ? regular_cell_class_names
+      : half_size_cell_class_names;
+    uint64_t total_within_radius = 0;
+    for (uint64_t count : audit.neighbour_within_radius_by_cell_class)
+      total_within_radius += count;
+    ImGui::Text("Neighbour work by cell relationship:");
+    for (int cell_class = 0; cell_class < 4; ++cell_class) {
+      const uint64_t candidates =
+        audit.neighbour_candidates_by_cell_class[cell_class];
+      const uint64_t within_radius =
+        audit.neighbour_within_radius_by_cell_class[cell_class];
+      ImGui::Text("  %s: %.1f%% of candidates; %.1f%% accepted; %.1f%% of within-radius interactions",
+        cell_class_names[cell_class],
+        percent(candidates, audit.neighbour_candidates_checked),
+        percent(within_radius, candidates),
+        percent(within_radius, total_within_radius));
+    }
+    if (regular_cells) {
+      ImGui::Text("19-cell estimate: avoid %.1f%% of candidates, omit %.1f%% of within-radius interactions",
+        percent(audit.neighbour_candidates_by_cell_class[3], audit.neighbour_candidates_checked),
+        percent(audit.neighbour_within_radius_by_cell_class[3], total_within_radius));
+    }
+    else {
+      ImGui::TextDisabled(
+        "Subdivided cells use an exact expanded candidate stencil");
+    }
     ImGui::Text("64-neighbour cap: %llu particles; %llu valid discarded in final blocks; %llu candidates skipped",
       (unsigned long long)audit.particles_at_neighbour_cap,
       (unsigned long long)audit.neighbour_candidates_discarded_by_cap,
@@ -356,7 +429,8 @@ struct ViscoelasticModule : public Module {
     
     const float inv_world_scale = 1.0f / sim.world_scale;
     VEC3 p0 = sim.spatial_hash.getCellCoords(coords) * inv_world_scale;
-    VEC3 p1 = p0 + VEC3::ones * sim.mat.kernel_radius * inv_world_scale;
+    VEC3 p1 = p0 +
+      sim.spatial_hash.getCellSize() * inv_world_scale;
     TAABB aabb;
     aabb.setMinMax(p0, p1);
     aabb.half *= 0.99f;
@@ -498,6 +572,11 @@ struct ViscoelasticModule : public Module {
 
     ImGui::Text("%d Particles / %d Cells", sim.num_particles, (int)sim.spatial_hash.cells_ranges.size());
     ImGui::Checkbox("Using parallel", &sim.using_parallel);
+    const char* spatial_cell_modes[] = {
+      "R x R x R", "R x R x R/2"
+    };
+    ImGui::Combo("Spatial Cell Size", &sim.spatial_cell_mode,
+      spatial_cell_modes, ViscoelasticSim::NumSpatialCellModes);
     int max_threads = std::thread::hardware_concurrency();
     int num_threads = sim.num_threads;
     if (ImGui::DragInt("Num Threads", &num_threads, 0.1f, 1, max_threads))
@@ -560,7 +639,8 @@ struct ViscoelasticModule : public Module {
       if (show_cell_ids) {
         for (auto& cell : sim.spatial_hash.cells_ranges) {
           const auto& cell_info = sim.spatial_hash.cells_info[cell.cell_id];
-          VEC3 p = sim.spatial_hash.getCellCoords(cell_info.coords) + VEC3::ones * sim.mat.kernel_radius * 0.5f;
+          VEC3 p = sim.spatial_hash.getCellCoords(cell_info.coords) +
+            sim.spatial_hash.getCellSize() * 0.5f;
           dbg_texts.add(p * (1.0f / sim.world_scale), 0xffff00ff, "%08x", cell.cell_id);
         }
       }

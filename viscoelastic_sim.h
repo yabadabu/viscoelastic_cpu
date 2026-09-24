@@ -7,6 +7,12 @@
 
 struct ViscoelasticSim {
 
+  enum SpatialCellMode {
+    SpatialCellsKernelRadius = 0,
+    SpatialCellsHalfZ,
+    NumSpatialCellModes
+  };
+
   enum eSection {
     SpatialHash,
     CacheRanges,
@@ -76,6 +82,7 @@ struct ViscoelasticSim {
   float spatial_xy_bound_world_min = -20.0f;
   float spatial_xy_bound_world_max = 20.0f;
   bool overlap_cache_and_prediction = true;
+  int spatial_cell_mode = SpatialCellsKernelRadius;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
   std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;
@@ -100,6 +107,8 @@ struct ViscoelasticSim {
     bool completed_this_update = false;
     int num_workers = 0;
     int num_particles = 0;
+    int neighbour_cell_radius_xy = 1;
+    int neighbour_cell_radius_z = 1;
     int range_size = 64;
     uint64_t total_delta_slots = 0;
     uint64_t nonzero_delta_slots = 0;
@@ -123,6 +132,16 @@ struct ViscoelasticSim {
     uint64_t neighbour_candidates_skipped_by_cap = 0;
     uint64_t neighbour_simd_blocks_checked = 0;
     uint64_t neighbour_simd_blocks_active = 0;
+    uint64_t neighbour_simd_blocks_empty_x = 0;
+    uint64_t neighbour_simd_blocks_empty_y = 0;
+    uint64_t neighbour_simd_blocks_empty_z = 0;
+    uint64_t neighbour_simd_blocks_empty_xy = 0;
+    uint64_t neighbour_simd_blocks_empty_xz = 0;
+    uint64_t neighbour_simd_blocks_empty_yz = 0;
+    // Indexed by the number of axes on which neighbour-cell coordinates
+    // differ. With R-sized cells these are current, face, edge and corner.
+    uint64_t neighbour_candidates_by_cell_class[4] = {};
+    uint64_t neighbour_within_radius_by_cell_class[4] = {};
     uint64_t particles_at_neighbour_cap = 0;
     std::vector<float> workers_per_range;
     std::vector<float> worker_range_coverage_percent;

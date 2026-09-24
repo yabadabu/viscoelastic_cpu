@@ -558,7 +558,8 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
       spatial_xy_bound_world_min >= spatial_xy_bound_world_max)
     return false;
 
-  const float world_to_grid = world_scale / mat.kernel_radius;
+  const float world_to_grid =
+    world_scale * spatial_hash.getGridScaleXY();
   const int min_cell =
     (int)floorf(spatial_xy_bound_world_min * world_to_grid);
   const int max_cell =
@@ -854,8 +855,16 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
 
 void ViscoelasticSim::updateSpatialHash() {
 
-  float inv_kernel_radius = 1.0f / mat.kernel_radius;
-  spatial_hash.setGridScale(inv_kernel_radius);
+  assert(spatial_cell_mode >= 0 &&
+    spatial_cell_mode < NumSpatialCellModes);
+  const int cells_per_kernel_radius_xy = 1;
+  const int cells_per_kernel_radius_z =
+    spatial_cell_mode == SpatialCellsKernelRadius ? 1 : 2;
+  spatial_hash.setGridScale(
+    (float)cells_per_kernel_radius_xy / mat.kernel_radius,
+    (float)cells_per_kernel_radius_z / mat.kernel_radius,
+    cells_per_kernel_radius_xy,
+    cells_per_kernel_radius_z);
 
   // We are going to reorder the particles, by moving the
   // from the old order to the new order
@@ -933,8 +942,14 @@ void ViscoelasticSim::cacheDirectColumnRanges(
   // Both the target and neighbour column intervals are sorted by Z. For each
   // neighbouring XY column, advance one lower-bound cursor monotonically as
   // target Z increases instead of restarting with a binary search per cell.
-  for (int y = target_coords.y - 1; y <= target_coords.y + 1; ++y) {
-    for (int x = target_coords.x - 1; x <= target_coords.x + 1; ++x) {
+  const int xy_radius = spatial_hash.getNeighbourCellRadiusXY();
+  const int z_radius = spatial_hash.getNeighbourCellRadiusZ();
+  for (int y = target_coords.y - xy_radius;
+       y <= target_coords.y + xy_radius;
+       ++y) {
+    for (int x = target_coords.x - xy_radius;
+         x <= target_coords.x + xy_radius;
+         ++x) {
       const auto* neighbour_column = spatial_hash.findDirectColumn(x, y);
       if (neighbour_column == nullptr)
         continue;
@@ -948,12 +963,14 @@ void ViscoelasticSim::cacheDirectColumnRanges(
            ++target_id) {
         const int target_z = spatial_hash.cells_info[target_id].coords.z;
         while (first_neighbour < neighbour_end &&
-               spatial_hash.cells_info[first_neighbour].coords.z < target_z - 1)
+               spatial_hash.cells_info[first_neighbour].coords.z <
+                 target_z - z_radius)
           ++first_neighbour;
 
         after_neighbour = std::max(after_neighbour, first_neighbour);
         while (after_neighbour < neighbour_end &&
-               spatial_hash.cells_info[after_neighbour].coords.z <= target_z + 1)
+               spatial_hash.cells_info[after_neighbour].coords.z <=
+                 target_z + z_radius)
           ++after_neighbour;
 
         if (first_neighbour == after_neighbour)
@@ -1126,6 +1143,10 @@ void ViscoelasticSim::captureRelaxationAudit() {
   audit.valid = false;
   audit.num_workers = (int)relaxation_worker_deltas.size();
   audit.num_particles = num_particles;
+  audit.neighbour_cell_radius_xy =
+    spatial_hash.getNeighbourCellRadiusXY();
+  audit.neighbour_cell_radius_z =
+    spatial_hash.getNeighbourCellRadiusZ();
   audit.total_delta_slots = (uint64_t)audit.num_workers * (uint64_t)num_particles;
   audit.nonzero_delta_slots = 0;
   audit.total_simd_blocks = 0;
@@ -1148,6 +1169,16 @@ void ViscoelasticSim::captureRelaxationAudit() {
   audit.neighbour_candidates_skipped_by_cap = 0;
   audit.neighbour_simd_blocks_checked = 0;
   audit.neighbour_simd_blocks_active = 0;
+  audit.neighbour_simd_blocks_empty_x = 0;
+  audit.neighbour_simd_blocks_empty_y = 0;
+  audit.neighbour_simd_blocks_empty_z = 0;
+  audit.neighbour_simd_blocks_empty_xy = 0;
+  audit.neighbour_simd_blocks_empty_xz = 0;
+  audit.neighbour_simd_blocks_empty_yz = 0;
+  for (int cell_class = 0; cell_class < 4; ++cell_class) {
+    audit.neighbour_candidates_by_cell_class[cell_class] = 0;
+    audit.neighbour_within_radius_by_cell_class[cell_class] = 0;
+  }
   audit.particles_at_neighbour_cap = 0;
 
   constexpr int simd_width = 8;
@@ -1245,8 +1276,20 @@ void ViscoelasticSim::captureRelaxationAudit() {
   // math, and runs only for the explicitly requested audit frame.
   constexpr int max_nears = 64;
   const float radius_sq = mat.kernel_radius * mat.kernel_radius;
+  std::vector<CPUSpatialSubdivision::Int3> particle_cell_coords(num_particles);
+  for (const auto& cell_range : spatial_hash.cells_ranges) {
+    const auto& cell_info = spatial_hash.cells_info[cell_range.cell_id];
+    for (uint32_t particle_idx = cell_range.range.first;
+         particle_idx < cell_range.range.last;
+         ++particle_idx) {
+      particle_cell_coords[particle_idx] = cell_info.coords;
+    }
+  }
+
   for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx) {
     const auto& cell_range = spatial_hash.cells_ranges[cell_idx];
+    const auto& target_cell_coords =
+      spatial_hash.cells_info[cell_range.cell_id].coords;
     const auto& near_ranges = relaxation_near_ranges[cell_idx];
 
     uint64_t available_per_particle = 0;
@@ -1270,19 +1313,58 @@ void ViscoelasticSim::captureRelaxationAudit() {
           const uint32_t lane_count = std::min(8u, last - j_start);
           int valid_in_block = 0;
           int candidates_in_block = 0;
+          bool active_x = false;
+          bool active_y = false;
+          bool active_z = false;
+          bool active_xy = false;
+          bool active_xz = false;
+          bool active_yz = false;
           for (uint32_t lane = 0; lane < lane_count; ++lane) {
             const uint32_t j = j_start + lane;
             if (j == i)
               continue;
             ++candidates_in_block;
+            const auto& neighbour_cell_coords = particle_cell_coords[j];
+            // With R-sized cells this is current/face/edge/corner. Counting
+            // differing axes also keeps the audit meaningful for R/2 cells,
+            // whose coordinate offsets can be two cells apart.
+            const int cell_class =
+              (neighbour_cell_coords.x != target_cell_coords.x ? 1 : 0) +
+              (neighbour_cell_coords.y != target_cell_coords.y ? 1 : 0) +
+              (neighbour_cell_coords.z != target_cell_coords.z ? 1 : 0);
+            assert(cell_class >= 0 && cell_class <= 3);
+            ++audit.neighbour_candidates_by_cell_class[cell_class];
             const float dx = particles_frozen_pos.x[j] - pi_x;
             const float dy = particles_frozen_pos.y[j] - pi_y;
             const float dz = particles_frozen_pos.z[j] - pi_z;
-            const float distance_sq = dx * dx + dy * dy + dz * dz;
-            if (distance_sq < radius_sq && distance_sq > 1e-6f)
+            const float dx_sq = dx * dx;
+            const float dy_sq = dy * dy;
+            const float dz_sq = dz * dz;
+            active_x |= dx_sq < radius_sq;
+            active_y |= dy_sq < radius_sq;
+            active_z |= dz_sq < radius_sq;
+            active_xy |= dx_sq + dy_sq < radius_sq;
+            active_xz |= dx_sq + dz_sq < radius_sq;
+            active_yz |= dy_sq + dz_sq < radius_sq;
+            const float distance_sq = dx_sq + dy_sq + dz_sq;
+            if (distance_sq < radius_sq && distance_sq > 1e-6f) {
               ++valid_in_block;
+              ++audit.neighbour_within_radius_by_cell_class[cell_class];
+            }
           }
 
+          if (!active_x)
+            ++audit.neighbour_simd_blocks_empty_x;
+          if (!active_y)
+            ++audit.neighbour_simd_blocks_empty_y;
+          if (!active_z)
+            ++audit.neighbour_simd_blocks_empty_z;
+          if (!active_xy)
+            ++audit.neighbour_simd_blocks_empty_xy;
+          if (!active_xz)
+            ++audit.neighbour_simd_blocks_empty_xz;
+          if (!active_yz)
+            ++audit.neighbour_simd_blocks_empty_yz;
           if (valid_in_block > 0)
             ++audit.neighbour_simd_blocks_active;
 

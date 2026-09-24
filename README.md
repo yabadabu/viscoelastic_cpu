@@ -38,7 +38,33 @@ From a shell in the root of the repository, type:
 
 - Retained the sparse serial hash grid as a safety fallback when particles leave the configured XY bounds.
 
-- Fused relaxation-delta reduction and clearing into one pass.    
+- Fused relaxation-delta reduction and clearing into one pass.
+
+- Exact sorting of the particles along the Z has also benefit of 0.5ms because the more full simd slots could be rejected and fully skipped
+
+- After confirming most of the time in the relaxation stage was not spend in the apply_displacement, I changed the scalar code to pack the accepted particles using avx2 instead of working in scalar mode. That was another big fish of 0.8ms win, down to 4.4ms.
+
+Previously, for every active eight-particle candidate block:
+1. SIMD calculated eight distances, directions and closeness values.
+2. Those vectors were copied into temporary arrays.
+3. A scalar loop examined the eight mask bits individually.
+4. For each accepted lane, it accumulated density and copied the neighbour ID, closeness and direction into the compact neighbour arrays.
+
+Now the eight-bit acceptance mask indexes a small lookup table. For example:
+Mask:             01011010
+Accepted lanes:   1, 3, 4, 6
+Permutation:     [1, 3, 4, 6, 0, 0, 0, 0]
+Before: [invalid, B, invalid, D, E, invalid, G, invalid]
+After:  [B, D, E, G, ...]
+
+Finally, the implementation then:
+- Calculates c² and c³ density contributions vectorially, with rejected lanes zeroed.
+- Horizontally adds those vectors.
+- Stores packed neighbour IDs, closeness and directions with full vector stores.
+- Advances num_nears using a population count of the mask.
+- Preserves the original lane order and lowest-lane-first behavior at the 64-neighbour cap.
+
+This has removed the branching and scalar packing for better performance.
 
 Example measured improvements:
 

@@ -42,8 +42,14 @@ struct ViscoelasticModule : public Module {
       if (ImGui::SmallButton("1024"))
         add(1024);
       ImGui::SameLine();
-      if (ImGui::SmallButton("4096"))
+      if (ImGui::SmallButton("4K"))
         add(4096);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("8K"))
+        add(8 * 1024);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("16K"))
+        add(16 * 1024);
 
       ImGui::Checkbox("Emitting", &enabled);
       if (num_pendings) {
@@ -714,6 +720,10 @@ struct ViscoelasticModule : public Module {
     ImGui::SameLine();
     if (ImGui::SmallButton("64K"))
       config3D_N(64 * 1024);
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton("128K"))
+      config3D_N(128 * 1024);
 
     if (ImGui::TreeNode("Colors..."))
     {

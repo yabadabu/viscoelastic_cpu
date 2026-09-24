@@ -26,7 +26,7 @@ From a shell in the root of the repository, type:
 
 - Replaced the original scheduler with a persistent phase dispatcher as described in the Thread Pool. Workers stay active throughout the simulation update and sleep during rendering. That reduced a lot the time to start small parallel jobs.
 
-- Made job counts configurable independently of the number of worker threads, improving load balancing on heterogeneous CPUs. In my laptop some jobs of the same type clerly takes close to double time compared to the same jobs in another thread.
+- Made job counts configurable independently of the number of worker threads, improving load balancing on heterogeneous CPUs. In my laptop some jobs of the same type clearly takes close to double time compared to the same jobs in another thread.
 
 - Overlapped particle preparation—forces, velocity integration and predicted positions—with neighbor-range caching.
 
@@ -43,7 +43,7 @@ From a shell in the root of the repository, type:
 Example measured improvements:
 
 - On a modern 20-thread system with 64K particles, total update time decreased from approximately 5.2 ms on the original branch to 2.6 ms.
-- On a 24-core Threadripper 3960X, spatial-index construction decreased from approximately 3.0 ms to 0.6 ms, while total update time decreased from 6.1 ms to 3.9 ms using 24-threads
+- On a 24-core Threadripper 3960X, spatial-index construction decreased from approximately 3.0 ms to 0.6 ms, while total update time decreased from 6.1 ms to 3.9 ms using 24 worker threads
 
 ## Particles
 
@@ -71,7 +71,7 @@ We will identify each cell uniquely by its own 3D integer coordinates:
 
 The simulation has two complementary spatial-index paths. The bounded XY-column index is the normal, multithreaded fast path. The sparse hash grid is retained as an automatic fallback for frames whose particle distribution does not fit inside the configured XY bounds.
 
-### Option A: Sparse hash fallback — unbounded, serial construction
+### Option A: Sparse hash fallback — unbounded coordinates, serial construction
 
 Because we don't know the 3D limits of our simulation, we will store the information for a limited number of cells, say 64K cells for example. 
 We are going to generate a hash number for each cell_coords and use it to assign each coords to a planar array, using the lower bits of the hash.
@@ -84,7 +84,7 @@ Something like:
 
 ```cpp
     uint32_t hash( Int3 coords ) const {
-      return ( (coords.x * prime1) ^ (coords.y * prime12) ^ (coords.z * prime3) ) & num_cells_mask;
+      return ( (coords.x * prime1) ^ (coords.y * prime2) ^ (coords.z * prime3) ) & num_cells_mask;
     }
 ```
 
@@ -107,7 +107,7 @@ We will need to deal with some hash collisions, when two cells with different ce
 
 The algorithm is then:
 1. Define a u32 current_tag, and increment it on each frame
-2. For each particle.position, find the official cell_id:  onst CellInfo& cell = cell_infos[ cell_id ]
+2. For each particle.position, find the official cell_id: const CellInfo& cell = cell_infos[ cell_id ]
 3. Check the CellInfo associated to the cell_id (array access):
   - If this is the first time we use this cell (comparing the tag vs current_tag):
     - We update the tag of the cell and reset the cell.count = 0 
@@ -120,7 +120,7 @@ In either case, save to cell_id and the current count in the cell that has been 
 This is not thread safe.
 
 Once all the particles have been assigned a cell_id and the index in each particle, we also end with the list of cells (a selection of our big list of 64K cells) which 
-contains particles. In my tests, we might use around 4000 particles of the 64K (6% approx).
+contains particles. In my tests, we might use around 4.000 cells of the 64K (6% approx) for 32K particles.
 
 We are free to 'sort' the cell_id's to our best interest. 
 
@@ -185,12 +185,12 @@ Right now, we check 32K particles vs 6 planes, and it takes ~0.25 ms when runnin
 ## Multithreading
 
 Important considerations before going multithread:
-- Avoid any locking or synchronization primitives at all cost, when possible.
-  Even a single std::atomic<int> updated by all the threads generates a huge performance hit.
+- Avoid fine-grained or highly contended synchronization in per-particle loops. A small number of atomic operations per job or phase is comparatively inexpensive.
+  A single std::atomic<int> updated by all the threads per particle generates a huge performance hit.
 - We need to given a substancial amount of work to each thread to make sense. 
 - When submitting a list of tasks to a pool of threads that were dormant, not all the threads start working immediately, and not 
   all the jobs require the same amount of time.
-- Currently, some stages need to run from a single thread, like updating the spatial index.
+- Some lightweight coordination stages, such as the occupied-column prefix, remain serial, while histogram generation, scattering, Z sorting, and cell emission run in parallel.
 - A simpler profiler is enough to confirm the usage of the CPU's
 
 For example, If we need to update 32K particles with 12 threads, it's not a good idea to use a synchronization primitive like a std::atomic<int> for each particle to be updated. 
@@ -311,7 +311,7 @@ At the beginning of an update, all workers are awakened once. They remain active
 
 For each parallel phase, the main thread publishes a callback and a number of jobs. Workers dynamically claim jobs using an atomic counter. Creating more jobs than workers improves load balancing when cores have different performance or when some particle or cell ranges contain more work than others.
 
-The submitting thread currently waits for the workers but does not execute jobs itself. The first phase of the simulation still show some wake-up latency because the workers were parked by the operating system.
+The submitting thread currently waits for the workers but does not execute jobs itself. The first phase of the simulation still shows some wake-up latency because the workers were parked by the operating system.
 
 ## Conclusions
 
@@ -323,7 +323,6 @@ The submitting thread currently waits for the workers but does not execute jobs 
 - The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)
 - We can always start the simulation of the next frame while doing the rendering and waiting for the GPU.
 - Testing with different data alignments
-- Testing with AVX512
 - Test other CPU's
 - Move it to GPU
 

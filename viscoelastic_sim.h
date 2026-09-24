@@ -82,7 +82,6 @@ struct ViscoelasticSim {
   float spatial_xy_bound_world_min = -20.0f;
   float spatial_xy_bound_world_max = 20.0f;
   bool overlap_cache_and_prediction = true;
-  bool sort_columns_by_exact_z = false;
   int spatial_cell_mode = SpatialCellsKernelRadius;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;

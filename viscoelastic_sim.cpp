@@ -716,9 +716,9 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
       });
   }
 
-  // Stage 4: columns are independent. Sort each by Z and count its occupied
-  // cells. One dispatcher job per occupied column gives dynamic balancing when
-  // the liquid distribution is uneven.
+  // Stage 4: columns are independent. Sort by integer Z cell and then exact Z
+  // within each cell, and count occupied cells. Exact ordering clusters
+  // neighbour acceptance masks without changing cell membership.
   {
     PROFILE_SCOPED_NAMED("boundedXYSortColumns");
     // Every occupied entry is overwritten by its column job and empty entries
@@ -734,50 +734,30 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
       bool already_sorted = true;
       uint32_t unique_count = 0;
       int previous_z = 0;
-      if (sort_columns_by_exact_z) {
-        float previous_exact_z = 0.0f;
-        for (auto it = begin; it != end; ++it) {
-          const int z = assigned_cells[*it].ipos.z;
-          const float exact_z = aux_particles_pos.z[*it];
-          if (it != begin &&
-              (z < previous_z ||
-               (z == previous_z && exact_z < previous_exact_z))) {
-            already_sorted = false;
-          }
-          if (it == begin || z != previous_z)
-            ++unique_count;
-          previous_z = z;
-          previous_exact_z = exact_z;
+      float previous_exact_z = 0.0f;
+      for (auto it = begin; it != end; ++it) {
+        const int z = assigned_cells[*it].ipos.z;
+        const float exact_z = aux_particles_pos.z[*it];
+        if (it != begin &&
+            (z < previous_z ||
+             (z == previous_z && exact_z < previous_exact_z))) {
+          already_sorted = false;
         }
-      }
-      else {
-        for (auto it = begin; it != end; ++it) {
-          const int z = assigned_cells[*it].ipos.z;
-          if (it != begin && z < previous_z)
-            already_sorted = false;
-          if (it == begin || z != previous_z)
-            ++unique_count;
-          previous_z = z;
-        }
+        if (it == begin || z != previous_z)
+          ++unique_count;
+        previous_z = z;
+        previous_exact_z = exact_z;
       }
 
       if (!already_sorted) {
-        if (sort_columns_by_exact_z) {
-          std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
-            const int cell_z_a = assigned_cells[particle_a].ipos.z;
-            const int cell_z_b = assigned_cells[particle_b].ipos.z;
-            if (cell_z_a != cell_z_b)
-              return cell_z_a < cell_z_b;
-            return aux_particles_pos.z[particle_a] <
-              aux_particles_pos.z[particle_b];
-          });
-        }
-        else {
-          std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
-            return assigned_cells[particle_a].ipos.z <
-              assigned_cells[particle_b].ipos.z;
-          });
-        }
+        std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
+          const int cell_z_a = assigned_cells[particle_a].ipos.z;
+          const int cell_z_b = assigned_cells[particle_b].ipos.z;
+          if (cell_z_a != cell_z_b)
+            return cell_z_a < cell_z_b;
+          return aux_particles_pos.z[particle_a] <
+            aux_particles_pos.z[particle_b];
+        });
         unique_count = 0;
         for (auto it = begin; it != end; ++it) {
           const int z = assigned_cells[*it].ipos.z;

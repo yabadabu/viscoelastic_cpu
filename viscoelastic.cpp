@@ -294,7 +294,7 @@ struct ViscoelasticModule : public Module {
       skippedPercent(audit.z_range_simd_blocks_precise,
         audit.z_range_simd_blocks_current));
     ImGui::TextDisabled(
-      "Z estimates use index-time positions; precise trim also needs float-Z ordering");
+      "Z estimates use index-time positions; precise trimming is not applied");
     ImGui::Text("Neighbour SIMD-8 blocks: %llu active / %llu checked (%.1f%% empty masks)",
       (unsigned long long)audit.neighbour_simd_blocks_active,
       (unsigned long long)audit.neighbour_simd_blocks_checked,
@@ -608,8 +608,6 @@ struct ViscoelasticModule : public Module {
       sim.setNumThreads(num_threads);
     if (ImGui::TreeNode("Job Scheduler...")) {
       ImGui::Checkbox("Overlap Cache + Predict", &sim.overlap_cache_and_prediction);
-      ImGui::Checkbox("Exact Z Column Sort (A/B)",
-        &sim.sort_columns_by_exact_z);
       ImGui::DragInt("Sort Jobs / Thread", &sim.sort_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Cache Jobs / Thread", &sim.cache_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);

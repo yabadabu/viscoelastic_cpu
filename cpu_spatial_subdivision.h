@@ -16,16 +16,53 @@ struct CPUSpatialSubdivision {
 	// Max cells in hash grid
 	static constexpr int         num_cells = 1024 * 64;
 	static constexpr int         hash_mask = num_cells - 1;
+	static constexpr int         max_neighbour_cell_radius_xy = 1;
+	static constexpr int         max_neighbour_cell_radius_z = 2;
 	u32                          num_points = 0;
-	float                        grid_scale = 1.0f;
+	float                        grid_scale_xy = 1.0f;
+	float                        grid_scale_z = 1.0f;
+	int                          neighbour_cell_radius_xy = 1;
+	int                          neighbour_cell_radius_z = 1;
 
 	struct AssignedCell {
 		Int3 ipos;
 		u32  cell_id;
 	};
 
-	void setGridScale(float new_grid_scale) {
-		grid_scale = new_grid_scale;
+	void setGridScale(
+		float new_grid_scale_xy,
+		float new_grid_scale_z,
+		int new_neighbour_cell_radius_xy,
+		int new_neighbour_cell_radius_z
+	) {
+		assert(new_grid_scale_xy > 0.0f && new_grid_scale_z > 0.0f);
+		assert(new_neighbour_cell_radius_xy >= 1 &&
+			new_neighbour_cell_radius_xy <= max_neighbour_cell_radius_xy);
+		assert(new_neighbour_cell_radius_z >= 1 &&
+			new_neighbour_cell_radius_z <= max_neighbour_cell_radius_z);
+		grid_scale_xy = new_grid_scale_xy;
+		grid_scale_z = new_grid_scale_z;
+		neighbour_cell_radius_xy = new_neighbour_cell_radius_xy;
+		neighbour_cell_radius_z = new_neighbour_cell_radius_z;
+	}
+
+	float getGridScaleXY() const {
+		return grid_scale_xy;
+	}
+
+	int getNeighbourCellRadiusXY() const {
+		return neighbour_cell_radius_xy;
+	}
+
+	int getNeighbourCellRadiusZ() const {
+		return neighbour_cell_radius_z;
+	}
+
+	VEC3 getCellSize() const {
+		return VEC3(
+			1.0f / grid_scale_xy,
+			1.0f / grid_scale_xy,
+			1.0f / grid_scale_z);
 	}
 
 	void setPoints(AssignedCell* __restrict assigned_cells, u32 num_vtxs) {
@@ -150,9 +187,15 @@ struct CPUSpatialSubdivision {
 	std::vector< CellRange > cells_ranges;
 
 	struct NearRanges {
-		// Cells are ordered by Y, X, Z, so the three relevant Z cells in
-		// each neighbouring XY column form one contiguous particle range.
-		constexpr static int max_ranges = 3 * 3;
+		// Cells are ordered by Y, X, Z, so all relevant Z cells in each
+		// neighbouring XY column form one contiguous particle range. Both the
+		// R and half-Z modes need only 3x3 neighbouring XY columns.
+		// For R-sized cells, a tested 19-cell stencil removed about 29% of
+		// candidates, but its missing corner interactions caused persistent
+		// vibration after the fluid should have settled.
+		constexpr static int max_ranges =
+			(2 * max_neighbour_cell_radius_xy + 1) *
+			(2 * max_neighbour_cell_radius_xy + 1);
 		u32   n = 0;
 		Range ranges[max_ranges];
 	};
@@ -161,15 +204,17 @@ struct CPUSpatialSubdivision {
 		//PROFILE_SCOPED_NAMED("Ranges");
 		const CellInfo& cell_info = cells_info[cell_id];
 		const auto& i_grid = cell_info.coords;
+		const int xy_radius = neighbour_cell_radius_xy;
+		const int z_radius = neighbour_cell_radius_z;
 		u32 n = 0;
 
 		if (using_direct_column_lookup) {
-			const int first_y = std::max(i_grid.y - 1, direct_min_y);
-			const int last_y = std::min(i_grid.y + 1, direct_max_y);
-			const int first_x = std::max(i_grid.x - 1, direct_min_x);
-			const int last_x = std::min(i_grid.x + 1, direct_max_x);
-			const int first_z = i_grid.z - 1;
-			const int last_z = i_grid.z + 1;
+			const int first_y = std::max(i_grid.y - xy_radius, direct_min_y);
+			const int last_y = std::min(i_grid.y + xy_radius, direct_max_y);
+			const int first_x = std::max(i_grid.x - xy_radius, direct_min_x);
+			const int last_x = std::min(i_grid.x + xy_radius, direct_max_x);
+			const int first_z = i_grid.z - z_radius;
+			const int last_z = i_grid.z + z_radius;
 
 			for (int y = first_y; y <= last_y; ++y) {
 				for (int x = first_x; x <= last_x; ++x) {
@@ -217,32 +262,45 @@ struct CPUSpatialSubdivision {
 		}
 
 		// gridHash is separable into one XOR component per axis. Compute the
-		// three possible values for each axis once instead of performing three
-		// multiplications for every one of the 27 neighbours.
-		u32 hash_x[3];
-		u32 hash_y[3];
-		u32 hash_z[3];
-		for (int offset = -1; offset <= 1; ++offset) {
+		// possible values for each axis once instead of repeating three
+		// multiplications for every neighbour.
+		constexpr int max_xy_diameter =
+			2 * max_neighbour_cell_radius_xy + 1;
+		constexpr int max_z_diameter =
+			2 * max_neighbour_cell_radius_z + 1;
+		u32 hash_x[max_xy_diameter];
+		u32 hash_y[max_xy_diameter];
+		u32 hash_z[max_z_diameter];
+		for (int offset = -xy_radius; offset <= xy_radius; ++offset) {
 			const u32 unsigned_offset = static_cast<u32>(offset);
-			hash_x[offset + 1] = (static_cast<u32>(i_grid.x) + unsigned_offset) * 83492791u;
-			hash_y[offset + 1] = (static_cast<u32>(i_grid.y) + unsigned_offset) * 689287499u;
-			hash_z[offset + 1] = (static_cast<u32>(i_grid.z) + unsigned_offset) * 283923481u;
+			const int hash_idx = offset + xy_radius;
+			hash_x[hash_idx] = (static_cast<u32>(i_grid.x) + unsigned_offset) * 83492791u;
+			hash_y[hash_idx] = (static_cast<u32>(i_grid.y) + unsigned_offset) * 689287499u;
+		}
+		for (int offset = -z_radius; offset <= z_radius; ++offset) {
+			const u32 unsigned_offset = static_cast<u32>(offset);
+			const int hash_idx = offset + z_radius;
+			hash_z[hash_idx] =
+				(static_cast<u32>(i_grid.z) + unsigned_offset) * 283923481u;
 		}
 
 		Int3 j_grid = i_grid;
 		// cells_ranges and the particle arrays are ordered by y, x, then z.
 		// Visit neighbours in the same order to keep their particle ranges
 		// streaming through cache and to make adjacent ranges coalescible.
-		for (int iy = -1; iy < 2; ++iy) {
+		for (int iy = -xy_radius; iy <= xy_radius; ++iy) {
 			j_grid.y = i_grid.y + iy;
-			for (int ix = -1; ix < 2; ++ix) {
+			for (int ix = -xy_radius; ix <= xy_radius; ++ix) {
 				j_grid.x = i_grid.x + ix;
-				for (int iz = -1; iz < 2; ++iz) {
+				for (int iz = -z_radius; iz <= z_radius; ++iz) {
 					j_grid.z = i_grid.z + iz;
 
 					const CellInfo* cell_j = nullptr;
 					// Get the neighbour cell_id from the precomputed axis hashes.
-					u32 jcell_id = (hash_y[iy + 1] ^ hash_z[iz + 1] ^ hash_x[ix + 1]) & hash_mask;
+					u32 jcell_id =
+						(hash_y[iy + xy_radius] ^
+						 hash_z[iz + z_radius] ^
+						 hash_x[ix + xy_radius]) & hash_mask;
 
 					while (true) {
 						cell_j = &cells_info[jcell_id];
@@ -310,16 +368,21 @@ struct CPUSpatialSubdivision {
 	}
 
 	VEC3 getCellCoords(Int3 gridPos) const {
-		return VEC3(gridPos.x / grid_scale, gridPos.y / grid_scale, gridPos.z / grid_scale);
+		return VEC3(
+			gridPos.x / grid_scale_xy,
+			gridPos.y / grid_scale_xy,
+			gridPos.z / grid_scale_z);
 	}
 
 	Int3 gridCoords(VEC3 p) const {
-		const VEC3 d = (p) * grid_scale;
 		// Keep negative coordinates negative. Converting a negative float directly
 		// to uint32_t is outside the representable range and has undefined results;
 		// the hash functions already convert the signed coordinate to uint32_t when
 		// they intentionally need its two's-complement bit pattern.
-		return Int3((int)floorf(d.x), (int)floorf(d.y), (int)floorf(d.z));
+		return Int3(
+			(int)floorf(p.x * grid_scale_xy),
+			(int)floorf(p.y * grid_scale_xy),
+			(int)floorf(p.z * grid_scale_z));
 	}
 
 	u32 gridHash(Int3 gridPos) const {

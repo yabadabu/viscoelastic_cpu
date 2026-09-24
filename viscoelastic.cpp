@@ -267,6 +267,34 @@ struct ViscoelasticModule : public Module {
       percent(audit.neighbour_candidates_accepted, audit.neighbour_candidates_checked),
       (unsigned long long)audit.neighbour_candidates_rejected,
       percent(audit.neighbour_candidates_rejected, audit.neighbour_candidates_checked));
+    uint64_t total_within_radius = 0;
+    for (uint64_t count : audit.neighbour_within_radius_by_cell_class)
+      total_within_radius += count;
+    ImGui::Text("Occupied cell Z bounds: avoid %.1f%% candidates; omit %.3f%% of within-radius interactions",
+      percent(audit.neighbour_candidates_avoided_by_cell_z_bounds,
+        audit.neighbour_candidates_checked),
+      percent(audit.neighbour_within_radius_omitted_by_cell_z_bounds,
+        total_within_radius));
+    ImGui::Text("Precise Z boundary trim: avoid %.1f%% candidates; omit %.3f%% of within-radius interactions",
+      percent(audit.neighbour_candidates_avoided_by_precise_z,
+        audit.neighbour_candidates_checked),
+      percent(audit.neighbour_within_radius_omitted_by_precise_z,
+        total_within_radius));
+    const double particles = audit.num_particles > 0
+      ? (double)audit.num_particles
+      : 1.0;
+    ImGui::Text("Z range candidates/particle: %.1f current, %.1f precise (%.1f%% fewer)",
+      (double)audit.z_range_candidate_slots_current / particles,
+      (double)audit.z_range_candidate_slots_precise / particles,
+      skippedPercent(audit.z_range_candidate_slots_precise,
+        audit.z_range_candidate_slots_current));
+    ImGui::Text("Z range SIMD-8 blocks/particle: %.1f current, %.1f precise (%.1f%% fewer)",
+      (double)audit.z_range_simd_blocks_current / particles,
+      (double)audit.z_range_simd_blocks_precise / particles,
+      skippedPercent(audit.z_range_simd_blocks_precise,
+        audit.z_range_simd_blocks_current));
+    ImGui::TextDisabled(
+      "Z estimates use index-time positions; precise trim also needs float-Z ordering");
     ImGui::Text("Neighbour SIMD-8 blocks: %llu active / %llu checked (%.1f%% empty masks)",
       (unsigned long long)audit.neighbour_simd_blocks_active,
       (unsigned long long)audit.neighbour_simd_blocks_checked,
@@ -320,9 +348,6 @@ struct ViscoelasticModule : public Module {
     const char** cell_class_names = regular_cells
       ? regular_cell_class_names
       : half_size_cell_class_names;
-    uint64_t total_within_radius = 0;
-    for (uint64_t count : audit.neighbour_within_radius_by_cell_class)
-      total_within_radius += count;
     ImGui::Text("Neighbour work by cell relationship:");
     for (int cell_class = 0; cell_class < 4; ++cell_class) {
       const uint64_t candidates =
@@ -583,6 +608,8 @@ struct ViscoelasticModule : public Module {
       sim.setNumThreads(num_threads);
     if (ImGui::TreeNode("Job Scheduler...")) {
       ImGui::Checkbox("Overlap Cache + Predict", &sim.overlap_cache_and_prediction);
+      ImGui::Checkbox("Exact Z Column Sort (A/B)",
+        &sim.sort_columns_by_exact_z);
       ImGui::DragInt("Sort Jobs / Thread", &sim.sort_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Cache Jobs / Thread", &sim.cache_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);

@@ -82,6 +82,7 @@ struct ViscoelasticSim {
   float spatial_xy_bound_world_min = -20.0f;
   float spatial_xy_bound_world_max = 20.0f;
   bool overlap_cache_and_prediction = true;
+  bool sort_columns_by_exact_z = false;
   int spatial_cell_mode = SpatialCellsKernelRadius;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
@@ -128,6 +129,19 @@ struct ViscoelasticSim {
     uint64_t neighbour_candidates_checked = 0;
     uint64_t neighbour_candidates_accepted = 0;
     uint64_t neighbour_candidates_rejected = 0;
+    // Estimated candidates removed by narrowing each neighbouring XY-column
+    // range along Z. Both estimates use the pre-prediction positions that are
+    // available while cacheRanges overlaps particle prediction.
+    uint64_t neighbour_candidates_avoided_by_cell_z_bounds = 0;
+    uint64_t neighbour_candidates_avoided_by_precise_z = 0;
+    uint64_t neighbour_within_radius_omitted_by_cell_z_bounds = 0;
+    uint64_t neighbour_within_radius_omitted_by_precise_z = 0;
+    // Full range work before the per-particle neighbour cap and self removal.
+    // The precise values assume exact-Z ordering and one range per XY column.
+    uint64_t z_range_candidate_slots_current = 0;
+    uint64_t z_range_candidate_slots_precise = 0;
+    uint64_t z_range_simd_blocks_current = 0;
+    uint64_t z_range_simd_blocks_precise = 0;
     uint64_t neighbour_candidates_discarded_by_cap = 0;
     uint64_t neighbour_candidates_skipped_by_cap = 0;
     uint64_t neighbour_simd_blocks_checked = 0;

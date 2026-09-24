@@ -734,21 +734,50 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
       bool already_sorted = true;
       uint32_t unique_count = 0;
       int previous_z = 0;
-      for (auto it = begin; it != end; ++it) {
-        const int z = assigned_cells[*it].ipos.z;
-        if (it != begin && z < previous_z)
-          already_sorted = false;
-        if (it == begin || z != previous_z) {
-          ++unique_count;
+      if (sort_columns_by_exact_z) {
+        float previous_exact_z = 0.0f;
+        for (auto it = begin; it != end; ++it) {
+          const int z = assigned_cells[*it].ipos.z;
+          const float exact_z = aux_particles_pos.z[*it];
+          if (it != begin &&
+              (z < previous_z ||
+               (z == previous_z && exact_z < previous_exact_z))) {
+            already_sorted = false;
+          }
+          if (it == begin || z != previous_z)
+            ++unique_count;
+          previous_z = z;
+          previous_exact_z = exact_z;
         }
-        previous_z = z;
+      }
+      else {
+        for (auto it = begin; it != end; ++it) {
+          const int z = assigned_cells[*it].ipos.z;
+          if (it != begin && z < previous_z)
+            already_sorted = false;
+          if (it == begin || z != previous_z)
+            ++unique_count;
+          previous_z = z;
+        }
       }
 
       if (!already_sorted) {
-        std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
-          return assigned_cells[particle_a].ipos.z <
-            assigned_cells[particle_b].ipos.z;
-        });
+        if (sort_columns_by_exact_z) {
+          std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
+            const int cell_z_a = assigned_cells[particle_a].ipos.z;
+            const int cell_z_b = assigned_cells[particle_b].ipos.z;
+            if (cell_z_a != cell_z_b)
+              return cell_z_a < cell_z_b;
+            return aux_particles_pos.z[particle_a] <
+              aux_particles_pos.z[particle_b];
+          });
+        }
+        else {
+          std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
+            return assigned_cells[particle_a].ipos.z <
+              assigned_cells[particle_b].ipos.z;
+          });
+        }
         unique_count = 0;
         for (auto it = begin; it != end; ++it) {
           const int z = assigned_cells[*it].ipos.z;
@@ -1165,6 +1194,14 @@ void ViscoelasticSim::captureRelaxationAudit() {
   audit.neighbour_candidates_checked = 0;
   audit.neighbour_candidates_accepted = 0;
   audit.neighbour_candidates_rejected = 0;
+  audit.neighbour_candidates_avoided_by_cell_z_bounds = 0;
+  audit.neighbour_candidates_avoided_by_precise_z = 0;
+  audit.neighbour_within_radius_omitted_by_cell_z_bounds = 0;
+  audit.neighbour_within_radius_omitted_by_precise_z = 0;
+  audit.z_range_candidate_slots_current = 0;
+  audit.z_range_candidate_slots_precise = 0;
+  audit.z_range_simd_blocks_current = 0;
+  audit.z_range_simd_blocks_precise = 0;
   audit.neighbour_candidates_discarded_by_cap = 0;
   audit.neighbour_candidates_skipped_by_cap = 0;
   audit.neighbour_simd_blocks_checked = 0;
@@ -1275,15 +1312,28 @@ void ViscoelasticSim::captureRelaxationAudit() {
   // blocks and the 64-neighbour cap without doing normalization or correction
   // math, and runs only for the explicitly requested audit frame.
   constexpr int max_nears = 64;
+  const float radius = mat.kernel_radius;
   const float radius_sq = mat.kernel_radius * mat.kernel_radius;
   std::vector<CPUSpatialSubdivision::Int3> particle_cell_coords(num_particles);
-  for (const auto& cell_range : spatial_hash.cells_ranges) {
+  std::vector<uint32_t> particle_cell_indices(num_particles);
+  std::vector<float> cell_old_min_z(spatial_hash.cells_ranges.size());
+  std::vector<float> cell_old_max_z(spatial_hash.cells_ranges.size());
+  for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx) {
+    const auto& cell_range = spatial_hash.cells_ranges[cell_idx];
     const auto& cell_info = spatial_hash.cells_info[cell_range.cell_id];
+    assert(cell_range.range.first < cell_range.range.last);
+    float min_z = particles_prev_pos.z[cell_range.range.first];
+    float max_z = min_z;
     for (uint32_t particle_idx = cell_range.range.first;
          particle_idx < cell_range.range.last;
          ++particle_idx) {
       particle_cell_coords[particle_idx] = cell_info.coords;
+      particle_cell_indices[particle_idx] = (uint32_t)cell_idx;
+      min_z = std::min(min_z, particles_prev_pos.z[particle_idx]);
+      max_z = std::max(max_z, particles_prev_pos.z[particle_idx]);
     }
+    cell_old_min_z[cell_idx] = min_z;
+    cell_old_max_z[cell_idx] = max_z;
   }
 
   for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx) {
@@ -1291,6 +1341,95 @@ void ViscoelasticSim::captureRelaxationAudit() {
     const auto& target_cell_coords =
       spatial_hash.cells_info[cell_range.cell_id].coords;
     const auto& near_ranges = relaxation_near_ranges[cell_idx];
+    // cacheRanges currently runs concurrently with prediction, so prev holds
+    // the exact positions from which the spatial index was built. Expanding
+    // the occupied target interval by R gives the narrowest Z interval the
+    // cache phase could derive without introducing a new dependency.
+    const float target_query_min_z = cell_old_min_z[cell_idx] - radius;
+    const float target_query_max_z = cell_old_max_z[cell_idx] + radius;
+
+    // Estimate the actual range-loop work after exact-Z trimming. The current
+    // cache can merge physically adjacent column ranges; a trimmed cache would
+    // generally retain one independent contiguous range per XY column, so
+    // count SIMD blocks at those column boundaries rather than assuming that
+    // candidate reduction translates directly into eight-wide block savings.
+    uint64_t current_candidate_slots_per_particle = 0;
+    uint64_t precise_candidate_slots_per_particle = 0;
+    uint64_t current_simd_blocks_per_particle = 0;
+    uint64_t precise_simd_blocks_per_particle = 0;
+    uint32_t precise_merged_first = 0;
+    uint32_t precise_merged_last = 0;
+    bool have_precise_merged_range = false;
+    const auto appendPreciseColumnRange =
+      [&](uint32_t column_first, uint32_t below_count, uint32_t kept_count) {
+        if (kept_count == 0)
+          return;
+        const uint32_t kept_first = column_first + below_count;
+        const uint32_t kept_last = kept_first + kept_count;
+        if (have_precise_merged_range && precise_merged_last == kept_first) {
+          precise_merged_last = kept_last;
+          return;
+        }
+        if (have_precise_merged_range) {
+          const uint32_t merged_count =
+            precise_merged_last - precise_merged_first;
+          precise_simd_blocks_per_particle +=
+            (merged_count + simd_width - 1) / simd_width;
+        }
+        precise_merged_first = kept_first;
+        precise_merged_last = kept_last;
+        have_precise_merged_range = true;
+      };
+    for (uint32_t range_idx = 0; range_idx < near_ranges.n; ++range_idx) {
+      const uint32_t first = near_ranges.ranges[range_idx].first;
+      const uint32_t last = near_ranges.ranges[range_idx].last;
+      const uint32_t range_count = last - first;
+      current_candidate_slots_per_particle += range_count;
+      current_simd_blocks_per_particle += (range_count + simd_width - 1) / simd_width;
+
+      uint32_t column_kept = 0;
+      uint32_t column_below = 0;
+      uint32_t column_first = first;
+      CPUSpatialSubdivision::Int3 previous_coords{};
+      bool have_column = false;
+      for (uint32_t particle_idx = first; particle_idx < last; ++particle_idx) {
+        const auto& coords = particle_cell_coords[particle_idx];
+        if (have_column &&
+            (coords.x != previous_coords.x || coords.y != previous_coords.y)) {
+          appendPreciseColumnRange(column_first, column_below, column_kept);
+          column_first = particle_idx;
+          column_kept = 0;
+          column_below = 0;
+        }
+        previous_coords = coords;
+        have_column = true;
+
+        const float old_z = particles_prev_pos.z[particle_idx];
+        if (old_z <= target_query_min_z)
+          ++column_below;
+        if (old_z > target_query_min_z && old_z < target_query_max_z) {
+          ++column_kept;
+          ++precise_candidate_slots_per_particle;
+        }
+      }
+      if (have_column)
+        appendPreciseColumnRange(column_first, column_below, column_kept);
+    }
+    if (have_precise_merged_range) {
+      const uint32_t merged_count = precise_merged_last - precise_merged_first;
+      precise_simd_blocks_per_particle +=
+        (merged_count + simd_width - 1) / simd_width;
+    }
+    const uint64_t target_particle_count =
+      cell_range.range.last - cell_range.range.first;
+    audit.z_range_candidate_slots_current +=
+      current_candidate_slots_per_particle * target_particle_count;
+    audit.z_range_candidate_slots_precise +=
+      precise_candidate_slots_per_particle * target_particle_count;
+    audit.z_range_simd_blocks_current +=
+      current_simd_blocks_per_particle * target_particle_count;
+    audit.z_range_simd_blocks_precise +=
+      precise_simd_blocks_per_particle * target_particle_count;
 
     uint64_t available_per_particle = 0;
     for (uint32_t range_idx = 0; range_idx < near_ranges.n; ++range_idx)
@@ -1334,6 +1473,18 @@ void ViscoelasticSim::captureRelaxationAudit() {
               (neighbour_cell_coords.z != target_cell_coords.z ? 1 : 0);
             assert(cell_class >= 0 && cell_class <= 3);
             ++audit.neighbour_candidates_by_cell_class[cell_class];
+            const uint32_t neighbour_cell_idx = particle_cell_indices[j];
+            const bool rejected_by_cell_z_bounds =
+              cell_old_max_z[neighbour_cell_idx] <= target_query_min_z ||
+              cell_old_min_z[neighbour_cell_idx] >= target_query_max_z;
+            const float neighbour_old_z = particles_prev_pos.z[j];
+            const bool rejected_by_precise_z =
+              neighbour_old_z <= target_query_min_z ||
+              neighbour_old_z >= target_query_max_z;
+            if (rejected_by_cell_z_bounds)
+              ++audit.neighbour_candidates_avoided_by_cell_z_bounds;
+            if (rejected_by_precise_z)
+              ++audit.neighbour_candidates_avoided_by_precise_z;
             const float dx = particles_frozen_pos.x[j] - pi_x;
             const float dy = particles_frozen_pos.y[j] - pi_y;
             const float dz = particles_frozen_pos.z[j] - pi_z;
@@ -1350,6 +1501,10 @@ void ViscoelasticSim::captureRelaxationAudit() {
             if (distance_sq < radius_sq && distance_sq > 1e-6f) {
               ++valid_in_block;
               ++audit.neighbour_within_radius_by_cell_class[cell_class];
+              if (rejected_by_cell_z_bounds)
+                ++audit.neighbour_within_radius_omitted_by_cell_z_bounds;
+              if (rejected_by_precise_z)
+                ++audit.neighbour_within_radius_omitted_by_precise_z;
             }
           }
 

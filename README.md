@@ -313,6 +313,18 @@ For each parallel phase, the main thread publishes a callback and a number of jo
 
 The submitting thread currently waits for the workers but does not execute jobs itself. The first phase of the simulation still shows some wake-up latency because the workers were parked by the operating system.
 
+## Failed experiments
+
+Several tests were tested and reverted because no clear benefit was found:
+
+- In the relaxation stage, which takes most of the time, using 19 neighbourgs cells (exclusing the 8 corners) instead of all 27. Based on some audit this was removing just ~4% of the particles but the simulation didn't reach a stable point. The savings where approx from 4.9ms to 4.3ms for 64K particles and 12 workers
+
+- I audited if I could discard blocks of 8-particles if the distance in the .z were already greater than the interference radius. And the number of particles we were going to discard with this early test was very very small, like 8%
+
+- Make the relaxation jobs oriented to handle the full xy-column, not to a range of cells (which are already z-ordered), aiming to get more cache coherence, but there was no clear win.
+
+- Subdivide the world in R/2 x R/2 x R/2 to be able to discard more cells, hence more particles from the relaxation calculation, but the x2 in the 3 axis made the cost of computing the ranges explode from 0.070ms to 0.9ms and the wins didn't compensate. But it served to use R x R x R/2 and gain 0.5ms ( from 5.7ms to 5.2ms )
+
 ## Conclusions
 
 - More threads does not mean better performance

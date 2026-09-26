@@ -394,10 +394,7 @@ struct ViscoelasticModule : public Module {
   ViscoelasticModule() {
     sim.init();
     sim.in_2d = true;
-    //sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
-    //sdfCage();
-    //addParticles(512);
     sdfLargeCage();
     config3D_N( 64 * 1024 );
   }
@@ -405,19 +402,34 @@ struct ViscoelasticModule : public Module {
   void sdfCage(  ) {
     sim.sdf.prims.clear();
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3::zero, VEC3::axis_y));
+    sim.sdf.prims.back().name = "Floor";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 6, 0), -VEC3::axis_y));
+    sim.sdf.prims.back().name = "Roof";
     const float sz = 2.5f;
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, sz), -VEC3::axis_z));
+    sim.sdf.prims.back().name = "Z Far";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_z));
+    sim.sdf.prims.back().name = "Z Near";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
+    sim.sdf.prims.back().name = "X Far";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
+    sim.sdf.prims.back().name = "X Near";
   }
 
-  void sdfInsideCage( ) {
+  void sdfInsideCage() {
     sim.sdf.prims.clear();
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.0f, 0.0f), VEC3( 2.0f, 2.0, 4.0f )));
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.0f, 0.0f), VEC3(2.0f, 2.0, 4.0f)));
     sim.sdf.prims.back().multiplier = -1.0f;
     sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Box Interior";
+  }
+
+  void sdfInsideSphere() {
+    sim.sdf.prims.clear();
+    sim.sdf.prims.push_back(SDF::Primitive::makeSphere(VEC3(0.0f, 0.0f, 0.0f), 3.0f));
+    sim.sdf.prims.back().multiplier = -1.0f;
+    sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Container Sphere";
   }
 
   void sdfLargeCage() {
@@ -434,9 +446,11 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 2.5f, -2.5f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
     sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(20.0f)));
     sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Floating Upper Box";
     sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.5f, 1.0f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
     sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(-20.0f)));
     sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Floating Lower Box ";
   }
 
   void load() override {
@@ -765,13 +779,15 @@ struct ViscoelasticModule : public Module {
 
     emitter.renderInMenu();
 
-    if (ImGui::TreeNode("SDFs Config...")) {
+    if (ImGui::TreeNode("SDFs pre configurations...")) {
       if (ImGui::SmallButton("Box3D Large"))
         sdfLargeCage();
       if (ImGui::SmallButton("Platforms"))
         sdfPlatforms();
       if (ImGui::SmallButton("Inside Box"))
         sdfInsideCage();
+      if (ImGui::SmallButton("Inside Sphere"))
+        sdfInsideSphere();
       ImGui::Checkbox("Auto rotate first box", &auto_rotate_first_box);
       if( auto_rotate_first_box )
         ImGui::DragFloat( "Rotation Speed", &auto_rotation_speed, 0.01f, -1.0f, 1.0f );

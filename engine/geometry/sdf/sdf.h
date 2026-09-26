@@ -16,9 +16,11 @@ namespace SDF {
     VEC4       color = VEC4(1, 1, 1, 1);
     TTransform transform;
     bool       enabled = true;
+    bool       on_over = false;
     eType      prim_type = eType::SPHERE;
     float      softness = 0.0f;
     float      multiplier = 1.0f;
+    const char* name = nullptr;
 
     float eval(VEC3 p) const;
 

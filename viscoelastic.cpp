@@ -637,6 +637,19 @@ struct ViscoelasticModule : public Module {
         &sim.spatial_xy_bound_world_min, 0.1f, -100.0f, 0.0f);
       ImGui::DragFloat("Spatial XY Bound Max",
         &sim.spatial_xy_bound_world_max, 0.1f, 0.0f, 100.0f);
+
+      float buffer_size_mbs = sim.num_particles * sizeof(VEC3) / (1024.f * 1024.f);
+
+      ImGui::Text("%1.6lf spatial_hash", sim.times[ViscoelasticSim::eSection::SpatialHash]);
+      ImGui::Text("%1.6lf cache ranges", sim.times[ViscoelasticSim::eSection::CacheRanges]);
+      ImGui::Text("%1.6lf particle preparation", sim.times[ViscoelasticSim::eSection::PredictPositions]);
+      ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
+      ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
+      ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
+      ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
+      ImGui::Text("%1.6lf Total update (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Update], (2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Update]));
+      ImGui::Text("# Hash Collisions: %d (%1.2f%%)", sim.spatial_hash.num_collisions, (sim.spatial_hash.num_collisions * 100.0 / sim.num_particles));
+
       ImGui::TreePop();
     }
 
@@ -657,17 +670,6 @@ struct ViscoelasticModule : public Module {
 
       ImGui::DragInt("Sub Steps", &sim.num_substeps, 0.02f, 1, 10);
 
-      float buffer_size_mbs = sim.num_particles * sizeof(VEC3) / ( 1024.f * 1024.f );
-
-      ImGui::Text("%1.6lf spatial_hash", sim.times[ViscoelasticSim::eSection::SpatialHash]);
-      ImGui::Text("%1.6lf cache ranges", sim.times[ ViscoelasticSim::eSection::CacheRanges] );
-      ImGui::Text("%1.6lf particle preparation", sim.times[ViscoelasticSim::eSection::PredictPositions]);
-      ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
-      ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
-      ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
-      ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
-      ImGui::Text("%1.6lf Total update (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Update], ( 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Update]));
-      ImGui::Text("# Hash Collisions: %d (%1.2f%%)", sim.spatial_hash.num_collisions, (sim.spatial_hash.num_collisions * 100.0 / sim.num_particles) );
       ImGui::TreePop();
     }
 

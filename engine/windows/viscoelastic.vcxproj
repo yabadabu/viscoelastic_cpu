@@ -20,14 +20,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -89,6 +89,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeaderFile>platform.h</PrecompiledHeaderFile>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -171,10 +172,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\cpu_spatial_subdivision.h" />
+    <ClInclude Include="..\..\particles_vec.h" />
+    <ClInclude Include="..\..\thread_pool.h" />
     <ClInclude Include="..\..\viscoelastic_sim.h" />
     <ClInclude Include="..\utils\randoms.h" />
     <ClInclude Include="..\utils\utils.h" />
-    <ClInclude Include="..\cpu_spatial_subdivision.h" />
     <ClInclude Include="..\..\data\shaders\constants.h" />
     <ClInclude Include="..\..\data\shaders\vertex_types.h" />
     <ClInclude Include="..\formats\json\json.h" />
@@ -206,8 +209,6 @@
     <ClInclude Include="..\render\render.h" />
     <ClInclude Include="..\render\vertex_declarations.h" />
     <ClInclude Include="..\resources\resource.h" />
-    <ClInclude Include="..\thread_pool.h" />
-    <ClInclude Include="..\particles_vec.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Icon128.ico" />

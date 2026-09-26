@@ -183,15 +183,15 @@
       <Filter>engine\utils</Filter>
     </ClInclude>
     <ClInclude Include="..\..\viscoelastic_sim.h" />
-    <ClInclude Include="..\cpu_spatial_subdivision.h" />
-    <ClInclude Include="..\thread_pool.h" />
-    <ClInclude Include="..\particles_vec.h" />
     <ClInclude Include="..\..\data\shaders\constants.h">
       <Filter>data\shaders</Filter>
     </ClInclude>
     <ClInclude Include="..\..\data\shaders\vertex_types.h">
       <Filter>data\shaders</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\cpu_spatial_subdivision.h" />
+    <ClInclude Include="..\..\particles_vec.h" />
+    <ClInclude Include="..\..\thread_pool.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="data">

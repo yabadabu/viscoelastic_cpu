@@ -2,50 +2,6 @@
 #include "viscoelastic_sim.h"
 #include <immintrin.h>
 
-// for (int i = 0; i < num_particles; ++i)
-//  pos.add(i, vel.get(i) * dt);
-void simd_update_positions(
-  ParticlesVec& pos, 
-  const ParticlesVec& vel, 
-  float dt, 
-  int num_particles
-) {
-  const int simd_width = 8;
-  const int simd_end = num_particles & ~(simd_width - 1); // round down to nearest multiple of 8
-
-  __m256 dt_vec = _mm256_set1_ps(dt);
-
-  for (int i = 0; i < simd_end; i += simd_width) {
-    // Load position and velocity components
-    __m256 px = _mm256_loadu_ps(&pos.x[i]);
-    __m256 py = _mm256_loadu_ps(&pos.y[i]);
-    __m256 pz = _mm256_loadu_ps(&pos.z[i]);
-
-    __m256 vx = _mm256_loadu_ps(&vel.x[i]);
-    __m256 vy = _mm256_loadu_ps(&vel.y[i]);
-    __m256 vz = _mm256_loadu_ps(&vel.z[i]);
-
-    // Multiply velocity by dt
-    vx = _mm256_mul_ps(vx, dt_vec);
-    vy = _mm256_mul_ps(vy, dt_vec);
-    vz = _mm256_mul_ps(vz, dt_vec);
-
-    // Add to positions
-    px = _mm256_add_ps(px, vx);
-    py = _mm256_add_ps(py, vy);
-    pz = _mm256_add_ps(pz, vz);
-
-    // Store back
-    _mm256_storeu_ps(&pos.x[i], px);
-    _mm256_storeu_ps(&pos.y[i], py);
-    _mm256_storeu_ps(&pos.z[i], pz);
-  }
-
-  // Fallback scalar for remainder
-  for (int i = simd_end; i < num_particles; ++i)
-    pos.add(i, vel.get(i) * dt);
-}
-
 // 0.171ms -> 0.026ms
 //for (int i = 0; i < num_particles; ++i) {
 //  particles_vels.set(i, (particles_pos.get(i) - particles_prev_pos.get(i)) * inv_dt);
@@ -132,6 +88,24 @@ inline float hsum256_ps(__m256 v) {
   return _mm_cvtss_f32(sum3);
 }
 
+struct alignas(32) SIMDCompressPermutationTable {
+  alignas(32) int lanes[256][8];
+
+  SIMDCompressPermutationTable() {
+    for (int mask = 0; mask < 256; ++mask) {
+      int output_lane = 0;
+      for (int input_lane = 0; input_lane < 8; ++input_lane) {
+        if ((mask & (1 << input_lane)) != 0)
+          lanes[mask][output_lane++] = input_lane;
+      }
+      while (output_lane < 8)
+        lanes[mask][output_lane++] = 0;
+    }
+  }
+};
+
+static const SIMDCompressPermutationTable simd_compress_permutations;
+
 inline void apply_displacements_simd(
   float pressure,
   float near_pressure,
@@ -142,10 +116,11 @@ inline void apply_displacements_simd(
   const float* nears_dirs_z,
   int num_nears,
   int idx,
-  ParticlesVec* deltas
+  ParticlesVec* out_deltas
 ) {
   const int step = 8;
   int i = 0;
+  //PROFILE_SCOPED_NAMED("displace");
 
   __m256 p = _mm256_set1_ps(pressure);
   __m256 np = _mm256_set1_ps(near_pressure);
@@ -179,7 +154,7 @@ inline void apply_displacements_simd(
     _mm256_store_ps(tz, dz_final);
 
     for (int k = 0; k < 8; ++k)
-      deltas->add(nears_ids[i + k], tx[k], ty[k], tz[k]);
+      out_deltas->add(nears_ids[i + k], tx[k], ty[k], tz[k]);
   }
 
   float acc_x = -hsum256_ps(accum_dx);
@@ -196,71 +171,170 @@ inline void apply_displacements_simd(
     acc_x -= dx;
     acc_y -= dy;
     acc_z -= dz;
-    deltas->add(nears_ids[i], dx, dy, dz);
+    out_deltas->add(nears_ids[i], dx, dy, dz);
   }
 
-  deltas->add(idx, acc_x, acc_y, acc_z);
+  out_deltas->add(idx, acc_x, acc_y, acc_z);
 }
 
-
-// for (int i = 0; i < num_particles; ++i)
-//   particles_vels.add(i, delta_velocity * masses[particles_type[i]]);
-void simd_add_velocity_scaled_by_type(
-  ParticlesVec& vels,
-  const uint8_t* types,
-  const float* masses,         // Assumed size = 4
-  const VEC3& delta_velocity,
-  int num_particles
+// A worker-private touched map at 64-particle granularity was tested here.
+// It skipped roughly 55% of worker/range reads, but tracking and selecting the
+// ranges produced no measurable end-to-end gain at 32K or 64K particles. Keep
+// the dense streaming reduction: it is simpler and performs at least as well.
+void simd_apply_relaxation_deltas(
+  ParticlesVec& positions,
+  std::vector<ParticlesVec>& worker_deltas,
+  int start,
+  int end
 ) {
-  const int step = 8;
-  int i = 0;
+  constexpr int step = 8;
+  int i = start;
+  const __m256 zero = _mm256_setzero_ps();
 
-  // Broadcast delta_velocity components
-  __m256 dx = _mm256_set1_ps(delta_velocity.x);
-  __m256 dy = _mm256_set1_ps(delta_velocity.y);
-  __m256 dz = _mm256_set1_ps(delta_velocity.z);
+  for (; i + step <= end; i += step) {
+    __m256 px = _mm256_loadu_ps(&positions.x[i]);
+    __m256 py = _mm256_loadu_ps(&positions.y[i]);
+    __m256 pz = _mm256_loadu_ps(&positions.z[i]);
 
-  // Load masses into 256-bit register (assumes only 4 types)
-  alignas(32) float mass_lut[8] = {
-    masses[0], masses[1], masses[2], masses[3],
-    masses[0], masses[1], masses[2], masses[3]  // repeated for safety
-  };
+    for (ParticlesVec& deltas : worker_deltas) {
+      const __m256 dx = _mm256_loadu_ps(&deltas.x[i]);
+      const __m256 dy = _mm256_loadu_ps(&deltas.y[i]);
+      const __m256 dz = _mm256_loadu_ps(&deltas.z[i]);
+      px = _mm256_add_ps(px, dx);
+      py = _mm256_add_ps(py, dy);
+      pz = _mm256_add_ps(pz, dz);
 
-  for (; i + step <= num_particles; i += step) {
-    // Load 8 types
-    __m128i t8 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&types[i])); // 8 bytes
-    __m256i indices = _mm256_cvtepu8_epi32(t8);  // Convert 8x u8 to 8x i32
+      _mm256_storeu_ps(&deltas.x[i], zero);
+      _mm256_storeu_ps(&deltas.y[i], zero);
+      _mm256_storeu_ps(&deltas.z[i], zero);
+    }
 
-    // Gather mass values using indices
-    __m256 m = _mm256_i32gather_ps(mass_lut, indices, 4);
-
-    // Compute scaled delta
-    __m256 vx = _mm256_mul_ps(dx, m);
-    __m256 vy = _mm256_mul_ps(dy, m);
-    __m256 vz = _mm256_mul_ps(dz, m);
-
-    // Load current velocity
-    __m256 v_old_x = _mm256_loadu_ps(&vels.x[i]);
-    __m256 v_old_y = _mm256_loadu_ps(&vels.y[i]);
-    __m256 v_old_z = _mm256_loadu_ps(&vels.z[i]);
-
-    // Add delta
-    v_old_x = _mm256_add_ps(v_old_x, vx);
-    v_old_y = _mm256_add_ps(v_old_y, vy);
-    v_old_z = _mm256_add_ps(v_old_z, vz);
-
-    // Store back
-    _mm256_storeu_ps(&vels.x[i], v_old_x);
-    _mm256_storeu_ps(&vels.y[i], v_old_y);
-    _mm256_storeu_ps(&vels.z[i], v_old_z);
+    _mm256_storeu_ps(&positions.x[i], px);
+    _mm256_storeu_ps(&positions.y[i], py);
+    _mm256_storeu_ps(&positions.z[i], pz);
   }
 
-  // Scalar fallback for tail
-  for (; i < num_particles; ++i) {
-    float m = masses[types[i]];
-    vels.x[i] += delta_velocity.x * m;
-    vels.y[i] += delta_velocity.y * m;
-    vels.z[i] += delta_velocity.z * m;
+  for (; i < end; ++i) {
+    float dx = 0.0f;
+    float dy = 0.0f;
+    float dz = 0.0f;
+    for (ParticlesVec& deltas : worker_deltas) {
+      dx += deltas.x[i];
+      dy += deltas.y[i];
+      dz += deltas.z[i];
+      deltas.x[i] = 0.0f;
+      deltas.y[i] = 0.0f;
+      deltas.z[i] = 0.0f;
+    }
+    positions.add(i, dx, dy, dz);
+  }
+}
+
+void simd_prepare_particles(
+  ParticlesVec& pos,
+  ParticlesVec& prev,
+  ParticlesVec& frozen,
+  ParticlesVec& vels,
+  const uint8_t* types,
+  const float* masses,
+  const VEC3& delta_velocity,
+  float dt,
+  bool in_2d,
+  float attract_repel,
+  const VEC3& interact_point,
+  float interact_rad,
+  int start,
+  int end
+) {
+  // Attraction/repulsion is an interactive, normally inactive path. Keep its
+  // exact per-particle ordering while still allowing independent chunks to run
+  // in parallel.
+  if (attract_repel != 0.0f) {
+    const float interact_rad_sq = interact_rad * interact_rad;
+    for (int i = start; i < end; ++i) {
+      const VEC3 old_pos = pos.get(i);
+      VEC3 velocity = vels.get(i) + delta_velocity * masses[types[i]];
+      VEC3 delta = old_pos - interact_point;
+      const float distance_sq = delta.lengthSquared();
+      if (distance_sq <= interact_rad_sq && distance_sq >= 0.1f)
+        velocity += attract_repel * (-delta * (1.0f / sqrtf(distance_sq)));
+
+      const VEC3 predicted = old_pos + velocity * dt;
+      prev.set(i, old_pos);
+      frozen.set(i, predicted);
+      if (in_2d) {
+        pos.set(i, VEC3(0.01f, predicted.y, predicted.z));
+        velocity.x = 0.0f;
+      }
+      else {
+        pos.set(i, predicted);
+      }
+      vels.set(i, velocity);
+    }
+    return;
+  }
+
+  constexpr int simd_width = 8;
+  const __m256 dt_vec = _mm256_set1_ps(dt);
+  const __m256 dv_x = _mm256_set1_ps(delta_velocity.x);
+  const __m256 dv_y = _mm256_set1_ps(delta_velocity.y);
+  const __m256 dv_z = _mm256_set1_ps(delta_velocity.z);
+  const __m256 zero = _mm256_setzero_ps();
+  const __m256 plane_x = _mm256_set1_ps(0.01f);
+  alignas(32) const float mass_lut[8] = {
+    masses[0], masses[1], masses[2], masses[3],
+    masses[0], masses[1], masses[2], masses[3]
+  };
+
+  int i = start;
+  for (; i + simd_width <= end; i += simd_width) {
+    const __m128i types8 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&types[i]));
+    const __m256i mass_indices = _mm256_cvtepu8_epi32(types8);
+    const __m256 mass = _mm256_i32gather_ps(mass_lut, mass_indices, 4);
+
+    const __m256 old_x = _mm256_loadu_ps(&pos.x[i]);
+    const __m256 old_y = _mm256_loadu_ps(&pos.y[i]);
+    const __m256 old_z = _mm256_loadu_ps(&pos.z[i]);
+    __m256 vel_x = _mm256_loadu_ps(&vels.x[i]);
+    __m256 vel_y = _mm256_loadu_ps(&vels.y[i]);
+    __m256 vel_z = _mm256_loadu_ps(&vels.z[i]);
+
+    vel_x = _mm256_add_ps(vel_x, _mm256_mul_ps(dv_x, mass));
+    vel_y = _mm256_add_ps(vel_y, _mm256_mul_ps(dv_y, mass));
+    vel_z = _mm256_add_ps(vel_z, _mm256_mul_ps(dv_z, mass));
+
+    const __m256 predicted_x = _mm256_add_ps(old_x, _mm256_mul_ps(vel_x, dt_vec));
+    const __m256 predicted_y = _mm256_add_ps(old_y, _mm256_mul_ps(vel_y, dt_vec));
+    const __m256 predicted_z = _mm256_add_ps(old_z, _mm256_mul_ps(vel_z, dt_vec));
+
+    _mm256_storeu_ps(&prev.x[i], old_x);
+    _mm256_storeu_ps(&prev.y[i], old_y);
+    _mm256_storeu_ps(&prev.z[i], old_z);
+    _mm256_storeu_ps(&frozen.x[i], predicted_x);
+    _mm256_storeu_ps(&frozen.y[i], predicted_y);
+    _mm256_storeu_ps(&frozen.z[i], predicted_z);
+    _mm256_storeu_ps(&pos.x[i], in_2d ? plane_x : predicted_x);
+    _mm256_storeu_ps(&pos.y[i], predicted_y);
+    _mm256_storeu_ps(&pos.z[i], predicted_z);
+    _mm256_storeu_ps(&vels.x[i], in_2d ? zero : vel_x);
+    _mm256_storeu_ps(&vels.y[i], vel_y);
+    _mm256_storeu_ps(&vels.z[i], vel_z);
+  }
+
+  for (; i < end; ++i) {
+    const VEC3 old_pos = pos.get(i);
+    VEC3 velocity = vels.get(i) + delta_velocity * masses[types[i]];
+    const VEC3 predicted = old_pos + velocity * dt;
+    prev.set(i, old_pos);
+    frozen.set(i, predicted);
+    if (in_2d) {
+      pos.set(i, VEC3(0.01f, predicted.y, predicted.z));
+      velocity.x = 0.0f;
+    }
+    else {
+      pos.set(i, predicted);
+    }
+    vels.set(i, velocity);
   }
 }
 
@@ -280,15 +354,32 @@ inline void collect_neighbors_block(
   int max_nears,
   int i,            // current particle i
   int j_start,      // start of neighbor block
-  int mask_range
+  int lane_count
 ) {
   __m256 pi_x = _mm256_set1_ps(pos.x[i]);
   __m256 pi_y = _mm256_set1_ps(pos.y[i]);
   __m256 pi_z = _mm256_set1_ps(pos.z[i]);
 
-  __m256 px = _mm256_loadu_ps(&pos.x[j_start]);
-  __m256 py = _mm256_loadu_ps(&pos.y[j_start]);
-  __m256 pz = _mm256_loadu_ps(&pos.z[j_start]);
+  __m256 px;
+  __m256 py;
+  __m256 pz;
+  int mask_range;
+  if (lane_count == 8) {
+    px = _mm256_loadu_ps(&pos.x[j_start]);
+    py = _mm256_loadu_ps(&pos.y[j_start]);
+    pz = _mm256_loadu_ps(&pos.z[j_start]);
+    mask_range = 0xff;
+  }
+  else {
+    // A normal unaligned load can run past the z allocation when the particle
+    // capacity is full. Masked loads make the final partial block safe.
+    const __m256i lane_ids = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+    const __m256i load_mask = _mm256_cmpgt_epi32(_mm256_set1_epi32(lane_count), lane_ids);
+    px = _mm256_maskload_ps(&pos.x[j_start], load_mask);
+    py = _mm256_maskload_ps(&pos.y[j_start], load_mask);
+    pz = _mm256_maskload_ps(&pos.z[j_start], load_mask);
+    mask_range = (1 << lane_count) - 1;
+  }
 
   __m256 dx = _mm256_sub_ps(px, pi_x);
   __m256 dy = _mm256_sub_ps(py, pi_y);
@@ -299,11 +390,11 @@ inline void collect_neighbors_block(
     _mm256_mul_ps(dz, dz)
   );
 
-  __m256 length = _mm256_sqrt_ps(d2);
-
+  const __m256 radius_sq = _mm256_set1_ps(kernel_radius * kernel_radius);
+  const __m256 min_dist_sq = _mm256_set1_ps(1e-6f);
   __m256 mask_valid = _mm256_and_ps(
-    _mm256_cmp_ps(length, _mm256_set1_ps(kernel_radius), _CMP_LT_OQ),
-    _mm256_cmp_ps(length, _mm256_set1_ps(1e-3f), _CMP_GT_OQ)
+    _mm256_cmp_ps(d2, radius_sq, _CMP_LT_OQ),
+    _mm256_cmp_ps(d2, min_dist_sq, _CMP_GT_OQ)
   );
 
   // Exclude self-particle
@@ -313,49 +404,78 @@ inline void collect_neighbors_block(
 
   __m256 mask = _mm256_andnot_ps(mask_self, mask_valid);
   int mask_bits = _mm256_movemask_ps(mask) & mask_range;
+  if (mask_bits == 0)
+    return;
 
-  // Load inverse r and normalize
-  __m256 r = _mm256_add_ps(length, _mm256_set1_ps(1e-5f));
-  __m256 inv_r = _mm256_div_ps(_mm256_set1_ps(1.0f), r);
+  // Keep the original precise normalization. The squared-distance test above
+  // still lets us skip the square root and division for wholly rejected blocks.
+  const __m256 one = _mm256_set1_ps(1.0f);
+  const __m256 length = _mm256_sqrt_ps(d2);
+  const __m256 r = _mm256_add_ps(length, _mm256_set1_ps(1e-5f));
+  const __m256 inv_r = _mm256_div_ps(one, r);
+
   dx = _mm256_mul_ps(dx, inv_r);
   dy = _mm256_mul_ps(dy, inv_r);
   dz = _mm256_mul_ps(dz, inv_r);
 
   // Closeness
   __m256 q = _mm256_mul_ps(r, _mm256_set1_ps(kernel_radius_inv));
-  __m256 closeness = _mm256_sub_ps(_mm256_set1_ps(1.0f), q);
+  __m256 closeness = _mm256_sub_ps(one, q);
 
-  const float* c_ptr = reinterpret_cast<const float*>(&closeness);
-  const float* dx_ptr = reinterpret_cast<const float*>(&dx);
-  const float* dy_ptr = reinterpret_cast<const float*>(&dy);
-  const float* dz_ptr = reinterpret_cast<const float*>(&dz);
+  const int available = max_nears - num_nears;
+  int accepted_bits = mask_bits;
+  int accepted_count = __popcnt((unsigned int)accepted_bits);
 
-  // Iterate over the 8 lanes
-  // Skip if the mask is 0, means does not apply to this range or is too far
-  int lane = 0;
-  while (mask_bits) {
-    if (mask_bits & 1) {
-      float c = c_ptr[lane];
-      float c_sq = c * c;
-      float c_cu = c_sq * c;
-
-      *density_acc += c_sq;
-      *near_density_acc += c_cu;
-
-      int j = j_start + lane;
-      nears_ids[num_nears] = j;
-      nears_closeness[num_nears] = c;
-      nears_dirs_x[num_nears] = dx_ptr[lane];
-      nears_dirs_y[num_nears] = dy_ptr[lane];
-      nears_dirs_z[num_nears] = dz_ptr[lane];
-      ++num_nears;
-      if (num_nears >= max_nears)
-        break;
+  // Preserve the original lowest-lane-first behavior at the neighbour cap.
+  if (accepted_count > available) {
+    int remaining_bits = accepted_bits;
+    accepted_bits = 0;
+    for (int accepted = 0; accepted < available; ++accepted) {
+      const int lowest_bit = remaining_bits & -remaining_bits;
+      accepted_bits |= lowest_bit;
+      remaining_bits &= remaining_bits - 1;
     }
-
-    ++lane;
-    mask_bits >>= 1;
+    accepted_count = available;
   }
+
+  __m256 accepted_mask = mask;
+  if (accepted_bits != mask_bits || lane_count != 8) {
+    const __m256i lane_bits =
+      _mm256_setr_epi32(1, 2, 4, 8, 16, 32, 64, 128);
+    const __m256i selected_bits = _mm256_set1_epi32(accepted_bits);
+    accepted_mask = _mm256_castsi256_ps(_mm256_cmpeq_epi32(
+      _mm256_and_si256(selected_bits, lane_bits),
+      lane_bits));
+  }
+
+  const __m256 accepted_closeness =
+    _mm256_and_ps(closeness, accepted_mask);
+  const __m256 closeness_sq =
+    _mm256_mul_ps(accepted_closeness, accepted_closeness);
+  *density_acc += hsum256_ps(closeness_sq);
+  *near_density_acc += hsum256_ps(
+    _mm256_mul_ps(closeness_sq, accepted_closeness));
+
+  const __m256i permutation = _mm256_load_si256(
+    reinterpret_cast<const __m256i*>(
+      simd_compress_permutations.lanes[accepted_bits]));
+  const __m256 compact_closeness =
+    _mm256_permutevar8x32_ps(closeness, permutation);
+  const __m256 compact_dx = _mm256_permutevar8x32_ps(dx, permutation);
+  const __m256 compact_dy = _mm256_permutevar8x32_ps(dy, permutation);
+  const __m256 compact_dz = _mm256_permutevar8x32_ps(dz, permutation);
+  const __m256i compact_ids =
+    _mm256_permutevar8x32_epi32(indices, permutation);
+
+  // The caller provides seven padding entries, allowing full vector stores
+  // even when fewer than eight neighbours remain before the cap.
+  _mm256_storeu_ps(&nears_closeness[num_nears], compact_closeness);
+  _mm256_storeu_ps(&nears_dirs_x[num_nears], compact_dx);
+  _mm256_storeu_ps(&nears_dirs_y[num_nears], compact_dy);
+  _mm256_storeu_ps(&nears_dirs_z[num_nears], compact_dz);
+  _mm256_storeu_si256(
+    reinterpret_cast<__m256i*>(&nears_ids[num_nears]), compact_ids);
+  num_nears += accepted_count;
 }
 
 void ViscoelasticSim::init() {
@@ -384,6 +504,8 @@ void ViscoelasticSim::addParticle(VEC3 pos, VEC3 vel, uint8_t particle_type) {
   particles_prev_pos.set(num_particles, pos);
   particles_vels.set(num_particles, vel);
   particles_type[num_particles] = particle_type;
+  for (ParticlesVec& deltas : relaxation_worker_deltas)
+    deltas.set(num_particles, VEC3::zero);
   ++num_particles;
 }
 
@@ -402,7 +524,7 @@ void ViscoelasticSim::resolveCollisions(float dt, int start, int end) {
   }
 }
 
-void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict deltas) {
+void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas) {
   float kernel_radius = mat.kernel_radius;
   float kernel_radius_inv = 1.0f / kernel_radius;
   float rest_density = mat.rest_density;
@@ -410,20 +532,22 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
   float near_stiffness = mat.near_stiffness * dt * dt;
 
   constexpr static int max_nears = 64;
-  int nears_ids[max_nears];
-  float nears_closeness[max_nears];
+  constexpr static int padded_nears = max_nears + 7;
+  int nears_ids[padded_nears];
+  float nears_closeness[padded_nears];
 
-  alignas(32) float nears_dirs_x[max_nears];
-  alignas(32) float nears_dirs_y[max_nears];
-  alignas(32) float nears_dirs_z[max_nears];
+  alignas(32) float nears_dirs_x[padded_nears];
+  alignas(32) float nears_dirs_y[padded_nears];
+  alignas(32) float nears_dirs_z[padded_nears];
 
   //PROFILE_SCOPED_NAMED("CR");
-  spatial_hash.onEachParticleInCell(range, [&](int i, const CPUSpatialSubdivision::NearRanges& near_ranges) {
+  for (uint32_t i = range.range.first; i < range.range.last; ++i) {
     float density = 0.0f;
     float near_density = 0.0f;
     int num_nears = 0;
 
-    // Iterate over all 27 non-empty surrounding cells
+    // Iterate over at most nine merged XY-column particle ranges. Each range
+    // contains the occupied neighbour cells from target Z - 1 through Z + 1.
     using u32 = uint32_t;
     for (u32 r = 0; r < near_ranges.n && num_nears < max_nears; ++r) {
 
@@ -434,15 +558,15 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
 
         int count = last - j;
         // We process particles in blocks of 8.
-        // If the block is smaller than 8, pass a mask to discard those particles slots
-        int mask_range = (1 << std::min(8, count)) - 1;
+        // If the block is smaller than 8, use masked loads for those slots.
+        int lane_count = std::min(8, count);
         collect_neighbors_block(
           ppos,
           kernel_radius, kernel_radius_inv,
           &density, &near_density,
           nears_ids, nears_closeness, nears_dirs_x, nears_dirs_y, nears_dirs_z,
           num_nears, max_nears,
-          i, j, mask_range
+          i, j, lane_count
         );
       }
     }
@@ -460,17 +584,336 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
       nears_dirs_x, nears_dirs_y, nears_dirs_z,
       num_nears,
       i,
-      deltas
+      out_deltas
     );
 
-    });
+  }
 }
 
 
+bool ViscoelasticSim::assignCellsBoundedXY() {
+  PROFILE_SCOPED_NAMED("assignCellsBoundedXY");
+
+  if (mat.kernel_radius <= 0.0f ||
+      spatial_xy_bound_world_min >= spatial_xy_bound_world_max)
+    return false;
+
+  const float world_to_grid =
+    world_scale * spatial_hash.getGridScaleXY();
+  const int min_cell =
+    (int)floorf(spatial_xy_bound_world_min * world_to_grid);
+  const int max_cell =
+    (int)floorf(spatial_xy_bound_world_max * world_to_grid);
+  const int64_t width_64 = (int64_t)max_cell - min_cell + 1;
+  if (width_64 <= 0)
+    return false;
+
+  const uint64_t num_columns_64 = (uint64_t)width_64 * width_64;
+  const int num_partitions = std::max(1, std::min(num_threads, num_particles));
+  const uint64_t histogram_slots = num_columns_64 * num_partitions;
+  // Keep accidentally huge interactive bounds from allocating an excessive
+  // private histogram. Such a frame simply uses the selected legacy builder.
+  if (num_columns_64 > 1024ull * 1024ull ||
+      histogram_slots > SIZE_MAX / sizeof(uint32_t))
+    return false;
+
+  const uint32_t width = (uint32_t)width_64;
+  const uint32_t num_columns = (uint32_t)num_columns_64;
+  const bool histogram_layout_changed =
+    bounded_xy_partition_histograms.size() != (size_t)histogram_slots ||
+    bounded_xy_partition_touched_columns.size() != (size_t)num_partitions;
+  {
+    PROFILE_SCOPED_NAMED("assignCellsBoundedXY");
+    if (histogram_layout_changed) {
+      bounded_xy_partition_histograms.assign((size_t)histogram_slots, 0);
+      bounded_xy_partition_touched_columns.clear();
+      bounded_xy_partition_touched_columns.resize(num_partitions);
+      bounded_xy_column_counts.assign(num_columns, 0);
+      bounded_xy_occupied_columns.clear();
+    }
+    else {
+      // Scatter leaves the private histogram entries as end cursors. Only the
+      // columns occupied in the previous frame can be non-zero, so clear those
+      // sparse entries rather than the full partitions * columns table.
+      for (uint32_t column : bounded_xy_occupied_columns) {
+        bounded_xy_column_counts[column] = 0;
+        for (int partition = 0; partition < num_partitions; ++partition) {
+          bounded_xy_partition_histograms[
+            (size_t)partition * num_columns + column] = 0;
+        }
+      }
+      bounded_xy_occupied_columns.clear();
+    }
+    bounded_xy_particle_columns.resize(num_particles);
+    bounded_xy_partition_out_of_bounds.assign(num_partitions, 0);
+  }
+
+  // Stage 1: compute integer coordinates and a private exact-XY histogram for
+  // each stable particle partition. No hash cell id is generated.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYHistogram");
+    runInParallel(num_particles, num_partitions,
+      [&](int start, int end, int partition) {
+      uint32_t* histogram = bounded_xy_partition_histograms.data() +
+        (size_t)partition * num_columns;
+      auto& touched_columns =
+        bounded_xy_partition_touched_columns[partition];
+      touched_columns.clear();
+      bool out_of_bounds = false;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const auto coords =
+          spatial_hash.gridCoords(aux_particles_pos.get(particle_id));
+        assigned_cells[particle_id] = { coords, 0 };
+        if (coords.x < min_cell || coords.x > max_cell ||
+            coords.y < min_cell || coords.y > max_cell) {
+          bounded_xy_particle_columns[particle_id] = UINT32_MAX;
+          out_of_bounds = true;
+          continue;
+        }
+
+        const uint32_t column =
+          (uint32_t)(coords.y - min_cell) * width +
+          (uint32_t)(coords.x - min_cell);
+        bounded_xy_particle_columns[particle_id] = column;
+        if (histogram[column]++ == 0)
+          touched_columns.push_back(column);
+      }
+      bounded_xy_partition_out_of_bounds[partition] = out_of_bounds;
+      });
+  }
+
+  if (std::any_of(
+        bounded_xy_partition_out_of_bounds.begin(),
+        bounded_xy_partition_out_of_bounds.end(),
+        [](uint8_t value) { return value != 0; })) {
+    // The histogram contains this failed frame's counts. Force a full clear
+    // before the next bounded attempt rather than carrying sparse state across
+    // the legacy fallback.
+    bounded_xy_partition_histograms.clear();
+    bounded_xy_partition_touched_columns.clear();
+    bounded_xy_occupied_columns.clear();
+    return false;
+  }
+
+  // Stage 2: merge only the locally occupied columns, then prefix those
+  // columns in XY order. In the normal liquid distribution this visits a few
+  // thousand partition/column pairs rather than every possible column once
+  // per partition.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYPrefix");
+    bounded_xy_column_particle_offsets.resize((size_t)num_columns + 1);
+    bounded_xy_occupied_columns.reserve(
+      std::min<uint32_t>(num_columns, (uint32_t)num_particles));
+
+    for (int partition = 0; partition < num_partitions; ++partition) {
+      const uint32_t* histogram = bounded_xy_partition_histograms.data() +
+        (size_t)partition * num_columns;
+      for (uint32_t column :
+           bounded_xy_partition_touched_columns[partition]) {
+        if (bounded_xy_column_counts[column] == 0)
+          bounded_xy_occupied_columns.push_back(column);
+        bounded_xy_column_counts[column] += histogram[column];
+      }
+    }
+    std::sort(
+      bounded_xy_occupied_columns.begin(),
+      bounded_xy_occupied_columns.end());
+
+    uint32_t top = 0;
+    for (uint32_t column : bounded_xy_occupied_columns) {
+      bounded_xy_column_particle_offsets[column] = top;
+      uint32_t column_count = 0;
+      for (int partition = 0; partition < num_partitions; ++partition) {
+        const size_t histogram_idx =
+          (size_t)partition * num_columns + column;
+        const uint32_t local_count =
+          bounded_xy_partition_histograms[histogram_idx];
+        bounded_xy_partition_histograms[histogram_idx] = column_count;
+        column_count += local_count;
+      }
+      assert(column_count == bounded_xy_column_counts[column]);
+      top += column_count;
+      bounded_xy_column_particle_offsets[column + 1] = top;
+    }
+    assert(top == (uint32_t)num_particles);
+  }
+
+  // Stage 3: the same partitions scatter into disjoint slices of every
+  // column, using the cursor computed above.
+  bounded_xy_column_particle_ids.resize(num_particles);
+  {
+    PROFILE_SCOPED_NAMED("boundedXYScatter");
+    runInParallel(num_particles, num_partitions,
+      [&](int start, int end, int partition) {
+      uint32_t* cursors = bounded_xy_partition_histograms.data() +
+        (size_t)partition * num_columns;
+      for (int particle_id = start; particle_id < end; ++particle_id) {
+        const uint32_t column = bounded_xy_particle_columns[particle_id];
+        const uint32_t destination =
+          bounded_xy_column_particle_offsets[column] + cursors[column]++;
+        bounded_xy_column_particle_ids[destination] = particle_id;
+      }
+      });
+  }
+
+  // Stage 4: columns are independent. Sort by integer Z cell and then exact Z
+  // within each cell, and count occupied cells. Exact ordering clusters
+  // neighbour acceptance masks without changing cell membership.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYSortColumns");
+    // Every occupied entry is overwritten by its column job and empty entries
+    // are never read. Keep the storage but do not clear all possible columns.
+    bounded_xy_column_unique_counts.resize(num_columns);
+    pool->dispatch((int)bounded_xy_occupied_columns.size(), [&](int job_id) {
+      PROFILE_SCOPED_NAMED("sortXYColumn");
+      const uint32_t column = bounded_xy_occupied_columns[job_id];
+      const uint32_t first = bounded_xy_column_particle_offsets[column];
+      const uint32_t last = bounded_xy_column_particle_offsets[column + 1];
+      auto begin = bounded_xy_column_particle_ids.begin() + first;
+      auto end = bounded_xy_column_particle_ids.begin() + last;
+      bool already_sorted = true;
+      uint32_t unique_count = 0;
+      int previous_z = 0;
+      float previous_exact_z = 0.0f;
+      for (auto it = begin; it != end; ++it) {
+        const int z = assigned_cells[*it].ipos.z;
+        const float exact_z = aux_particles_pos.z[*it];
+        if (it != begin &&
+            (z < previous_z ||
+             (z == previous_z && exact_z < previous_exact_z))) {
+          already_sorted = false;
+        }
+        if (it == begin || z != previous_z)
+          ++unique_count;
+        previous_z = z;
+        previous_exact_z = exact_z;
+      }
+
+      if (!already_sorted) {
+        std::sort(begin, end, [&](uint32_t particle_a, uint32_t particle_b) {
+          const int cell_z_a = assigned_cells[particle_a].ipos.z;
+          const int cell_z_b = assigned_cells[particle_b].ipos.z;
+          if (cell_z_a != cell_z_b)
+            return cell_z_a < cell_z_b;
+          return aux_particles_pos.z[particle_a] <
+            aux_particles_pos.z[particle_b];
+        });
+        unique_count = 0;
+        for (auto it = begin; it != end; ++it) {
+          const int z = assigned_cells[*it].ipos.z;
+          if (it == begin || z != previous_z)
+            ++unique_count;
+          previous_z = z;
+        }
+      }
+      bounded_xy_column_unique_counts[column] = unique_count;
+    });
+  }
+
+  uint32_t num_unique_cells = 0;
+  {
+    PROFILE_SCOPED_NAMED("boundedXYCellPrefix");
+    bounded_xy_column_cell_offsets.resize(num_columns);
+    for (uint32_t column : bounded_xy_occupied_columns) {
+      bounded_xy_column_cell_offsets[column] = num_unique_cells;
+      num_unique_cells += bounded_xy_column_unique_counts[column];
+    }
+  }
+
+  {
+    PROFILE_SCOPED_NAMED("prepareDirectColumns");
+    spatial_hash.prepareDirectColumns(
+      min_cell,
+      min_cell,
+      max_cell,
+      max_cell,
+      num_unique_cells,
+      num_particles);
+  }
+
+  // Emit cell metadata and reorder the particle streams while the
+  // final source-to-destination order is already being traversed. Cells are
+  // globally ordered by Y, X, Z, matching neighbour traversal order.
+  {
+    PROFILE_SCOPED_NAMED("boundedXYEmitCells");
+    const int source_debug_particle = debug_particle;
+    std::atomic<int> reordered_debug_particle{ -1 };
+    pool->dispatch((int)bounded_xy_occupied_columns.size(), [&](int job_id) {
+      PROFILE_SCOPED_NAMED("emitXYColumn");
+      const uint32_t column = bounded_xy_occupied_columns[job_id];
+      const uint32_t first = bounded_xy_column_particle_offsets[column];
+      const uint32_t last = bounded_xy_column_particle_offsets[column + 1];
+      uint32_t cell_idx = bounded_xy_column_cell_offsets[column];
+      uint32_t particle_offset = first;
+      const int x = min_cell + (int)(column % width);
+      const int y = min_cell + (int)(column / width);
+
+      spatial_hash.setDirectColumn(
+        x, y, cell_idx, bounded_xy_column_unique_counts[column]);
+      uint32_t i = first;
+      while (i < last) {
+        const int z =
+          assigned_cells[bounded_xy_column_particle_ids[i]].ipos.z;
+        uint32_t cell_last = i + 1;
+        while (cell_last < last &&
+               assigned_cells[bounded_xy_column_particle_ids[cell_last]].ipos.z == z)
+          ++cell_last;
+
+        const uint32_t particle_count = cell_last - i;
+        spatial_hash.setDirectCellMetadata(
+          cell_idx,
+          { x, y, z },
+          particle_count,
+          particle_offset);
+        for (uint32_t idx_in_cell = 0;
+             idx_in_cell < particle_count;
+             ++idx_in_cell) {
+          const uint32_t particle_id =
+            bounded_xy_column_particle_ids[i + idx_in_cell];
+          const uint32_t destination = particle_offset + idx_in_cell;
+          particles_pos.set(destination, aux_particles_pos.get(particle_id));
+          particles_vels.set(destination, aux_particles_vels.get(particle_id));
+          particles_prev_pos.set(
+            destination,
+            aux_particles_prev_pos.get(particle_id));
+          particles_type[destination] = aux_particles_type[particle_id];
+          if ((int)particle_id == source_debug_particle)
+            reordered_debug_particle.store(
+              (int)destination,
+              std::memory_order_relaxed);
+        }
+
+        particle_offset += particle_count;
+        ++cell_idx;
+        i = cell_last;
+      }
+      assert(particle_offset == last);
+      assert(cell_idx == bounded_xy_column_cell_offsets[column] +
+        bounded_xy_column_unique_counts[column]);
+    });
+    if (source_debug_particle >= 0) {
+      const int destination =
+        reordered_debug_particle.load(std::memory_order_relaxed);
+      if (destination >= 0)
+        debug_particle = destination;
+    }
+  }
+
+  return true;
+}
+
 void ViscoelasticSim::updateSpatialHash() {
 
-  float inv_kernel_radius = 1.0f / mat.kernel_radius;
-  spatial_hash.setGridScale(inv_kernel_radius);
+  assert(spatial_cell_mode >= 0 &&
+    spatial_cell_mode < NumSpatialCellModes);
+  const int cells_per_kernel_radius_xy = 1;
+  const int cells_per_kernel_radius_z =
+    spatial_cell_mode == SpatialCellsKernelRadius ? 1 : 2;
+  spatial_hash.setGridScale(
+    (float)cells_per_kernel_radius_xy / mat.kernel_radius,
+    (float)cells_per_kernel_radius_z / mat.kernel_radius,
+    cells_per_kernel_radius_xy,
+    cells_per_kernel_radius_z);
 
   // We are going to reorder the particles, by moving the
   // from the old order to the new order
@@ -478,8 +921,12 @@ void ViscoelasticSim::updateSpatialHash() {
   particles_vels.swap(aux_particles_vels);
   particles_prev_pos.swap(aux_particles_prev_pos);
   std::swap(particles_type, aux_particles_type);
-  {
-    // Precompute for each particle it's icoords and cell_id
+
+  const bool used_bounded_xy = assignCellsBoundedXY();
+  if (!used_bounded_xy) {
+    // The serial fallback requires both integer coordinates and a hash cell id.
+    // The bounded path computes its coordinates inside the histogram pass and
+    // never executes this hash calculation unless it has to fall back.
     PROFILE_SCOPED_NAMED("assignedCells");
     runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
       for (int i = start; i < end; ++i) {
@@ -491,38 +938,659 @@ void ViscoelasticSim::updateSpatialHash() {
       });
   }
 
-  spatial_hash.setPoints(assigned_cells.data(), num_particles);
+  if (!used_bounded_xy)
+    spatial_hash.setPoints(assigned_cells.data(), num_particles);
 
-  runInParallel(num_particles, num_threads, [&](int start, int end, int job_id) {
+  if (!used_bounded_xy) {
     PROFILE_SCOPED_NAMED("sortParticles");
-    bool debug_particle_changed = false;
-    spatial_hash.sortParticles(start, end, [&](int j, int i) {
-      if (!debug_particle_changed && j == debug_particle) {
-        debug_particle_changed = true;
-        debug_particle = i;
-      }
-      assert(i >= 0 && i < max_particles);
-      assert(j >= 0 && j < max_particles);
-      particles_pos.set(i, aux_particles_pos.get(j));
-      particles_vels.set(i, aux_particles_vels.get(j));
-      particles_prev_pos.set(i, aux_particles_prev_pos.get(j));
-      particles_type[i] = aux_particles_type[j];
+    runInParallel(num_particles, num_threads * sort_jobs_per_thread, [&](int start, int end, int job_id) {
+      bool debug_particle_changed = false;
+      spatial_hash.sortParticles(start, end, [&](int j, int i) {
+        if (!debug_particle_changed && j == debug_particle) {
+          debug_particle_changed = true;
+          debug_particle = i;
+        }
+        assert(i >= 0 && i < max_particles);
+        assert(j >= 0 && j < max_particles);
+        particles_pos.set(i, aux_particles_pos.get(j));
+        particles_vels.set(i, aux_particles_vels.get(j));
+        particles_prev_pos.set(i, aux_particles_prev_pos.get(j));
+        particles_type[i] = aux_particles_type[j];
+        });
       });
-    });
+  }
 
 }
 
+void ViscoelasticSim::cacheNearRanges(int cell_idx) {
+  const auto& cell = spatial_hash.cells_ranges[cell_idx];
+  auto& near_ranges = relaxation_near_ranges[cell_idx];
+  spatial_hash.collectRanges(near_ranges, cell.cell_id);
+}
+
+void ViscoelasticSim::cacheDirectColumnRanges(
+    uint32_t column) {
+  PROFILE_SCOPED_NAMED("cacheZColumn");
+
+  const uint32_t first_target = bounded_xy_column_cell_offsets[column];
+  const uint32_t target_count = bounded_xy_column_unique_counts[column];
+  const uint32_t target_end = first_target + target_count;
+  assert(target_end <= spatial_hash.cells_ranges.size());
+  if (first_target == target_end)
+    return;
+
+  const auto& target_coords = spatial_hash.cells_info[first_target].coords;
+  for (uint32_t target_id = first_target;
+       target_id < target_end;
+       ++target_id) {
+    assert(spatial_hash.cells_info[target_id].coords.x == target_coords.x);
+    assert(spatial_hash.cells_info[target_id].coords.y == target_coords.y);
+    relaxation_near_ranges[target_id].n = 0;
+  }
+
+  // Both the target and neighbour column intervals are sorted by Z. For each
+  // neighbouring XY column, advance one lower-bound cursor monotonically as
+  // target Z increases instead of restarting with a binary search per cell.
+  const int xy_radius = spatial_hash.getNeighbourCellRadiusXY();
+  const int z_radius = spatial_hash.getNeighbourCellRadiusZ();
+  for (int y = target_coords.y - xy_radius;
+       y <= target_coords.y + xy_radius;
+       ++y) {
+    for (int x = target_coords.x - xy_radius;
+         x <= target_coords.x + xy_radius;
+         ++x) {
+      const auto* neighbour_column = spatial_hash.findDirectColumn(x, y);
+      if (neighbour_column == nullptr)
+        continue;
+
+      uint32_t first_neighbour = neighbour_column->first_cell;
+      uint32_t after_neighbour = first_neighbour;
+      const uint32_t neighbour_end =
+        first_neighbour + neighbour_column->num_cells;
+      for (uint32_t target_id = first_target;
+           target_id < target_end;
+           ++target_id) {
+        const int target_z = spatial_hash.cells_info[target_id].coords.z;
+        while (first_neighbour < neighbour_end &&
+               spatial_hash.cells_info[first_neighbour].coords.z <
+                 target_z - z_radius)
+          ++first_neighbour;
+
+        after_neighbour = std::max(after_neighbour, first_neighbour);
+        while (after_neighbour < neighbour_end &&
+               spatial_hash.cells_info[after_neighbour].coords.z <=
+                 target_z + z_radius)
+          ++after_neighbour;
+
+        if (first_neighbour == after_neighbour)
+          continue;
+
+#ifndef NDEBUG
+        // All occupied cells in one direct column are emitted consecutively.
+        // Keep that invariant explicit because the combined range relies on it.
+        for (uint32_t neighbour_id = first_neighbour + 1;
+             neighbour_id < after_neighbour;
+             ++neighbour_id) {
+          const auto& previous = spatial_hash.cells_info[neighbour_id - 1];
+          const auto& current = spatial_hash.cells_info[neighbour_id];
+          assert(previous.first + previous.num_particles == current.first);
+        }
+#endif
+
+        const auto& first_cell =
+          spatial_hash.cells_info[first_neighbour];
+        const auto& last_cell =
+          spatial_hash.cells_info[after_neighbour - 1];
+        const CPUSpatialSubdivision::Range column_range = {
+          first_cell.first,
+          last_cell.first + last_cell.num_particles
+        };
+
+        auto& near_ranges = relaxation_near_ranges[target_id];
+        if (near_ranges.n > 0 &&
+            near_ranges.ranges[near_ranges.n - 1].last ==
+              column_range.first) {
+          near_ranges.ranges[near_ranges.n - 1].last = column_range.last;
+        }
+        else {
+          assert(near_ranges.n < CPUSpatialSubdivision::NearRanges::max_ranges);
+          near_ranges.ranges[near_ranges.n++] = column_range;
+        }
+      }
+    }
+  }
+
+}
+
+void ViscoelasticSim::cacheRanges() {
+  PROFILE_SCOPED_NAMED("cacheRanges");
+  const int num_cells = (int)spatial_hash.cells_ranges.size();
+  const bool cache_direct_columns =
+    spatial_hash.using_direct_column_lookup;
+  const int num_cache_units = cache_direct_columns
+    ? (int)bounded_xy_occupied_columns.size()
+    : num_cells;
+  relaxation_near_ranges.resize(num_cells);
+  if (cache_direct_columns) {
+    runInParallel(
+      num_cache_units,
+      num_threads * cache_jobs_per_thread,
+      [&](int start, int end, int job_id) {
+      for (int column_idx = start; column_idx < end; ++column_idx) {
+        cacheDirectColumnRanges(bounded_xy_occupied_columns[column_idx]);
+      }
+      });
+  }
+  else {
+    // Legacy layouts cache each cell independently through their lookup.
+    runInParallel(
+      num_cells,
+      num_threads * cache_jobs_per_thread,
+      [&](int start, int end, int job_id) {
+      for (int cell_idx = start; cell_idx < end; ++cell_idx)
+        cacheNearRanges(cell_idx);
+      });
+  }
+}
+
+void ViscoelasticSim::updatePredictedPositionsRange(float dt, int start, int end) {
+  PROFILE_SCOPED_NAMED("prepareParticles");
+  const VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
+  float attract_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
+  attract_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
+  simd_prepare_particles(
+    particles_pos,
+    particles_prev_pos,
+    particles_frozen_pos,
+    particles_vels,
+    particles_type,
+    masses,
+    delta_velocity,
+    dt,
+    in_2d,
+    attract_repel,
+    interact_point,
+    interact_rad,
+    start,
+    end);
+}
+
+void ViscoelasticSim::updatePredictedPositions(float dt) {
+  TTimer timer;
+  const int num_jobs = std::max(1, std::min(prediction_jobs, num_threads));
+  runInParallel(num_particles, num_jobs, [&](int start, int end, int job_id) {
+    updatePredictedPositionsRange(dt, start, end);
+    });
+  saveTime(eSection::PredictPositions, timer);
+}
+
+void ViscoelasticSim::cacheRangesAndPredict(float dt) {
+  PROFILE_SCOPED_NAMED("cacheRangesAndPredict");
+
+  // Range caching depends only on the spatial hash produced above. Particle
+  // preparation mutates independent array slices, so several preparation jobs
+  // can share this heterogeneous phase with the cache jobs.
+  const int num_cells = (int)spatial_hash.cells_ranges.size();
+  const bool cache_direct_columns =
+    spatial_hash.using_direct_column_lookup;
+  const int num_cache_units = cache_direct_columns
+    ? (int)bounded_xy_occupied_columns.size()
+    : num_cells;
+  relaxation_near_ranges.resize(num_cells);
+
+  if (num_cache_units == 0) {
+    updatePredictedPositions(dt);
+    return;
+  }
+
+  const int num_cache_jobs =
+    std::min(num_cache_units, num_threads * cache_jobs_per_thread);
+  const int num_prediction_jobs = std::min(num_particles, std::max(1, std::min(prediction_jobs, num_threads)));
+  const int chunk_size =
+    (num_cache_units + num_cache_jobs - 1) / num_cache_jobs;
+  const int prediction_chunk_size = (num_particles + num_prediction_jobs - 1) / num_prediction_jobs;
+  std::atomic<int> cache_jobs_remaining{ num_cache_jobs };
+  std::atomic<int> prediction_jobs_remaining{ num_prediction_jobs };
+  TTimer cache_timer;
+  TTimer prediction_timer;
+
+  // Publish preparation first so several workers start its contiguous chunks
+  // immediately. As each finishes, that worker automatically helps with the
+  // remaining cache ranges.
+  pool->dispatch(num_prediction_jobs + num_cache_jobs, [&](int job_id) {
+    PROFILE_SCOPED_NAMED("C");
+    if (job_id < num_prediction_jobs) {
+      const int start = job_id * prediction_chunk_size;
+      const int end = std::min(start + prediction_chunk_size, num_particles);
+      updatePredictedPositionsRange(dt, start, end);
+      if (prediction_jobs_remaining.fetch_sub(1, std::memory_order_acq_rel) == 1)
+        saveTime(eSection::PredictPositions, prediction_timer);
+      return;
+    }
+
+    PROFILE_SCOPED_NAMED("cacheRanges");
+    const int cache_job_id = job_id - num_prediction_jobs;
+    const int start = cache_job_id * chunk_size;
+    const int end = std::min(start + chunk_size, num_cache_units);
+    if (cache_direct_columns) {
+      for (int column_idx = start; column_idx < end; ++column_idx) {
+        cacheDirectColumnRanges(bounded_xy_occupied_columns[column_idx]);
+      }
+    }
+    else {
+      for (int cell_idx = start; cell_idx < end; ++cell_idx)
+        cacheNearRanges(cell_idx);
+    }
+
+    if (cache_jobs_remaining.fetch_sub(1, std::memory_order_acq_rel) == 1)
+      saveTime(eSection::CacheRanges, cache_timer);
+    });
+}
+
+void ViscoelasticSim::captureRelaxationAudit() {
+  RelaxationAudit& audit = relaxation_audit;
+  audit.valid = false;
+  audit.num_workers = (int)relaxation_worker_deltas.size();
+  audit.num_particles = num_particles;
+  audit.neighbour_cell_radius_xy =
+    spatial_hash.getNeighbourCellRadiusXY();
+  audit.neighbour_cell_radius_z =
+    spatial_hash.getNeighbourCellRadiusZ();
+  audit.total_delta_slots = (uint64_t)audit.num_workers * (uint64_t)num_particles;
+  audit.nonzero_delta_slots = 0;
+  audit.total_simd_blocks = 0;
+  audit.active_simd_blocks = 0;
+  audit.total_range_worker_pairs = 0;
+  audit.active_range_worker_pairs = 0;
+  audit.minmax_delta_slots = 0;
+  audit.simd_aligned_minmax_delta_slots = 0;
+  audit.active_workers = 0;
+  audit.average_workers_per_particle = 0.0f;
+  audit.max_workers_per_particle = 0;
+  audit.average_workers_per_range = 0.0f;
+  audit.min_workers_per_range = 0;
+  audit.max_workers_per_range = 0;
+  audit.neighbour_candidates_available = 0;
+  audit.neighbour_candidates_checked = 0;
+  audit.neighbour_candidates_accepted = 0;
+  audit.neighbour_candidates_rejected = 0;
+  audit.neighbour_candidates_avoided_by_cell_z_bounds = 0;
+  audit.neighbour_candidates_avoided_by_precise_z = 0;
+  audit.neighbour_within_radius_omitted_by_cell_z_bounds = 0;
+  audit.neighbour_within_radius_omitted_by_precise_z = 0;
+  audit.z_range_candidate_slots_current = 0;
+  audit.z_range_candidate_slots_precise = 0;
+  audit.z_range_simd_blocks_current = 0;
+  audit.z_range_simd_blocks_precise = 0;
+  audit.neighbour_candidates_discarded_by_cap = 0;
+  audit.neighbour_candidates_skipped_by_cap = 0;
+  audit.neighbour_simd_blocks_checked = 0;
+  audit.neighbour_simd_blocks_active = 0;
+  audit.neighbour_simd_blocks_empty_x = 0;
+  audit.neighbour_simd_blocks_empty_y = 0;
+  audit.neighbour_simd_blocks_empty_z = 0;
+  audit.neighbour_simd_blocks_empty_xy = 0;
+  audit.neighbour_simd_blocks_empty_xz = 0;
+  audit.neighbour_simd_blocks_empty_yz = 0;
+  for (int cell_class = 0; cell_class < 4; ++cell_class) {
+    audit.neighbour_candidates_by_cell_class[cell_class] = 0;
+    audit.neighbour_within_radius_by_cell_class[cell_class] = 0;
+  }
+  audit.particles_at_neighbour_cap = 0;
+
+  constexpr int simd_width = 8;
+  const int range_size = audit.range_size;
+  const int num_ranges = (num_particles + range_size - 1) / range_size;
+  const int num_simd_blocks = (num_particles + simd_width - 1) / simd_width;
+  audit.workers_per_range.assign(num_ranges, 0.0f);
+  audit.worker_range_coverage_percent.assign(audit.num_workers, 0.0f);
+  audit.worker_min_touched_particle.assign(audit.num_workers, -1);
+  audit.worker_max_touched_particle.assign(audit.num_workers, -1);
+  audit.worker_nonzero_delta_slots.assign(audit.num_workers, 0);
+  std::vector<uint16_t> workers_per_particle(num_particles, 0);
+
+  audit.total_simd_blocks = (uint64_t)audit.num_workers * (uint64_t)num_simd_blocks;
+  audit.total_range_worker_pairs = (uint64_t)audit.num_workers * (uint64_t)num_ranges;
+
+  for (int worker_idx = 0; worker_idx < audit.num_workers; ++worker_idx) {
+    const ParticlesVec& deltas = relaxation_worker_deltas[worker_idx];
+    int worker_active_ranges = 0;
+    int worker_min_touched = num_particles;
+    int worker_max_touched = -1;
+    uint64_t worker_nonzero_slots = 0;
+
+    for (int range_idx = 0; range_idx < num_ranges; ++range_idx) {
+      const int range_start = range_idx * range_size;
+      const int range_end = std::min(range_start + range_size, num_particles);
+      bool range_active = false;
+
+      for (int block_start = range_start; block_start < range_end; block_start += simd_width) {
+        const int block_end = std::min(block_start + simd_width, range_end);
+        bool block_active = false;
+        for (int particle_idx = block_start; particle_idx < block_end; ++particle_idx) {
+          const bool nonzero = deltas.x[particle_idx] != 0.0f
+            || deltas.y[particle_idx] != 0.0f
+            || deltas.z[particle_idx] != 0.0f;
+          if (nonzero) {
+            ++audit.nonzero_delta_slots;
+            ++worker_nonzero_slots;
+            ++workers_per_particle[particle_idx];
+            worker_min_touched = std::min(worker_min_touched, particle_idx);
+            worker_max_touched = std::max(worker_max_touched, particle_idx);
+            block_active = true;
+          }
+        }
+        if (block_active) {
+          ++audit.active_simd_blocks;
+          range_active = true;
+        }
+      }
+
+      if (range_active) {
+        ++audit.active_range_worker_pairs;
+        ++worker_active_ranges;
+        audit.workers_per_range[range_idx] += 1.0f;
+      }
+
+    }
+
+    if (num_ranges > 0)
+      audit.worker_range_coverage_percent[worker_idx] = 100.0f * (float)worker_active_ranges / (float)num_ranges;
+
+    audit.worker_nonzero_delta_slots[worker_idx] = worker_nonzero_slots;
+    if (worker_max_touched >= 0) {
+      audit.worker_min_touched_particle[worker_idx] = worker_min_touched;
+      audit.worker_max_touched_particle[worker_idx] = worker_max_touched;
+      ++audit.active_workers;
+
+      const uint64_t span = (uint64_t)(worker_max_touched - worker_min_touched + 1);
+      const int aligned_start = worker_min_touched & ~(simd_width - 1);
+      const int aligned_end = std::min(num_particles, (worker_max_touched + simd_width) & ~(simd_width - 1));
+      audit.minmax_delta_slots += span;
+      audit.simd_aligned_minmax_delta_slots += (uint64_t)(aligned_end - aligned_start);
+    }
+  }
+
+  if (num_particles > 0) {
+    audit.average_workers_per_particle = (float)((double)audit.nonzero_delta_slots / (double)num_particles);
+    for (uint16_t count : workers_per_particle)
+      audit.max_workers_per_particle = std::max(audit.max_workers_per_particle, (int)count);
+  }
+
+  if (num_ranges > 0) {
+    audit.min_workers_per_range = audit.num_workers;
+    float total_workers_per_range = 0.0f;
+    for (float count : audit.workers_per_range) {
+      audit.min_workers_per_range = std::min(audit.min_workers_per_range, (int)count);
+      audit.max_workers_per_range = std::max(audit.max_workers_per_range, (int)count);
+      total_workers_per_range += count;
+    }
+    audit.average_workers_per_range = total_workers_per_range / (float)num_ranges;
+  }
+
+  // Replay only the neighbour acceptance test. This mirrors the eight-wide
+  // blocks and the 64-neighbour cap without doing normalization or correction
+  // math, and runs only for the explicitly requested audit frame.
+  constexpr int max_nears = 64;
+  const float radius = mat.kernel_radius;
+  const float radius_sq = mat.kernel_radius * mat.kernel_radius;
+  std::vector<CPUSpatialSubdivision::Int3> particle_cell_coords(num_particles);
+  std::vector<uint32_t> particle_cell_indices(num_particles);
+  std::vector<float> cell_old_min_z(spatial_hash.cells_ranges.size());
+  std::vector<float> cell_old_max_z(spatial_hash.cells_ranges.size());
+  for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx) {
+    const auto& cell_range = spatial_hash.cells_ranges[cell_idx];
+    const auto& cell_info = spatial_hash.cells_info[cell_range.cell_id];
+    assert(cell_range.range.first < cell_range.range.last);
+    float min_z = particles_prev_pos.z[cell_range.range.first];
+    float max_z = min_z;
+    for (uint32_t particle_idx = cell_range.range.first;
+         particle_idx < cell_range.range.last;
+         ++particle_idx) {
+      particle_cell_coords[particle_idx] = cell_info.coords;
+      particle_cell_indices[particle_idx] = (uint32_t)cell_idx;
+      min_z = std::min(min_z, particles_prev_pos.z[particle_idx]);
+      max_z = std::max(max_z, particles_prev_pos.z[particle_idx]);
+    }
+    cell_old_min_z[cell_idx] = min_z;
+    cell_old_max_z[cell_idx] = max_z;
+  }
+
+  for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx) {
+    const auto& cell_range = spatial_hash.cells_ranges[cell_idx];
+    const auto& target_cell_coords =
+      spatial_hash.cells_info[cell_range.cell_id].coords;
+    const auto& near_ranges = relaxation_near_ranges[cell_idx];
+    // cacheRanges currently runs concurrently with prediction, so prev holds
+    // the exact positions from which the spatial index was built. Expanding
+    // the occupied target interval by R gives the narrowest Z interval the
+    // cache phase could derive without introducing a new dependency.
+    const float target_query_min_z = cell_old_min_z[cell_idx] - radius;
+    const float target_query_max_z = cell_old_max_z[cell_idx] + radius;
+
+    // Estimate the actual range-loop work after exact-Z trimming. The current
+    // cache can merge physically adjacent column ranges; a trimmed cache would
+    // generally retain one independent contiguous range per XY column, so
+    // count SIMD blocks at those column boundaries rather than assuming that
+    // candidate reduction translates directly into eight-wide block savings.
+    uint64_t current_candidate_slots_per_particle = 0;
+    uint64_t precise_candidate_slots_per_particle = 0;
+    uint64_t current_simd_blocks_per_particle = 0;
+    uint64_t precise_simd_blocks_per_particle = 0;
+    uint32_t precise_merged_first = 0;
+    uint32_t precise_merged_last = 0;
+    bool have_precise_merged_range = false;
+    const auto appendPreciseColumnRange =
+      [&](uint32_t column_first, uint32_t below_count, uint32_t kept_count) {
+        if (kept_count == 0)
+          return;
+        const uint32_t kept_first = column_first + below_count;
+        const uint32_t kept_last = kept_first + kept_count;
+        if (have_precise_merged_range && precise_merged_last == kept_first) {
+          precise_merged_last = kept_last;
+          return;
+        }
+        if (have_precise_merged_range) {
+          const uint32_t merged_count =
+            precise_merged_last - precise_merged_first;
+          precise_simd_blocks_per_particle +=
+            (merged_count + simd_width - 1) / simd_width;
+        }
+        precise_merged_first = kept_first;
+        precise_merged_last = kept_last;
+        have_precise_merged_range = true;
+      };
+    for (uint32_t range_idx = 0; range_idx < near_ranges.n; ++range_idx) {
+      const uint32_t first = near_ranges.ranges[range_idx].first;
+      const uint32_t last = near_ranges.ranges[range_idx].last;
+      const uint32_t range_count = last - first;
+      current_candidate_slots_per_particle += range_count;
+      current_simd_blocks_per_particle += (range_count + simd_width - 1) / simd_width;
+
+      uint32_t column_kept = 0;
+      uint32_t column_below = 0;
+      uint32_t column_first = first;
+      CPUSpatialSubdivision::Int3 previous_coords{};
+      bool have_column = false;
+      for (uint32_t particle_idx = first; particle_idx < last; ++particle_idx) {
+        const auto& coords = particle_cell_coords[particle_idx];
+        if (have_column &&
+            (coords.x != previous_coords.x || coords.y != previous_coords.y)) {
+          appendPreciseColumnRange(column_first, column_below, column_kept);
+          column_first = particle_idx;
+          column_kept = 0;
+          column_below = 0;
+        }
+        previous_coords = coords;
+        have_column = true;
+
+        const float old_z = particles_prev_pos.z[particle_idx];
+        if (old_z <= target_query_min_z)
+          ++column_below;
+        if (old_z > target_query_min_z && old_z < target_query_max_z) {
+          ++column_kept;
+          ++precise_candidate_slots_per_particle;
+        }
+      }
+      if (have_column)
+        appendPreciseColumnRange(column_first, column_below, column_kept);
+    }
+    if (have_precise_merged_range) {
+      const uint32_t merged_count = precise_merged_last - precise_merged_first;
+      precise_simd_blocks_per_particle +=
+        (merged_count + simd_width - 1) / simd_width;
+    }
+    const uint64_t target_particle_count =
+      cell_range.range.last - cell_range.range.first;
+    audit.z_range_candidate_slots_current +=
+      current_candidate_slots_per_particle * target_particle_count;
+    audit.z_range_candidate_slots_precise +=
+      precise_candidate_slots_per_particle * target_particle_count;
+    audit.z_range_simd_blocks_current +=
+      current_simd_blocks_per_particle * target_particle_count;
+    audit.z_range_simd_blocks_precise +=
+      precise_simd_blocks_per_particle * target_particle_count;
+
+    uint64_t available_per_particle = 0;
+    for (uint32_t range_idx = 0; range_idx < near_ranges.n; ++range_idx)
+      available_per_particle += near_ranges.ranges[range_idx].last - near_ranges.ranges[range_idx].first;
+
+    for (uint32_t i = cell_range.range.first; i < cell_range.range.last; ++i) {
+      const float pi_x = particles_frozen_pos.x[i];
+      const float pi_y = particles_frozen_pos.y[i];
+      const float pi_z = particles_frozen_pos.z[i];
+      int num_nears = 0;
+      uint64_t checked_for_particle = 0;
+      const uint64_t available_without_self = available_per_particle > 0 ? available_per_particle - 1 : 0;
+      audit.neighbour_candidates_available += available_without_self;
+
+      for (uint32_t range_idx = 0; range_idx < near_ranges.n && num_nears < max_nears; ++range_idx) {
+        const uint32_t first = near_ranges.ranges[range_idx].first;
+        const uint32_t last = near_ranges.ranges[range_idx].last;
+        for (uint32_t j_start = first; j_start < last && num_nears < max_nears; j_start += 8) {
+          ++audit.neighbour_simd_blocks_checked;
+          const uint32_t lane_count = std::min(8u, last - j_start);
+          int valid_in_block = 0;
+          int candidates_in_block = 0;
+          bool active_x = false;
+          bool active_y = false;
+          bool active_z = false;
+          bool active_xy = false;
+          bool active_xz = false;
+          bool active_yz = false;
+          for (uint32_t lane = 0; lane < lane_count; ++lane) {
+            const uint32_t j = j_start + lane;
+            if (j == i)
+              continue;
+            ++candidates_in_block;
+            const auto& neighbour_cell_coords = particle_cell_coords[j];
+            // With R-sized cells this is current/face/edge/corner. Counting
+            // differing axes also keeps the audit meaningful for R/2 cells,
+            // whose coordinate offsets can be two cells apart.
+            const int cell_class =
+              (neighbour_cell_coords.x != target_cell_coords.x ? 1 : 0) +
+              (neighbour_cell_coords.y != target_cell_coords.y ? 1 : 0) +
+              (neighbour_cell_coords.z != target_cell_coords.z ? 1 : 0);
+            assert(cell_class >= 0 && cell_class <= 3);
+            ++audit.neighbour_candidates_by_cell_class[cell_class];
+            const uint32_t neighbour_cell_idx = particle_cell_indices[j];
+            const bool rejected_by_cell_z_bounds =
+              cell_old_max_z[neighbour_cell_idx] <= target_query_min_z ||
+              cell_old_min_z[neighbour_cell_idx] >= target_query_max_z;
+            const float neighbour_old_z = particles_prev_pos.z[j];
+            const bool rejected_by_precise_z =
+              neighbour_old_z <= target_query_min_z ||
+              neighbour_old_z >= target_query_max_z;
+            if (rejected_by_cell_z_bounds)
+              ++audit.neighbour_candidates_avoided_by_cell_z_bounds;
+            if (rejected_by_precise_z)
+              ++audit.neighbour_candidates_avoided_by_precise_z;
+            const float dx = particles_frozen_pos.x[j] - pi_x;
+            const float dy = particles_frozen_pos.y[j] - pi_y;
+            const float dz = particles_frozen_pos.z[j] - pi_z;
+            const float dx_sq = dx * dx;
+            const float dy_sq = dy * dy;
+            const float dz_sq = dz * dz;
+            active_x |= dx_sq < radius_sq;
+            active_y |= dy_sq < radius_sq;
+            active_z |= dz_sq < radius_sq;
+            active_xy |= dx_sq + dy_sq < radius_sq;
+            active_xz |= dx_sq + dz_sq < radius_sq;
+            active_yz |= dy_sq + dz_sq < radius_sq;
+            const float distance_sq = dx_sq + dy_sq + dz_sq;
+            if (distance_sq < radius_sq && distance_sq > 1e-6f) {
+              ++valid_in_block;
+              ++audit.neighbour_within_radius_by_cell_class[cell_class];
+              if (rejected_by_cell_z_bounds)
+                ++audit.neighbour_within_radius_omitted_by_cell_z_bounds;
+              if (rejected_by_precise_z)
+                ++audit.neighbour_within_radius_omitted_by_precise_z;
+            }
+          }
+
+          if (!active_x)
+            ++audit.neighbour_simd_blocks_empty_x;
+          if (!active_y)
+            ++audit.neighbour_simd_blocks_empty_y;
+          if (!active_z)
+            ++audit.neighbour_simd_blocks_empty_z;
+          if (!active_xy)
+            ++audit.neighbour_simd_blocks_empty_xy;
+          if (!active_xz)
+            ++audit.neighbour_simd_blocks_empty_xz;
+          if (!active_yz)
+            ++audit.neighbour_simd_blocks_empty_yz;
+          if (valid_in_block > 0)
+            ++audit.neighbour_simd_blocks_active;
+
+          checked_for_particle += candidates_in_block;
+          audit.neighbour_candidates_checked += candidates_in_block;
+          audit.neighbour_candidates_rejected += candidates_in_block - valid_in_block;
+          const int accepted_in_block = std::min(valid_in_block, max_nears - num_nears);
+          audit.neighbour_candidates_accepted += accepted_in_block;
+          audit.neighbour_candidates_discarded_by_cap += valid_in_block - accepted_in_block;
+          num_nears += accepted_in_block;
+        }
+      }
+
+      if (num_nears == max_nears)
+        ++audit.particles_at_neighbour_cap;
+      if (available_without_self > checked_for_particle)
+        audit.neighbour_candidates_skipped_by_cap += available_without_self - checked_for_particle;
+    }
+  }
+
+  audit.valid = true;
+  audit.completed_this_update = true;
+}
+
 void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
-  int num_jobs = (int)spatial_hash.cells_ranges.size();
-  runInParallel(num_jobs, num_threads * 3, [&](int start, int end, int job_id) {
-    for (int i = start; i < end; ++i)
-      processRange(dt, spatial_hash.cells_ranges[i], particles_frozen_pos, &particles_pos);
+  const int num_jobs = (int)spatial_hash.cells_ranges.size();
+
+  // Each worker accumulates into its own full-sized buffer, so neighbour
+  // scatters never contend. The reduction also clears each consumed delta,
+  // leaving the buffers ready for the next pass without a separate phase.
+  // More chunks keep faster cores useful near the end of the phase and limit
+  // how much work a slower core can hold past the rest of the workers.
+  runInParallel(num_jobs, num_threads * relaxation_jobs_per_thread, [&](int start, int end, int job_id) {
+    ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
+    for (int cell_idx = start; cell_idx < end; ++cell_idx)
+      processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
+    });
+
+  if (relaxation_audit.requested) {
+    captureRelaxationAudit();
+    relaxation_audit.requested = false;
+  }
+
+  runInParallel(num_particles, num_threads * relaxation_reduce_jobs_per_thread, [&](int start, int end, int job_id) {
+    simd_apply_relaxation_deltas(particles_pos, relaxation_worker_deltas, start, end);
     });
 }
 
 void ViscoelasticSim::doubleDensityRelaxation(float dt) {
-  for (auto& range : spatial_hash.cells_ranges)
-    processRange(dt, range, particles_frozen_pos, &particles_pos);
+  for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx)
+    processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &particles_pos);
 }
 
 void ViscoelasticSim::removeParticle(int id) {
@@ -565,54 +1633,16 @@ void ViscoelasticSim::updateStep(float dt) {
     saveTime(eSection::SpatialHash, tm);
   }
 
-  // Apply external forces
-  {
-    TTimer tm;
-    PROFILE_SCOPED_NAMED("velocities");
-    VEC3 delta_velocity = 0.02f * mat.kernel_radius * mat.gravity * dt;
-    simd_add_velocity_scaled_by_type(particles_vels, particles_type, masses, delta_velocity, num_particles);
-    saveTime(eSection::VelocitiesUpdate, tm);
+  if (overlap_cache_and_prediction) {
+    cacheRangesAndPredict(dt);
   }
-
-  {
-    PROFILE_SCOPED_NAMED("ext forces");
-    float attrack_repel = attract ? 0.01f * mat.kernel_radius : 0.0f;
-    attrack_repel -= repel ? 0.01f * mat.kernel_radius : 0.0f;
-    bool attrack_repel_active = attrack_repel != 0.0f;
-    if (attrack_repel_active) {
-      float interact_rad_sqr = interact_rad * interact_rad;
-
-      for (int i = 0; i < num_particles; ++i) {
-        VEC3 delta = particles_pos.get(i) - interact_point;
-        float dist_sq = delta.lengthSquared();
-        if (dist_sq > interact_rad_sqr || dist_sq < 0.1f)
-          continue;
-        const float dist = sqrtf(dist_sq);
-        const float inv_dist = 1.0f / dist;
-        delta *= inv_dist;
-        particles_vels.add(i, attrack_repel * (-delta));
-      }
+  else {
+    {
+      TTimer tm;
+      cacheRanges();
+      saveTime(eSection::CacheRanges, tm);
     }
-  }
-
-  {
-    TTimer tm;
-    PROFILE_SCOPED_NAMED("predict position");
-    particles_prev_pos.copyFrom(particles_pos, num_particles);
-    simd_update_positions(particles_pos, particles_vels, dt, num_particles);
-    saveTime(eSection::PredictPositions, tm);
-  }
-
-  {
-    PROFILE_SCOPED_NAMED("freeze_positions");
-    particles_frozen_pos.copyFrom(particles_pos, num_particles);
-  }
-
-  if (in_2d) {
-    for (int i = 0; i < num_particles; ++i) {
-      particles_pos.x[i] = 0.01f;
-      particles_vels.x[i] = 0.0f;
-    }
+    updatePredictedPositions(dt);
   }
 
   {
@@ -650,14 +1680,24 @@ void ViscoelasticSim::setNumThreads(int new_num_threads) {
   num_threads = new_num_threads;
   if (pool)
     delete pool;
+  relaxation_worker_deltas.resize(num_threads);
+  for (ParticlesVec& deltas : relaxation_worker_deltas) {
+    deltas.resize(max_particles);
+    deltas.clearN(num_particles);
+  }
   pool = new ThreadPool(num_threads);
 }
 
 void ViscoelasticSim::update(float delta_time) {
+  relaxation_audit.completed_this_update = false;
+  // Keep workers hot across the short parallel phases of the simulation. They
+  // park again before update returns, so rendering does not compete for CPU.
+  pool->beginUpdate();
   sdf.generateCompactStructs();
   float dt = delta_time / (float)num_substeps;
   TTimer tm;
   for (int i = 0; i < num_substeps; ++i)
     updateStep(dt);
+  pool->endUpdate();
   saveTime(eSection::Update, tm);
 }

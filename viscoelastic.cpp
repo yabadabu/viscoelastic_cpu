@@ -42,8 +42,14 @@ struct ViscoelasticModule : public Module {
       if (ImGui::SmallButton("1024"))
         add(1024);
       ImGui::SameLine();
-      if (ImGui::SmallButton("4096"))
+      if (ImGui::SmallButton("4K"))
         add(4096);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("8K"))
+        add(8 * 1024);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("16K"))
+        add(16 * 1024);
 
       ImGui::Checkbox("Emitting", &enabled);
       if (num_pendings) {
@@ -102,6 +108,11 @@ struct ViscoelasticModule : public Module {
 
   double                   time_render = 0.0f;
 
+  static constexpr int     update_time_history_capacity = 512;
+  float                    update_time_history[update_time_history_capacity] = {};
+  int                      update_time_history_count = 0;
+  int                      update_time_history_next = 0;
+
   VEC4                     colors[4] = { Color::Red, Color::Green, Color::Blue, Color::White };
   int                      num_particles_m0 = 2048;
   int                      num_particles_m1 = 2048;
@@ -124,6 +135,252 @@ struct ViscoelasticModule : public Module {
     }
   }
 
+  void recordUpdateTime(double seconds) {
+    update_time_history[update_time_history_next] = (float)(seconds * 1000.0);
+    update_time_history_next = (update_time_history_next + 1) % update_time_history_capacity;
+    update_time_history_count = std::min(update_time_history_count + 1, update_time_history_capacity);
+  }
+
+  void renderUpdateTimeGraph() {
+    if (update_time_history_count == 0)
+      return;
+
+    float min_ms = FLT_MAX;
+    float max_ms = -FLT_MAX;
+    float sum_ms = 0.0f;
+    for (int i = 0; i < update_time_history_count; ++i) {
+      const float value = update_time_history[i];
+      min_ms = std::min(min_ms, value);
+      max_ms = std::max(max_ms, value);
+      sum_ms += value;
+    }
+
+    //min_ms = 2.2f;
+    //max_ms = 4.0f;
+
+    const float average_ms = sum_ms / (float)update_time_history_count;
+    const int latest_idx = (update_time_history_next + update_time_history_capacity - 1) % update_time_history_capacity;
+    const float latest_ms = update_time_history[latest_idx];
+    const float value_range = std::max(max_ms - min_ms, 0.05f);
+    const float scale_min = std::max(0.0f, min_ms - value_range * 0.1f);
+    const float scale_max = max_ms + value_range * 0.1f;
+    const int plot_offset = update_time_history_count == update_time_history_capacity ? update_time_history_next : 0;
+
+    char overlay[128];
+    snprintf(overlay, sizeof(overlay), "now %.3f  avg %.3f  min %.3f  max %.3f ms",
+      latest_ms, average_ms, min_ms, max_ms);
+    ImGui::PlotLines(
+      "Simulation update (last 100)",
+      update_time_history,
+      update_time_history_count,
+      plot_offset,
+      overlay,
+      scale_min,
+      scale_max,
+      ImVec2(ImGui::GetContentRegionAvail().x, 80.0f)
+    );
+  }
+
+  void renderRelaxationAudit() {
+    if (ImGui::SmallButton("Audit next relaxation pass"))
+      sim.relaxation_audit.requested = true;
+    ImGui::SameLine();
+    ImGui::TextDisabled("one-shot; audited frame is not graphed");
+
+    if (sim.relaxation_audit.requested) {
+      ImGui::TextDisabled("Audit pending...");
+      return;
+    }
+
+    const auto& audit = sim.relaxation_audit;
+    if (!audit.valid)
+      return;
+
+    auto skippedPercent = [](uint64_t active, uint64_t total) {
+      return total > 0 ? 100.0 * (double)(total - active) / (double)total : 0.0;
+      };
+    auto percent = [](uint64_t value, uint64_t total) {
+      return total > 0 ? 100.0 * (double)value / (double)total : 0.0;
+      };
+
+    ImGui::SeparatorText("Relaxation data audit");
+    ImGui::Text("%d particles, %d worker buffers", audit.num_particles, audit.num_workers);
+    ImGui::Text("Non-zero worker/particle slots: %llu / %llu (%.1f%% zero)",
+      (unsigned long long)audit.nonzero_delta_slots,
+      (unsigned long long)audit.total_delta_slots,
+      skippedPercent(audit.nonzero_delta_slots, audit.total_delta_slots));
+    ImGui::Text("Active SIMD-8 worker blocks: %llu / %llu (%.1f%% skippable)",
+      (unsigned long long)audit.active_simd_blocks,
+      (unsigned long long)audit.total_simd_blocks,
+      skippedPercent(audit.active_simd_blocks, audit.total_simd_blocks));
+    ImGui::Text("Non-zero 64-particle worker ranges: %llu / %llu (%.1f%% skippable)",
+      (unsigned long long)audit.active_range_worker_pairs,
+      (unsigned long long)audit.total_range_worker_pairs,
+      skippedPercent(audit.active_range_worker_pairs, audit.total_range_worker_pairs));
+    ImGui::Text("Worker min/max spans: %llu slots, %llu SIMD-aligned (%.1f%% of full scan)",
+      (unsigned long long)audit.minmax_delta_slots,
+      (unsigned long long)audit.simd_aligned_minmax_delta_slots,
+      percent(audit.simd_aligned_minmax_delta_slots, audit.total_delta_slots));
+    ImGui::Text("Inside aligned min/max spans: %.1f%% non-zero; %d / %d workers active",
+      percent(audit.nonzero_delta_slots, audit.simd_aligned_minmax_delta_slots),
+      audit.active_workers,
+      audit.num_workers);
+    ImGui::Text("Workers per particle: avg %.2f, max %d",
+      audit.average_workers_per_particle, audit.max_workers_per_particle);
+    ImGui::Text("Workers per 64-particle range: avg %.2f, min %d, max %d",
+      audit.average_workers_per_range, audit.min_workers_per_range, audit.max_workers_per_range);
+
+    if (!audit.workers_per_range.empty()) {
+      ImGui::PlotHistogram(
+        "Workers touching each 64-particle range",
+        audit.workers_per_range.data(),
+        (int)audit.workers_per_range.size(),
+        0,
+        nullptr,
+        0.0f,
+        (float)audit.num_workers,
+        ImVec2(ImGui::GetContentRegionAvail().x, 60.0f)
+      );
+    }
+
+    if (ImGui::TreeNode("Per-worker 64-particle range coverage")) {
+      for (int worker_idx = 0; worker_idx < (int)audit.worker_range_coverage_percent.size(); ++worker_idx) {
+        const int first = audit.worker_min_touched_particle[worker_idx];
+        const int last = audit.worker_max_touched_particle[worker_idx];
+        if (first >= 0) {
+          const uint64_t span = (uint64_t)(last - first + 1);
+          ImGui::Text("Worker %2d: ranges %6.2f%%, min %6d, max %6d, span %6llu, non-zero %6llu (%.1f%% dense)",
+            worker_idx,
+            audit.worker_range_coverage_percent[worker_idx],
+            first,
+            last,
+            (unsigned long long)span,
+            (unsigned long long)audit.worker_nonzero_delta_slots[worker_idx],
+            percent(audit.worker_nonzero_delta_slots[worker_idx], span));
+        }
+        else {
+          ImGui::Text("Worker %2d: inactive", worker_idx);
+        }
+      }
+      ImGui::TreePop();
+    }
+
+    ImGui::Text("Neighbour candidates: %llu available, %llu checked",
+      (unsigned long long)audit.neighbour_candidates_available,
+      (unsigned long long)audit.neighbour_candidates_checked);
+    ImGui::Text("Accepted: %llu (%.1f%%), distance-rejected: %llu (%.1f%%)",
+      (unsigned long long)audit.neighbour_candidates_accepted,
+      percent(audit.neighbour_candidates_accepted, audit.neighbour_candidates_checked),
+      (unsigned long long)audit.neighbour_candidates_rejected,
+      percent(audit.neighbour_candidates_rejected, audit.neighbour_candidates_checked));
+    uint64_t total_within_radius = 0;
+    for (uint64_t count : audit.neighbour_within_radius_by_cell_class)
+      total_within_radius += count;
+    ImGui::Text("Occupied cell Z bounds: avoid %.1f%% candidates; omit %.3f%% of within-radius interactions",
+      percent(audit.neighbour_candidates_avoided_by_cell_z_bounds,
+        audit.neighbour_candidates_checked),
+      percent(audit.neighbour_within_radius_omitted_by_cell_z_bounds,
+        total_within_radius));
+    ImGui::Text("Precise Z boundary trim: avoid %.1f%% candidates; omit %.3f%% of within-radius interactions",
+      percent(audit.neighbour_candidates_avoided_by_precise_z,
+        audit.neighbour_candidates_checked),
+      percent(audit.neighbour_within_radius_omitted_by_precise_z,
+        total_within_radius));
+    const double particles = audit.num_particles > 0
+      ? (double)audit.num_particles
+      : 1.0;
+    ImGui::Text("Z range candidates/particle: %.1f current, %.1f precise (%.1f%% fewer)",
+      (double)audit.z_range_candidate_slots_current / particles,
+      (double)audit.z_range_candidate_slots_precise / particles,
+      skippedPercent(audit.z_range_candidate_slots_precise,
+        audit.z_range_candidate_slots_current));
+    ImGui::Text("Z range SIMD-8 blocks/particle: %.1f current, %.1f precise (%.1f%% fewer)",
+      (double)audit.z_range_simd_blocks_current / particles,
+      (double)audit.z_range_simd_blocks_precise / particles,
+      skippedPercent(audit.z_range_simd_blocks_precise,
+        audit.z_range_simd_blocks_current));
+    ImGui::TextDisabled(
+      "Z estimates use index-time positions; precise trimming is not applied");
+    ImGui::Text("Neighbour SIMD-8 blocks: %llu active / %llu checked (%.1f%% empty masks)",
+      (unsigned long long)audit.neighbour_simd_blocks_active,
+      (unsigned long long)audit.neighbour_simd_blocks_checked,
+      skippedPercent(audit.neighbour_simd_blocks_active, audit.neighbour_simd_blocks_checked));
+    ImGui::Text("Empty after one axis: X %.1f%%, Y %.1f%%, Z %.1f%%",
+      percent(audit.neighbour_simd_blocks_empty_x, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_y, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_z, audit.neighbour_simd_blocks_checked));
+    ImGui::Text("Empty after two axes: XY %.1f%%, XZ %.1f%%, YZ %.1f%%",
+      percent(audit.neighbour_simd_blocks_empty_xy, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_xz, audit.neighbour_simd_blocks_checked),
+      percent(audit.neighbour_simd_blocks_empty_yz, audit.neighbour_simd_blocks_checked));
+
+    struct StagedLoadOrder {
+      const char* name;
+      uint64_t empty_first;
+      uint64_t empty_pair;
+    };
+    const StagedLoadOrder staged_orders[] = {
+      { "X -> Y -> Z", audit.neighbour_simd_blocks_empty_x, audit.neighbour_simd_blocks_empty_xy },
+      { "X -> Z -> Y", audit.neighbour_simd_blocks_empty_x, audit.neighbour_simd_blocks_empty_xz },
+      { "Y -> X -> Z", audit.neighbour_simd_blocks_empty_y, audit.neighbour_simd_blocks_empty_xy },
+      { "Y -> Z -> X", audit.neighbour_simd_blocks_empty_y, audit.neighbour_simd_blocks_empty_yz },
+      { "Z -> X -> Y", audit.neighbour_simd_blocks_empty_z, audit.neighbour_simd_blocks_empty_xz },
+      { "Z -> Y -> X", audit.neighbour_simd_blocks_empty_z, audit.neighbour_simd_blocks_empty_yz }
+    };
+    const StagedLoadOrder* best_order = &staged_orders[0];
+    for (const StagedLoadOrder& order : staged_orders) {
+      if (order.empty_first + order.empty_pair >
+          best_order->empty_first + best_order->empty_pair)
+        best_order = &order;
+    }
+    const uint64_t total_coordinate_stream_loads =
+      audit.neighbour_simd_blocks_checked * 3;
+    const uint64_t avoidable_coordinate_stream_loads =
+      best_order->empty_first + best_order->empty_pair;
+    ImGui::Text("Best staged order: %s; estimated %.1f%% coordinate stream loads avoided",
+      best_order->name,
+      percent(avoidable_coordinate_stream_loads, total_coordinate_stream_loads));
+
+    const char* regular_cell_class_names[] = {
+      "Current cell", "Face cells", "Edge cells", "Corner cells"
+    };
+    const char* half_size_cell_class_names[] = {
+      "Current cell", "One-axis offsets", "Two-axis offsets",
+      "Three-axis offsets"
+    };
+    const bool regular_cells =
+      audit.neighbour_cell_radius_xy == 1 &&
+      audit.neighbour_cell_radius_z == 1;
+    const char** cell_class_names = regular_cells
+      ? regular_cell_class_names
+      : half_size_cell_class_names;
+    ImGui::Text("Neighbour work by cell relationship:");
+    for (int cell_class = 0; cell_class < 4; ++cell_class) {
+      const uint64_t candidates =
+        audit.neighbour_candidates_by_cell_class[cell_class];
+      const uint64_t within_radius =
+        audit.neighbour_within_radius_by_cell_class[cell_class];
+      ImGui::Text("  %s: %.1f%% of candidates; %.1f%% accepted; %.1f%% of within-radius interactions",
+        cell_class_names[cell_class],
+        percent(candidates, audit.neighbour_candidates_checked),
+        percent(within_radius, candidates),
+        percent(within_radius, total_within_radius));
+    }
+    if (regular_cells) {
+      ImGui::Text("19-cell estimate: avoid %.1f%% of candidates, omit %.1f%% of within-radius interactions",
+        percent(audit.neighbour_candidates_by_cell_class[3], audit.neighbour_candidates_checked),
+        percent(audit.neighbour_within_radius_by_cell_class[3], total_within_radius));
+    }
+    else {
+      ImGui::TextDisabled(
+        "Subdivided cells use an exact expanded candidate stencil");
+    }
+    ImGui::Text("64-neighbour cap: %llu particles; %llu valid discarded in final blocks; %llu candidates skipped",
+      (unsigned long long)audit.particles_at_neighbour_cap,
+      (unsigned long long)audit.neighbour_candidates_discarded_by_cap,
+      (unsigned long long)audit.neighbour_candidates_skipped_by_cap);
+  }
+
   bool        use_cell_colors = false;
   bool        show_cells = false;
   bool        show_ids = false;
@@ -137,30 +394,42 @@ struct ViscoelasticModule : public Module {
   ViscoelasticModule() {
     sim.init();
     sim.in_2d = true;
-    //sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(0, 1.5, 1.0), VEC3(1.0f, 2.0f, 3.0f) * 0.1f));
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
-    //sdfCage();
-    //addParticles(512);
     sdfLargeCage();
-    config3D_32K();
+    config3D_N( 64 * 1024 );
   }
 
   void sdfCage(  ) {
     sim.sdf.prims.clear();
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3::zero, VEC3::axis_y));
+    sim.sdf.prims.back().name = "Floor";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 6, 0), -VEC3::axis_y));
+    sim.sdf.prims.back().name = "Roof";
     const float sz = 2.5f;
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, sz), -VEC3::axis_z));
+    sim.sdf.prims.back().name = "Z Far";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_z));
+    sim.sdf.prims.back().name = "Z Near";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(sz, 0, 0), -VEC3::axis_x));
+    sim.sdf.prims.back().name = "X Far";
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, 0), VEC3::axis_x));
+    sim.sdf.prims.back().name = "X Near";
   }
 
-  void sdfInsideCage( ) {
+  void sdfInsideCage() {
     sim.sdf.prims.clear();
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.0f, 0.0f), VEC3( 2.0f, 2.0, 4.0f )));
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.0f, 0.0f), VEC3(2.0f, 2.0, 4.0f)));
     sim.sdf.prims.back().multiplier = -1.0f;
     sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Box Interior";
+  }
+
+  void sdfInsideSphere() {
+    sim.sdf.prims.clear();
+    sim.sdf.prims.push_back(SDF::Primitive::makeSphere(VEC3(0.0f, 0.0f, 0.0f), 3.0f));
+    sim.sdf.prims.back().multiplier = -1.0f;
+    sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Container Sphere";
   }
 
   void sdfLargeCage() {
@@ -177,9 +446,11 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 2.5f, -2.5f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
     sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(20.0f)));
     sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Floating Upper Box";
     sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.5f, 1.0f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
     sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(-20.0f)));
     sim.sdf.prims.back().transformHasChanged();
+    sim.sdf.prims.back().name = "Floating Lower Box ";
   }
 
   void load() override {
@@ -203,7 +474,8 @@ struct ViscoelasticModule : public Module {
     
     const float inv_world_scale = 1.0f / sim.world_scale;
     VEC3 p0 = sim.spatial_hash.getCellCoords(coords) * inv_world_scale;
-    VEC3 p1 = p0 + VEC3::ones * sim.mat.kernel_radius * inv_world_scale;
+    VEC3 p1 = p0 +
+      sim.spatial_hash.getCellSize() * inv_world_scale;
     TAABB aabb;
     aabb.setMinMax(p0, p1);
     aabb.half *= 0.99f;
@@ -303,7 +575,7 @@ struct ViscoelasticModule : public Module {
     sim.saveTime(ViscoelasticSim::eSection::Render, tm);
   }
   
-  void config3D_32K() {
+  void config3D_N(int num_particles) {
     sim.mat.rest_density = 3.0f;
     sim.mat.near_stiffness = 1.0f;
     delta_time = 1.0f;
@@ -311,15 +583,15 @@ struct ViscoelasticModule : public Module {
     sim.mat.kernel_radius = 20.0f;
     gravity_amount = 0.1f;
     gravity_direction = -90.0f;
-    num_particles_m0 = 8192;
-    num_particles_m1 = 8192;
-    num_particles_m2 = 8192;
+    num_particles_m0 = num_particles / 4;
+    num_particles_m1 = num_particles / 4;
+    num_particles_m2 = num_particles / 4;
     sim.using_parallel = true;
     sim.num_particles = 0;
     sim.sdf.prims[3].transform.setPosition(VEC3(0, 0, -5.0));
     sim.sdf.prims[3].transformHasChanged();
     sim.in_2d = false;
-    addParticles(32 * 1024);
+    addParticles(num_particles);
     updateParticleTypes();
   }
 
@@ -345,10 +617,44 @@ struct ViscoelasticModule : public Module {
 
     ImGui::Text("%d Particles / %d Cells", sim.num_particles, (int)sim.spatial_hash.cells_ranges.size());
     ImGui::Checkbox("Using parallel", &sim.using_parallel);
+    const char* spatial_cell_modes[] = {
+      "R x R x R", "R x R x R/2"
+    };
+    ImGui::Combo("Spatial Cell Size", &sim.spatial_cell_mode,
+      spatial_cell_modes, ViscoelasticSim::NumSpatialCellModes);
     int max_threads = std::thread::hardware_concurrency();
     int num_threads = sim.num_threads;
     if (ImGui::DragInt("Num Threads", &num_threads, 0.1f, 1, max_threads))
       sim.setNumThreads(num_threads);
+    if (ImGui::TreeNode("Job Scheduler...")) {
+      ImGui::Checkbox("Overlap Cache + Predict", &sim.overlap_cache_and_prediction);
+      ImGui::DragInt("Sort Jobs / Thread", &sim.sort_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::DragInt("Cache Jobs / Thread", &sim.cache_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);
+      ImGui::DragInt("Relax Jobs / Thread", &sim.relaxation_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::DragInt("Reduce Jobs / Thread", &sim.relaxation_reduce_jobs_per_thread, 0.05f, 1, 32);
+      ImGui::DragFloat("Spatial XY Bound Min",
+        &sim.spatial_xy_bound_world_min, 0.1f, -100.0f, 0.0f);
+      ImGui::DragFloat("Spatial XY Bound Max",
+        &sim.spatial_xy_bound_world_max, 0.1f, 0.0f, 100.0f);
+
+      float buffer_size_mbs = sim.num_particles * sizeof(VEC3) / (1024.f * 1024.f);
+
+      ImGui::Text("%1.6lf spatial_hash", sim.times[ViscoelasticSim::eSection::SpatialHash]);
+      ImGui::Text("%1.6lf cache ranges", sim.times[ViscoelasticSim::eSection::CacheRanges]);
+      ImGui::Text("%1.6lf particle preparation", sim.times[ViscoelasticSim::eSection::PredictPositions]);
+      ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
+      ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
+      ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
+      ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
+      ImGui::Text("%1.6lf Total update (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Update], (2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Update]));
+      ImGui::Text("# Hash Collisions: %d (%1.2f%%)", sim.spatial_hash.num_collisions, (sim.spatial_hash.num_collisions * 100.0 / sim.num_particles));
+
+      ImGui::TreePop();
+    }
+
+    renderUpdateTimeGraph();
+    renderRelaxationAudit();
 
     if (ImGui::TreeNode("Simulation Params...")) {
       ImGui::DragFloat("Kernel Radius", &sim.mat.kernel_radius, 0.1f);
@@ -364,17 +670,6 @@ struct ViscoelasticModule : public Module {
 
       ImGui::DragInt("Sub Steps", &sim.num_substeps, 0.02f, 1, 10);
 
-      float buffer_size_mbs = sim.num_particles * sizeof(VEC3) / ( 1024.f * 1024.f );
-
-      ImGui::Text("%1.6lf spatial_hash", sim.times[ ViscoelasticSim::eSection::SpatialHash] );
-      ImGui::Text("%1.6lf velocities_update", sim.times[ViscoelasticSim::eSection::VelocitiesUpdate] );
-      ImGui::Text("%1.6lf predict_position (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::PredictPositions], ( 4.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::PredictPositions]));
-      ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
-      ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
-      ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
-      ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
-      ImGui::Text("%1.6lf Total update (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Update], ( 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Update]));
-      ImGui::Text("# Hash Collisions: %d (%1.2f%%)", sim.spatial_hash.num_collisions, (sim.spatial_hash.num_collisions * 100.0 / sim.num_particles) );
       ImGui::TreePop();
     }
 
@@ -391,7 +686,8 @@ struct ViscoelasticModule : public Module {
       if (show_cell_ids) {
         for (auto& cell : sim.spatial_hash.cells_ranges) {
           const auto& cell_info = sim.spatial_hash.cells_info[cell.cell_id];
-          VEC3 p = sim.spatial_hash.getCellCoords(cell_info.coords) + VEC3::ones * sim.mat.kernel_radius * 0.5f;
+          VEC3 p = sim.spatial_hash.getCellCoords(cell_info.coords) +
+            sim.spatial_hash.getCellSize() * 0.5f;
           dbg_texts.add(p * (1.0f / sim.world_scale), 0xffff00ff, "%08x", cell.cell_id);
         }
       }
@@ -405,7 +701,9 @@ struct ViscoelasticModule : public Module {
     if (ImGui::SmallButton("Remove All Particles"))
       sim.num_particles = 0;
 
-    if (ImGui::SmallButton("Config 2D 2K Particles")) {
+    ImGui::Text("Config:");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("2K")) {
       sim.mat.rest_density = 3.0f;
       sim.mat.near_stiffness = 1.0f;
       sim.friction = 1.0f;
@@ -425,25 +723,21 @@ struct ViscoelasticModule : public Module {
       updateParticleTypes();
     }
 
-    if (ImGui::SmallButton("Config 3D 8K Particles")) {
-      sim.mat.rest_density = 3.0f;
-      sim.mat.near_stiffness = 1.0f;
-      delta_time = 1.0f;
-      sim.max_speed = 5.0f;
-      sim.mat.kernel_radius = 20.0f;
-      gravity_amount = 0.1f;
-      gravity_direction = -90.0f;
-      num_particles_m0 = 3072;
-      num_particles_m1 = 3072;
-      num_particles_m2 = 3072;
-      sim.num_particles = 0;
-      sim.in_2d = false;
-      addParticles(8192);
-      updateParticleTypes();
-    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("8K"))
+      config3D_N(8 * 1024);
 
-    if (ImGui::SmallButton("Config 3D 32K Particles"))
-      config3D_32K();
+    ImGui::SameLine();
+    if (ImGui::SmallButton("32K"))
+      config3D_N(32 * 1024);
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton("64K"))
+      config3D_N(64 * 1024);
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton("128K"))
+      config3D_N(128 * 1024);
 
     if (ImGui::TreeNode("Colors..."))
     {
@@ -487,13 +781,15 @@ struct ViscoelasticModule : public Module {
 
     emitter.renderInMenu();
 
-    if (ImGui::TreeNode("SDFs Config...")) {
+    if (ImGui::TreeNode("SDFs pre configurations...")) {
       if (ImGui::SmallButton("Box3D Large"))
         sdfLargeCage();
       if (ImGui::SmallButton("Platforms"))
         sdfPlatforms();
       if (ImGui::SmallButton("Inside Box"))
         sdfInsideCage();
+      if (ImGui::SmallButton("Inside Sphere"))
+        sdfInsideSphere();
       ImGui::Checkbox("Auto rotate first box", &auto_rotate_first_box);
       if( auto_rotate_first_box )
         ImGui::DragFloat( "Rotation Speed", &auto_rotation_speed, 0.01f, -1.0f, 1.0f );
@@ -520,7 +816,11 @@ struct ViscoelasticModule : public Module {
     if (!paused) {
       VEC3 gdir = getVectorFromYaw(deg2rad(gravity_direction));
       sim.mat.gravity = VEC3(0, gdir.x, gdir.z) * gravity_amount;
+      TTimer update_timer;
       sim.update(delta_time);
+      const double update_seconds = update_timer.elapsed();
+      if (!sim.relaxation_audit.completed_this_update)
+        recordUpdateTime(update_seconds);
       debug_particle = sim.debug_particle;
 
       emitter.emit(sim);

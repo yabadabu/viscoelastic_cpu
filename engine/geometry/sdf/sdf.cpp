@@ -121,6 +121,7 @@ namespace SDF {
     for (auto& p : prims) {
       if (!p.enabled)
         continue;
+      const VEC4 color = p.on_over ? p.color + VEC4(1, 0, 0, 0) : p.color;
       if (p.prim_type == Primitive::eType::SPHERE) {
         const Render::Mesh* circle = Resource<Render::Mesh>("unit_circle_xz.mesh");
         MAT44 world = p.transform.asMatrix();
@@ -132,11 +133,11 @@ namespace SDF {
       }
       else if (p.prim_type == Primitive::eType::PLANE) {
         const Render::Mesh* grid = Resource<Render::Mesh>("grid.mesh");
-        Render::drawPrimitive(grid, MAT44::createScale(0.025f) * p.transform.asMatrix(), p.color);
+        Render::drawPrimitive(grid, MAT44::createScale(0.1f) * p.transform.asMatrix(), color);
       }
       else if (p.prim_type == Primitive::eType::BOX) {
         const Render::Mesh* mesh = Resource<Render::Mesh>("unit_wired_cube.mesh");
-        Render::drawPrimitive(mesh, p.transform.asMatrix(), p.color);
+        Render::drawPrimitive(mesh, p.transform.asMatrix(), color);
       }
       else {
         fatal("Render SDF prim type %d not supported\n", (int)p.prim_type);
@@ -182,23 +183,29 @@ namespace SDF {
   }
 
   bool Primitive::renderInMenu() {
-    ImGui::PushID(this);
     bool changed = false;
+    ImGui::BeginGroup();
+    ImGui::PushID(this);
+    bool show_contents = true;
+    if (name)
+      show_contents = ImGui::TreeNode(name);
+    if (show_contents) {
+      int itype = (int)prim_type;
+      if (ImGui::Combo("Type", &itype, "Sphere\0Box\0Plane\0\0", 4)) {
+        prim_type = (eType)(itype);
+        changed = true;
+      }
 
-    int itype = (int)prim_type;
-    if (ImGui::Combo("Type", &itype, "Sphere\0Box\0Plane\0\0", 4)) {
-      prim_type = (eType)(itype);
-      changed = true;
-    }
-
-    changed |= ImGui::Checkbox("Enabled", &enabled);
-    changed |= ImGui::DragFloat("Weight", &multiplier, 0.1f, -5.0f, 5.0f );
-    if (ImGui::TreeNode("Transform...")) {
+      changed |= ImGui::Checkbox("Enabled", &enabled);
+      changed |= ImGui::DragFloat("Weight", &multiplier, 0.1f, -5.0f, 5.0f);
       if (transform.debugInMenu())
         transformHasChanged();
-      ImGui::TreePop();
     }
+    if (name && show_contents)
+      ImGui::TreePop();
     ImGui::PopID();
+    ImGui::EndGroup();  
+    on_over = ImGui::IsItemHovered();
     return changed;
   }
 

@@ -7,9 +7,15 @@
 
 struct ViscoelasticSim {
 
+  enum SpatialCellMode {
+    SpatialCellsKernelRadius = 0,
+    SpatialCellsHalfZ,
+    NumSpatialCellModes
+  };
+
   enum eSection {
     SpatialHash,
-    VelocitiesUpdate,
+    CacheRanges,
     PredictPositions,
     Relaxation,
     VelocitiesFromPositions,
@@ -47,7 +53,7 @@ struct ViscoelasticSim {
   SDF::sdFunc             sdf;
   float                   friction = 2.0f;
   int                     num_particles = 0;
-  int                     max_particles = 65536;
+  int                     max_particles = 128 * 1024;
   float                   max_speed = 5.0;
 
   float                   masses[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
@@ -68,7 +74,94 @@ struct ViscoelasticSim {
   int                     debug_particle = -1;
 
   int num_threads = 12;
+  int sort_jobs_per_thread = 4;
+  int cache_jobs_per_thread = 6;
+  int prediction_jobs = 8;
+  int relaxation_jobs_per_thread = 12;
+  int relaxation_reduce_jobs_per_thread = 4;
+  float spatial_xy_bound_world_min = -20.0f;
+  float spatial_xy_bound_world_max = 20.0f;
+  bool overlap_cache_and_prediction = true;
+  int spatial_cell_mode = SpatialCellsKernelRadius;
   ThreadPool* pool = nullptr;
+  std::vector<ParticlesVec> relaxation_worker_deltas;
+  std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;
+
+  // Scratch storage for the bounded exact-XY-column index. Histogram rows
+  // belong to stable particle partitions (not physical worker identities), so
+  // the scatter pass can reuse each row as a private cursor array.
+  std::vector<uint32_t> bounded_xy_partition_histograms;
+  std::vector<std::vector<uint32_t>> bounded_xy_partition_touched_columns;
+  std::vector<uint32_t> bounded_xy_particle_columns;
+  std::vector<uint32_t> bounded_xy_column_counts;
+  std::vector<uint32_t> bounded_xy_column_particle_offsets;
+  std::vector<uint32_t> bounded_xy_column_particle_ids;
+  std::vector<uint32_t> bounded_xy_occupied_columns;
+  std::vector<uint32_t> bounded_xy_column_unique_counts;
+  std::vector<uint32_t> bounded_xy_column_cell_offsets;
+  std::vector<uint8_t> bounded_xy_partition_out_of_bounds;
+
+  struct RelaxationAudit {
+    bool requested = false;
+    bool valid = false;
+    bool completed_this_update = false;
+    int num_workers = 0;
+    int num_particles = 0;
+    int neighbour_cell_radius_xy = 1;
+    int neighbour_cell_radius_z = 1;
+    int range_size = 64;
+    uint64_t total_delta_slots = 0;
+    uint64_t nonzero_delta_slots = 0;
+    uint64_t total_simd_blocks = 0;
+    uint64_t active_simd_blocks = 0;
+    uint64_t total_range_worker_pairs = 0;
+    uint64_t active_range_worker_pairs = 0;
+    uint64_t minmax_delta_slots = 0;
+    uint64_t simd_aligned_minmax_delta_slots = 0;
+    int active_workers = 0;
+    float average_workers_per_particle = 0.0f;
+    int max_workers_per_particle = 0;
+    float average_workers_per_range = 0.0f;
+    int min_workers_per_range = 0;
+    int max_workers_per_range = 0;
+    uint64_t neighbour_candidates_available = 0;
+    uint64_t neighbour_candidates_checked = 0;
+    uint64_t neighbour_candidates_accepted = 0;
+    uint64_t neighbour_candidates_rejected = 0;
+    // Estimated candidates removed by narrowing each neighbouring XY-column
+    // range along Z. Both estimates use the pre-prediction positions that are
+    // available while cacheRanges overlaps particle prediction.
+    uint64_t neighbour_candidates_avoided_by_cell_z_bounds = 0;
+    uint64_t neighbour_candidates_avoided_by_precise_z = 0;
+    uint64_t neighbour_within_radius_omitted_by_cell_z_bounds = 0;
+    uint64_t neighbour_within_radius_omitted_by_precise_z = 0;
+    // Full range work before the per-particle neighbour cap and self removal.
+    // The precise values assume exact-Z ordering and one range per XY column.
+    uint64_t z_range_candidate_slots_current = 0;
+    uint64_t z_range_candidate_slots_precise = 0;
+    uint64_t z_range_simd_blocks_current = 0;
+    uint64_t z_range_simd_blocks_precise = 0;
+    uint64_t neighbour_candidates_discarded_by_cap = 0;
+    uint64_t neighbour_candidates_skipped_by_cap = 0;
+    uint64_t neighbour_simd_blocks_checked = 0;
+    uint64_t neighbour_simd_blocks_active = 0;
+    uint64_t neighbour_simd_blocks_empty_x = 0;
+    uint64_t neighbour_simd_blocks_empty_y = 0;
+    uint64_t neighbour_simd_blocks_empty_z = 0;
+    uint64_t neighbour_simd_blocks_empty_xy = 0;
+    uint64_t neighbour_simd_blocks_empty_xz = 0;
+    uint64_t neighbour_simd_blocks_empty_yz = 0;
+    // Indexed by the number of axes on which neighbour-cell coordinates
+    // differ. With R-sized cells these are current, face, edge and corner.
+    uint64_t neighbour_candidates_by_cell_class[4] = {};
+    uint64_t neighbour_within_radius_by_cell_class[4] = {};
+    uint64_t particles_at_neighbour_cap = 0;
+    std::vector<float> workers_per_range;
+    std::vector<float> worker_range_coverage_percent;
+    std::vector<int> worker_min_touched_particle;
+    std::vector<int> worker_max_touched_particle;
+    std::vector<uint64_t> worker_nonzero_delta_slots;
+  } relaxation_audit;
 
   void setNumThreads(int new_num_threads);
 
@@ -82,28 +175,34 @@ struct ViscoelasticSim {
   void getParticleIDsNear(std::vector<int>& out_ids, VEC3 ref_point, float rad) const;
 
   void updateSpatialHash();
+  bool assignCellsBoundedXY();
   void resolveCollisions(float dt, int start, int end);
-  void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict deltas);
+  void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas);
   void updateStep(float dt);
   void update(float dt);
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);
   void doubleDensityRelaxation(float dt);
+  void cacheRanges();
+  void cacheNearRanges(int cell_idx);
+  void cacheDirectColumnRanges(uint32_t column);
+  void cacheRangesAndPredict(float dt);
+  void updatePredictedPositions(float dt);
+  void updatePredictedPositionsRange(float dt, int start, int end);
+  void captureRelaxationAudit();
 
   template< typename Fn >
   void runInParallel(int num_jobs, int num_splits, Fn fn) {
     PROFILE_SCOPED_NAMED("runInParallel");
+    if (num_jobs <= 0)
+      return;
+    num_splits = std::min(num_splits, num_jobs);
     int chunk_size = (num_jobs + num_splits - 1) / num_splits;
-    std::vector<std::future<void>> jobs;
-    for (int job_id = 0; job_id < num_splits; ++job_id) {
+    pool->dispatch(num_splits, [&](int job_id) {
       int start = job_id * chunk_size;
       int end = std::min(start + chunk_size, num_jobs);
-      jobs.emplace_back(pool->enqueue([&, start, end, job_id]() {
-        PROFILE_SCOPED_NAMED("C");
-        fn(start, end, job_id);
-        }));
-    }
-    for (auto& job : jobs)
-      job.get();
+      PROFILE_SCOPED_NAMED("C");
+      fn(start, end, job_id);
+      });
   }
 
   void saveTime(eSection section_id, TTimer& tm) {

@@ -106,55 +106,71 @@ struct alignas(32) SIMDCompressPermutationTable {
 
 static const SIMDCompressPermutationTable simd_compress_permutations;
 
-inline void apply_displacements_simd(
-  float pressure,
-  float near_pressure,
+inline void apply_pressure_gather_simd(
+  const ParticlesVec& positions,
+  const std::vector<float>& pressures,
+  const std::vector<float>& near_pressures,
   const int* nears_ids,
-  const float* nears_closeness,
-  const float* nears_dirs_x,
-  const float* nears_dirs_y,
-  const float* nears_dirs_z,
   int num_nears,
   int idx,
-  ParticlesVec* out_deltas
+  float kernel_radius_inv,
+  ParticlesVec* out_positions
 ) {
   const int step = 8;
   int i = 0;
   //PROFILE_SCOPED_NAMED("displace");
 
-  __m256 p = _mm256_set1_ps(pressure);
-  __m256 np = _mm256_set1_ps(near_pressure);
-  __m256 half = _mm256_set1_ps(0.5f);
+  const __m256 p = _mm256_set1_ps(pressures[idx]);
+  const __m256 np = _mm256_set1_ps(near_pressures[idx]);
+  const __m256 half = _mm256_set1_ps(0.5f);
+  const __m256 one = _mm256_set1_ps(1.0f);
+  const __m256 radius_inv = _mm256_set1_ps(kernel_radius_inv);
+  const __m256 pi_x = _mm256_set1_ps(positions.x[idx]);
+  const __m256 pi_y = _mm256_set1_ps(positions.y[idx]);
+  const __m256 pi_z = _mm256_set1_ps(positions.z[idx]);
 
   __m256 accum_dx = _mm256_setzero_ps();
   __m256 accum_dy = _mm256_setzero_ps();
   __m256 accum_dz = _mm256_setzero_ps();
 
   for (; i + step <= num_nears; i += step) {
-    __m256 c = _mm256_loadu_ps(&nears_closeness[i]);
-    __m256 amt = _mm256_add_ps(p, _mm256_mul_ps(np, c));
+    const __m256i ids = _mm256_loadu_si256(
+      reinterpret_cast<const __m256i*>(&nears_ids[i]));
+    __m256 dx = _mm256_sub_ps(
+      _mm256_i32gather_ps(positions.x, ids, sizeof(float)), pi_x);
+    __m256 dy = _mm256_sub_ps(
+      _mm256_i32gather_ps(positions.y, ids, sizeof(float)), pi_y);
+    __m256 dz = _mm256_sub_ps(
+      _mm256_i32gather_ps(positions.z, ids, sizeof(float)), pi_z);
+    const __m256 distance_sq = _mm256_add_ps(
+      _mm256_add_ps(_mm256_mul_ps(dx, dx), _mm256_mul_ps(dy, dy)),
+      _mm256_mul_ps(dz, dz));
+    const __m256 r = _mm256_add_ps(
+      _mm256_sqrt_ps(distance_sq), _mm256_set1_ps(1e-5f));
+    const __m256 inv_r = _mm256_div_ps(one, r);
+    const __m256 c = _mm256_sub_ps(one, _mm256_mul_ps(r, radius_inv));
+    dx = _mm256_mul_ps(dx, inv_r);
+    dy = _mm256_mul_ps(dy, inv_r);
+    dz = _mm256_mul_ps(dz, inv_r);
+
+    const __m256 neighbour_p =
+      _mm256_i32gather_ps(pressures.data(), ids, sizeof(float));
+    const __m256 neighbour_np =
+      _mm256_i32gather_ps(near_pressures.data(), ids, sizeof(float));
+    __m256 amt = _mm256_add_ps(
+      _mm256_add_ps(p, neighbour_p),
+      _mm256_mul_ps(_mm256_add_ps(np, neighbour_np), c));
     amt = _mm256_mul_ps(amt, c);
     amt = _mm256_mul_ps(amt, half);
 
-    __m256 vx = _mm256_loadu_ps(&nears_dirs_x[i]);
-    __m256 vy = _mm256_loadu_ps(&nears_dirs_y[i]);
-    __m256 vz = _mm256_loadu_ps(&nears_dirs_z[i]);
-
-    __m256 dx_final = _mm256_mul_ps(vx, amt);
-    __m256 dy_final = _mm256_mul_ps(vy, amt);
-    __m256 dz_final = _mm256_mul_ps(vz, amt);
+    __m256 dx_final = _mm256_mul_ps(dx, amt);
+    __m256 dy_final = _mm256_mul_ps(dy, amt);
+    __m256 dz_final = _mm256_mul_ps(dz, amt);
 
     accum_dx = _mm256_add_ps(accum_dx, dx_final);
     accum_dy = _mm256_add_ps(accum_dy, dy_final);
     accum_dz = _mm256_add_ps(accum_dz, dz_final);
 
-    alignas(32) float tx[8], ty[8], tz[8];
-    _mm256_store_ps(tx, dx_final);
-    _mm256_store_ps(ty, dy_final);
-    _mm256_store_ps(tz, dz_final);
-
-    for (int k = 0; k < 8; ++k)
-      out_deltas->add(nears_ids[i + k], tx[k], ty[k], tz[k]);
   }
 
   float acc_x = -hsum256_ps(accum_dx);
@@ -163,18 +179,23 @@ inline void apply_displacements_simd(
 
   // Scalar fallback
   for (; i < num_nears; ++i) {
-    float closeness = nears_closeness[i];
-    float amount = (pressure + near_pressure * closeness) * closeness * 0.5f;
-    float dx = nears_dirs_x[i] * amount;
-    float dy = nears_dirs_y[i] * amount;
-    float dz = nears_dirs_z[i] * amount;
-    acc_x -= dx;
-    acc_y -= dy;
-    acc_z -= dz;
-    out_deltas->add(nears_ids[i], dx, dy, dz);
+    const int neighbour_id = nears_ids[i];
+    const float dx = positions.x[neighbour_id] - positions.x[idx];
+    const float dy = positions.y[neighbour_id] - positions.y[idx];
+    const float dz = positions.z[neighbour_id] - positions.z[idx];
+    const float r = sqrtf(dx * dx + dy * dy + dz * dz) + 1e-5f;
+    const float inv_r = 1.0f / r;
+    const float closeness = 1.0f - r * kernel_radius_inv;
+    float amount = (
+      pressures[idx] + pressures[neighbour_id] +
+      (near_pressures[idx] + near_pressures[neighbour_id]) * closeness
+      ) * closeness * 0.5f;
+    acc_x -= dx * inv_r * amount;
+    acc_y -= dy * inv_r * amount;
+    acc_z -= dz * inv_r * amount;
   }
 
-  out_deltas->add(idx, acc_x, acc_y, acc_z);
+  out_positions->add(idx, acc_x, acc_y, acc_z);
 }
 
 // A worker-private touched map at 64-particle granularity was tested here.
@@ -346,10 +367,6 @@ inline void collect_neighbors_block(
   float* density_acc,
   float* near_density_acc,
   int*   nears_ids,
-  float* nears_closeness,
-  float* nears_dirs_x,
-  float* nears_dirs_y,
-  float* nears_dirs_z,
   int& num_nears,
   int max_nears,
   int i,            // current particle i
@@ -412,11 +429,6 @@ inline void collect_neighbors_block(
   const __m256 one = _mm256_set1_ps(1.0f);
   const __m256 length = _mm256_sqrt_ps(d2);
   const __m256 r = _mm256_add_ps(length, _mm256_set1_ps(1e-5f));
-  const __m256 inv_r = _mm256_div_ps(one, r);
-
-  dx = _mm256_mul_ps(dx, inv_r);
-  dy = _mm256_mul_ps(dy, inv_r);
-  dz = _mm256_mul_ps(dz, inv_r);
 
   // Closeness
   __m256 q = _mm256_mul_ps(r, _mm256_set1_ps(kernel_radius_inv));
@@ -459,22 +471,16 @@ inline void collect_neighbors_block(
   const __m256i permutation = _mm256_load_si256(
     reinterpret_cast<const __m256i*>(
       simd_compress_permutations.lanes[accepted_bits]));
-  const __m256 compact_closeness =
-    _mm256_permutevar8x32_ps(closeness, permutation);
-  const __m256 compact_dx = _mm256_permutevar8x32_ps(dx, permutation);
-  const __m256 compact_dy = _mm256_permutevar8x32_ps(dy, permutation);
-  const __m256 compact_dz = _mm256_permutevar8x32_ps(dz, permutation);
   const __m256i compact_ids =
     _mm256_permutevar8x32_epi32(indices, permutation);
 
-  // The caller provides seven padding entries, allowing full vector stores
-  // even when fewer than eight neighbours remain before the cap.
-  _mm256_storeu_ps(&nears_closeness[num_nears], compact_closeness);
-  _mm256_storeu_ps(&nears_dirs_x[num_nears], compact_dx);
-  _mm256_storeu_ps(&nears_dirs_y[num_nears], compact_dy);
-  _mm256_storeu_ps(&nears_dirs_z[num_nears], compact_dz);
-  _mm256_storeu_si256(
-    reinterpret_cast<__m256i*>(&nears_ids[num_nears]), compact_ids);
+  // Rows are written concurrently by different workers, so do not let the
+  // final partial vector spill into the following particle's row.
+  const __m256i output_lanes =
+    _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+  const __m256i output_mask = _mm256_cmpgt_epi32(
+    _mm256_set1_epi32(accepted_count), output_lanes);
+  _mm256_maskstore_epi32(&nears_ids[num_nears], output_mask, compact_ids);
   num_nears += accepted_count;
 }
 
@@ -488,6 +494,10 @@ void ViscoelasticSim::init() {
   particles_prev_pos.resize(max_particles);
   particles_vels.resize(max_particles);
   particles_frozen_pos.resize(max_particles);
+  relaxation_pressures.resize(max_particles);
+  relaxation_near_pressures.resize(max_particles);
+  relaxation_neighbour_ids.resize((size_t)max_particles * 64);
+  relaxation_neighbour_counts.resize(max_particles);
   particles_type = new u8[max_particles];
 
   aux_particles_pos.resize(max_particles);
@@ -524,7 +534,7 @@ void ViscoelasticSim::resolveCollisions(float dt, int start, int end) {
   }
 }
 
-void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas) {
+void ViscoelasticSim::computePressureRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos) {
   float kernel_radius = mat.kernel_radius;
   float kernel_radius_inv = 1.0f / kernel_radius;
   float rest_density = mat.rest_density;
@@ -532,19 +542,13 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
   float near_stiffness = mat.near_stiffness * dt * dt;
 
   constexpr static int max_nears = 64;
-  constexpr static int padded_nears = max_nears + 7;
-  int nears_ids[padded_nears];
-  float nears_closeness[padded_nears];
-
-  alignas(32) float nears_dirs_x[padded_nears];
-  alignas(32) float nears_dirs_y[padded_nears];
-  alignas(32) float nears_dirs_z[padded_nears];
 
   //PROFILE_SCOPED_NAMED("CR");
   for (uint32_t i = range.range.first; i < range.range.last; ++i) {
     float density = 0.0f;
     float near_density = 0.0f;
     int num_nears = 0;
+    int* nears_ids = &relaxation_neighbour_ids[(size_t)i * max_nears];
 
     // Iterate over at most nine merged XY-column particle ranges. Each range
     // contains the occupied neighbour cells from target Z - 1 through Z + 1.
@@ -564,7 +568,7 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
           ppos,
           kernel_radius, kernel_radius_inv,
           &density, &near_density,
-          nears_ids, nears_closeness, nears_dirs_x, nears_dirs_y, nears_dirs_z,
+          nears_ids,
           num_nears, max_nears,
           i, j, lane_count
         );
@@ -578,15 +582,30 @@ void ViscoelasticSim::processRange(float dt, const CPUSpatialSubdivision::CellRa
     pressure = std::min(1.0f, pressure);
     near_pressure = std::min(1.0f, near_pressure);
 
-    apply_displacements_simd(
-      pressure, near_pressure,
-      nears_ids, nears_closeness,
-      nears_dirs_x, nears_dirs_y, nears_dirs_z,
+    relaxation_pressures[i] = pressure;
+    relaxation_near_pressures[i] = near_pressure;
+    relaxation_neighbour_counts[i] = (uint8_t)num_nears;
+  }
+}
+
+void ViscoelasticSim::applyPressureGatherRange(const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_positions) {
+  const float kernel_radius_inv = 1.0f / mat.kernel_radius;
+
+  constexpr static int max_nears = 64;
+
+  for (uint32_t i = range.range.first; i < range.range.last; ++i) {
+    const int num_nears = relaxation_neighbour_counts[i];
+    const int* nears_ids =
+      &relaxation_neighbour_ids[(size_t)i * max_nears];
+    apply_pressure_gather_simd(
+      ppos,
+      relaxation_pressures, relaxation_near_pressures,
+      nears_ids,
       num_nears,
       i,
-      out_deltas
+      kernel_radius_inv,
+      out_positions
     );
-
   }
 }
 
@@ -1224,6 +1243,8 @@ void ViscoelasticSim::captureRelaxationAudit() {
   audit.z_range_simd_blocks_precise = 0;
   audit.neighbour_candidates_discarded_by_cap = 0;
   audit.neighbour_candidates_skipped_by_cap = 0;
+  audit.max_neighbours_per_particle = 0;
+  audit.particles_exceeding_neighbour_cap = 0;
   audit.neighbour_simd_blocks_checked = 0;
   audit.neighbour_simd_blocks_active = 0;
   audit.neighbour_simd_blocks_empty_x = 0;
@@ -1332,6 +1353,7 @@ void ViscoelasticSim::captureRelaxationAudit() {
   // blocks and the 64-neighbour cap without doing normalization or correction
   // math, and runs only for the explicitly requested audit frame.
   constexpr int max_nears = 64;
+  audit.neighbour_count_histogram.assign(max_nears + 1, 0);
   const float radius = mat.kernel_radius;
   const float radius_sq = mat.kernel_radius * mat.kernel_radius;
   std::vector<CPUSpatialSubdivision::Int3> particle_cell_coords(num_particles);
@@ -1553,8 +1575,37 @@ void ViscoelasticSim::captureRelaxationAudit() {
         }
       }
 
-      if (num_nears == max_nears)
+      int neighbours_within_radius = num_nears;
+      if (num_nears == max_nears) {
         ++audit.particles_at_neighbour_cap;
+
+        // The normal replay stops at the runtime cap. Only capped particles
+        // need this uncapped rescan to distinguish exactly 64 neighbours from
+        // a genuinely truncated list and to report the true observed maximum.
+        neighbours_within_radius = 0;
+        for (uint32_t range_idx = 0; range_idx < near_ranges.n; ++range_idx) {
+          const uint32_t first = near_ranges.ranges[range_idx].first;
+          const uint32_t last = near_ranges.ranges[range_idx].last;
+          for (uint32_t j = first; j < last; ++j) {
+            if (j == i)
+              continue;
+            const float dx = particles_frozen_pos.x[j] - pi_x;
+            const float dy = particles_frozen_pos.y[j] - pi_y;
+            const float dz = particles_frozen_pos.z[j] - pi_z;
+            const float distance_sq = dx * dx + dy * dy + dz * dz;
+            if (distance_sq < radius_sq && distance_sq > 1e-6f)
+              ++neighbours_within_radius;
+          }
+        }
+        if (neighbours_within_radius > max_nears)
+          ++audit.particles_exceeding_neighbour_cap;
+      }
+      audit.max_neighbours_per_particle =
+        std::max(audit.max_neighbours_per_particle, neighbours_within_radius);
+      if (neighbours_within_radius >=
+          (int)audit.neighbour_count_histogram.size())
+        audit.neighbour_count_histogram.resize(neighbours_within_radius + 1, 0);
+      ++audit.neighbour_count_histogram[neighbours_within_radius];
       if (available_without_self > checked_for_particle)
         audit.neighbour_candidates_skipped_by_cap += available_without_self - checked_for_particle;
     }
@@ -1567,30 +1618,40 @@ void ViscoelasticSim::captureRelaxationAudit() {
 void ViscoelasticSim::doubleDensityRelaxationPara(float dt, ThreadPool& pool) {
   const int num_jobs = (int)spatial_hash.cells_ranges.size();
 
-  // Each worker accumulates into its own full-sized buffer, so neighbour
-  // scatters never contend. The reduction also clears each consumed delta,
-  // leaving the buffers ready for the next pass without a separate phase.
-  // More chunks keep faster cores useful near the end of the phase and limit
-  // how much work a slower core can hold past the rest of the workers.
+  // First compute the two pressure scalars for every particle. The dispatch
+  // barrier makes all neighbour pressures visible to the gather pass.
+  TTimer pressure_timer;
   runInParallel(num_jobs, num_threads * relaxation_jobs_per_thread, [&](int start, int end, int job_id) {
-    ParticlesVec& worker_deltas = relaxation_worker_deltas[ThreadPool::currentWorkerIndex()];
     for (int cell_idx = start; cell_idx < end; ++cell_idx)
-      processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &worker_deltas);
+      computePressureRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos);
     });
+  saveTime(eSection::RelaxationPressure, pressure_timer);
 
   if (relaxation_audit.requested) {
     captureRelaxationAudit();
     relaxation_audit.requested = false;
   }
 
-  runInParallel(num_particles, num_threads * relaxation_reduce_jobs_per_thread, [&](int start, int end, int job_id) {
-    simd_apply_relaxation_deltas(particles_pos, relaxation_worker_deltas, start, end);
+  // Consume the distance-filtered IDs saved by the pressure pass, rebuild only
+  // their pair geometry, gather neighbour pressure, and update locally owned
+  // particles. There are no cross-worker writes or dense reduction.
+  TTimer gather_timer;
+  runInParallel(num_jobs, num_threads * relaxation_jobs_per_thread, [&](int start, int end, int job_id) {
+    for (int cell_idx = start; cell_idx < end; ++cell_idx)
+      applyPressureGatherRange(spatial_hash.cells_ranges[cell_idx], particles_frozen_pos, &particles_pos);
     });
+  saveTime(eSection::RelaxationGather, gather_timer);
 }
 
 void ViscoelasticSim::doubleDensityRelaxation(float dt) {
+  TTimer pressure_timer;
   for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx)
-    processRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos, &particles_pos);
+    computePressureRange(dt, spatial_hash.cells_ranges[cell_idx], relaxation_near_ranges[cell_idx], particles_frozen_pos);
+  saveTime(eSection::RelaxationPressure, pressure_timer);
+  TTimer gather_timer;
+  for (size_t cell_idx = 0; cell_idx < spatial_hash.cells_ranges.size(); ++cell_idx)
+    applyPressureGatherRange(spatial_hash.cells_ranges[cell_idx], particles_frozen_pos, &particles_pos);
+  saveTime(eSection::RelaxationGather, gather_timer);
 }
 
 void ViscoelasticSim::removeParticle(int id) {
@@ -1680,11 +1741,8 @@ void ViscoelasticSim::setNumThreads(int new_num_threads) {
   num_threads = new_num_threads;
   if (pool)
     delete pool;
-  relaxation_worker_deltas.resize(num_threads);
-  for (ParticlesVec& deltas : relaxation_worker_deltas) {
-    deltas.resize(max_particles);
-    deltas.clearN(num_particles);
-  }
+  relaxation_worker_deltas.clear();
+  relaxation_worker_deltas.shrink_to_fit();
   pool = new ThreadPool(num_threads);
 }
 

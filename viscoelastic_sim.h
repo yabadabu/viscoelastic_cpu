@@ -18,6 +18,8 @@ struct ViscoelasticSim {
     CacheRanges,
     PredictPositions,
     Relaxation,
+    RelaxationPressure,
+    RelaxationGather,
     VelocitiesFromPositions,
     Collisions,
     Render,
@@ -85,6 +87,10 @@ struct ViscoelasticSim {
   int spatial_cell_mode = SpatialCellsKernelRadius;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
+  std::vector<float> relaxation_pressures;
+  std::vector<float> relaxation_near_pressures;
+  std::vector<int> relaxation_neighbour_ids;
+  std::vector<uint8_t> relaxation_neighbour_counts;
   std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;
 
   // Scratch storage for the bounded exact-XY-column index. Histogram rows
@@ -143,6 +149,9 @@ struct ViscoelasticSim {
     uint64_t z_range_simd_blocks_precise = 0;
     uint64_t neighbour_candidates_discarded_by_cap = 0;
     uint64_t neighbour_candidates_skipped_by_cap = 0;
+    int max_neighbours_per_particle = 0;
+    std::vector<uint64_t> neighbour_count_histogram;
+    uint64_t particles_exceeding_neighbour_cap = 0;
     uint64_t neighbour_simd_blocks_checked = 0;
     uint64_t neighbour_simd_blocks_active = 0;
     uint64_t neighbour_simd_blocks_empty_x = 0;
@@ -177,7 +186,8 @@ struct ViscoelasticSim {
   void updateSpatialHash();
   bool assignCellsBoundedXY();
   void resolveCollisions(float dt, int start, int end);
-  void processRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_deltas);
+  void computePressureRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos);
+  void applyPressureGatherRange(const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_positions);
   void updateStep(float dt);
   void update(float dt);
   void doubleDensityRelaxationPara(float dt, ThreadPool& pool);

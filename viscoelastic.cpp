@@ -204,6 +204,11 @@ struct ViscoelasticModule : public Module {
       };
 
     ImGui::SeparatorText("Relaxation data audit");
+    if (audit.num_workers == 0) {
+      ImGui::Text("%d particles, pressure-gather solver; no worker delta buffers",
+        audit.num_particles);
+    }
+    else {
     ImGui::Text("%d particles, %d worker buffers", audit.num_particles, audit.num_workers);
     ImGui::Text("Non-zero worker/particle slots: %llu / %llu (%.1f%% zero)",
       (unsigned long long)audit.nonzero_delta_slots,
@@ -264,6 +269,7 @@ struct ViscoelasticModule : public Module {
       }
       ImGui::TreePop();
     }
+    }
 
     ImGui::Text("Neighbour candidates: %llu available, %llu checked",
       (unsigned long long)audit.neighbour_candidates_available,
@@ -273,6 +279,31 @@ struct ViscoelasticModule : public Module {
       percent(audit.neighbour_candidates_accepted, audit.neighbour_candidates_checked),
       (unsigned long long)audit.neighbour_candidates_rejected,
       percent(audit.neighbour_candidates_rejected, audit.neighbour_candidates_checked));
+    auto neighbourPercentile = [&](uint64_t numerator, uint64_t denominator) {
+      if (audit.neighbour_count_histogram.empty() || audit.num_particles <= 0)
+        return 0;
+      const uint64_t target =
+        ((uint64_t)audit.num_particles * numerator + denominator - 1) / denominator;
+      uint64_t accumulated = 0;
+      for (int count = 0;
+           count < (int)audit.neighbour_count_histogram.size();
+           ++count) {
+        accumulated += audit.neighbour_count_histogram[count];
+        if (accumulated >= target)
+          return count;
+      }
+      return (int)audit.neighbour_count_histogram.size() - 1;
+      };
+    ImGui::Text("Within-radius neighbours/particle: p50 %d, p95 %d, p99 %d, max %d (cap 64)",
+      neighbourPercentile(50, 100),
+      neighbourPercentile(95, 100),
+      neighbourPercentile(99, 100),
+      audit.max_neighbours_per_particle);
+    ImGui::Text("Particles reaching/exceeding cap: %llu / %llu of %d (%.4f%% exceed)",
+      (unsigned long long)audit.particles_at_neighbour_cap,
+      (unsigned long long)audit.particles_exceeding_neighbour_cap,
+      audit.num_particles,
+      percent(audit.particles_exceeding_neighbour_cap, audit.num_particles));
     uint64_t total_within_radius = 0;
     for (uint64_t count : audit.neighbour_within_radius_by_cell_class)
       total_within_radius += count;
@@ -387,6 +418,9 @@ struct ViscoelasticModule : public Module {
   bool        show_cell_ids = false;
   bool        auto_rotate_first_box = false;
   float       auto_rotation_speed = 1.0f;     // in degs
+  bool        raise_particles_below_floor = false;
+  float       raise_level = 5.0f;
+
   CDebugTexts dbg_texts;
 
   int       debug_particle = -1;
@@ -632,7 +666,6 @@ struct ViscoelasticModule : public Module {
       ImGui::DragInt("Cache Jobs / Thread", &sim.cache_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);
       ImGui::DragInt("Relax Jobs / Thread", &sim.relaxation_jobs_per_thread, 0.05f, 1, 32);
-      ImGui::DragInt("Reduce Jobs / Thread", &sim.relaxation_reduce_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragFloat("Spatial XY Bound Min",
         &sim.spatial_xy_bound_world_min, 0.1f, -100.0f, 0.0f);
       ImGui::DragFloat("Spatial XY Bound Max",
@@ -643,7 +676,9 @@ struct ViscoelasticModule : public Module {
       ImGui::Text("%1.6lf spatial_hash", sim.times[ViscoelasticSim::eSection::SpatialHash]);
       ImGui::Text("%1.6lf cache ranges", sim.times[ViscoelasticSim::eSection::CacheRanges]);
       ImGui::Text("%1.6lf particle preparation", sim.times[ViscoelasticSim::eSection::PredictPositions]);
-      ImGui::Text("%1.6lf relaxation (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Relaxation], (27.0f * 8.0f * 2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Relaxation]));
+      ImGui::Text("%1.6lf relaxation", sim.times[ViscoelasticSim::eSection::Relaxation]);
+      ImGui::Text("  %1.6lf pressure pass", sim.times[ViscoelasticSim::eSection::RelaxationPressure]);
+      ImGui::Text("  %1.6lf pressure gather", sim.times[ViscoelasticSim::eSection::RelaxationGather]);
       ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
       ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
       ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
@@ -793,6 +828,10 @@ struct ViscoelasticModule : public Module {
       ImGui::Checkbox("Auto rotate first box", &auto_rotate_first_box);
       if( auto_rotate_first_box )
         ImGui::DragFloat( "Rotation Speed", &auto_rotation_speed, 0.01f, -1.0f, 1.0f );
+
+      ImGui::Checkbox("Raise particles below floor", &raise_particles_below_floor);
+      if( raise_particles_below_floor )
+        ImGui::DragFloat("Raise Level", &raise_level, 0.01f, -10.0f, 10.0f);
       ImGui::TreePop();
     }
 
@@ -844,6 +883,17 @@ struct ViscoelasticModule : public Module {
       std::vector< int > ids;
       sim.getParticleIDsNear(ids, sim.interact_point, sim.interact_rad);
       sim.removeParticles(ids);
+    }
+
+    if (raise_particles_below_floor) {
+      for (int i = 0; i < sim.num_particles; ++i) {
+        float py = sim.particles_pos.y[i];
+        if (py < 0.0f) {
+          const float delta_y = raise_level * sim.world_scale - py;
+          sim.particles_pos.y[i] += delta_y;
+          sim.particles_prev_pos.y[i] += delta_y;
+        }
+      }
     }
 
     if (auto_rotate_first_box) {

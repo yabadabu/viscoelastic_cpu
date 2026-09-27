@@ -1136,8 +1136,7 @@ void ViscoelasticSim::updatePredictedPositionsRange(float dt, int start, int end
 
 void ViscoelasticSim::updatePredictedPositions(float dt) {
   TTimer timer;
-  const int num_jobs = std::max(1, std::min(prediction_jobs, num_threads));
-  runInParallel(num_particles, num_jobs, [&](int start, int end, int job_id) {
+  runInParallel(num_particles, num_threads * prediction_jobs_per_thread, [&](int start, int end, int job_id) {
     updatePredictedPositionsRange(dt, start, end);
     });
   saveTime(eSection::PredictPositions, timer);
@@ -1164,7 +1163,7 @@ void ViscoelasticSim::cacheRangesAndPredict(float dt) {
 
   const int num_cache_jobs =
     std::min(num_cache_units, num_threads * cache_jobs_per_thread);
-  const int num_prediction_jobs = std::min(num_particles, std::max(1, std::min(prediction_jobs, num_threads)));
+  const int num_prediction_jobs = prediction_jobs_per_thread * num_threads;
   const int chunk_size =
     (num_cache_units + num_cache_jobs - 1) / num_cache_jobs;
   const int prediction_chunk_size = (num_particles + num_prediction_jobs - 1) / num_prediction_jobs;

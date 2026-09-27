@@ -664,7 +664,7 @@ struct ViscoelasticModule : public Module {
       ImGui::Checkbox("Overlap Cache + Predict", &sim.overlap_cache_and_prediction);
       ImGui::DragInt("Sort Jobs / Thread", &sim.sort_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Cache Jobs / Thread", &sim.cache_jobs_per_thread, 0.05f, 1, 32);
-      ImGui::DragInt("Prediction Jobs", &sim.prediction_jobs, 0.05f, 1, max_threads);
+      ImGui::DragInt("Prediction Jobs / Thread", &sim.prediction_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragInt("Relax Jobs / Thread", &sim.relaxation_jobs_per_thread, 0.05f, 1, 32);
       ImGui::DragFloat("Spatial XY Bound Min",
         &sim.spatial_xy_bound_world_min, 0.1f, -100.0f, 0.0f);

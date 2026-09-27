@@ -78,7 +78,7 @@ struct ViscoelasticSim {
   int num_threads = 12;
   int sort_jobs_per_thread = 4;
   int cache_jobs_per_thread = 6;
-  int prediction_jobs = 8;
+  int prediction_jobs_per_thread = 3;
   int relaxation_jobs_per_thread = 12;
   int relaxation_reduce_jobs_per_thread = 4;
   float spatial_xy_bound_world_min = -20.0f;

@@ -6,11 +6,9 @@ APP_NAME=${ROOT_APP_NAME}_${PLATFORM}
 
 TARGET : ${APP_NAME}
 
-INCLUDE_PATHS=. engine engine/render/metal engine/osx/metal-cpp
-INCLUDE_OPTIONS+=$(foreach f,${INCLUDE_PATHS},-I$f)
-
-CFLAGS=-Wall -c ${INCLUDE_OPTIONS} -DIN_PLATFORM_${PLATFORM}=1  -DIN_PLATFORM_APPLE=1 -DIMGUI_IMPL_METAL_CPP_EXTENSIONS
+CFLAGS=-Wall -c ${INCLUDE_OPTIONS} -DIN_PLATFORM_${PLATFORM}=1  
 CFLAGS+= -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+CFLAGS+=
 
 CONFIG_PATH=debug
 ifdef RELEASE
@@ -28,35 +26,51 @@ endif
 
 CFLAGS+=${ASAN_FLAGS}
 
-CXXFLAGS=${CFLAGS} -std=c++17 -fno-exceptions -fno-objc-arc
+CXXFLAGS=${CFLAGS} -std=c++20 -fno-exceptions -fno-objc-arc
 cooker: CXXFLAGS := ${CFLAGS} -std=c++20 -fno-objc-arc
 
 FRAMEWORKS=Foundation Metal MetalKit AudioToolbox GameKit
 
 ifeq (${PLATFORM}, OSX)
 	FRAMEWORKS+=QuartzCore Cocoa AppKit
-	SRCS=main_osx imgui_impl_metal imgui_impl_osx
-	ARCH_FLAGS=-target x86_64-apple-macos14s -mavx2
+	SRCS=main_osx imgui_impl_metal imgui_impl_osx apple_platform
+	INCLUDE_PATHS_ARCH:=engine/render/metal engine/osx/metal-cpp
+	ARCH_FLAGS=-target x86_64-apple-macos14s -mavx2 -DIMGUI_IMPL_METAL_CPP_EXTENSIONS -DIN_PLATFORM_APPLE=1
 	LIBS+=-F/System/Library/Frameworks
+	LNKFLAGS+=${ARCH_FLAGS}
 else ifeq (${PLATFORM}, ARM)
 	FRAMEWORKS+=QuartzCore Cocoa AppKit
-	SRCS=main_osx
-	ARCH_FLAGS=-target arm64-apple-macos14
+	SRCS=main_osx apple_platform
+	INCLUDE_PATHS_ARCH:=engine/render/metal engine/osx/metal-cpp
+	ARCH_FLAGS=-target arm64-apple-macos14 -DIMGUI_IMPL_METAL_CPP_EXTENSIONS -DIN_PLATFORM_APPLE=1
 	LIBS+=-F/System/Library/Frameworks
+	LNKFLAGS+=${ARCH_FLAGS}
+else ifeq (${PLATFORM}, LINUX)
+	SRCS=main_linux
+	INCLUDE_PATHS_ARCH:=
+	ARCH_FLAGS=-mavx2
+	LIBS+=-lm
 else
 	FRAMEWORKS+=UIKit CoreMotion Security CoreLocation
-	SRCS=main_ios 
+	SRCS=main_ios apple_platform
+	INCLUDE_PATHS_ARCH:=engine/render/metal engine/osx/metal-cpp
 	SYSROOT=$(shell xcrun --show-sdk-path --sdk iphoneos)
-	ARCH_FLAGS=-target arm64-apple-ios14 -isysroot ${SYSROOT}
+	ARCH_FLAGS=-target arm64-apple-ios14 -isysroot ${SYSROOT} -DIMGUI_IMPL_METAL_CPP_EXTENSIONS -DIN_PLATFORM_APPLE=1
 	CXXFLAGS+=-arch arm64
 	LIBS+=-lsoloud_static -lcurl -lz 
+	LNKFLAGS+=${ARCH_FLAGS}
 endif
 
-LNKFLAGS+=${ARCH_FLAGS}
+INCLUDE_PATHS=. engine ${INCLUDE_PATHS_ARCH}
+INCLUDE_OPTIONS+=$(foreach f,${INCLUDE_PATHS},-I$f)
+
 CFLAGS+=${ARCH_FLAGS}
 CXXFLAGS+=${ARCH_FLAGS}
 
+ifeq (${PLATFORM}, OSX)
 LIBS+=$(foreach f,${FRAMEWORKS},-framework $f)
+endif
+
 LIBS+=-lstdc++ ${ASAN_FLAGS}
 
 OBJS_PATH=objs/${PLATFORM}/${CONFIG_PATH}
@@ -64,21 +78,25 @@ OBJS_PATH=objs/${PLATFORM}/${CONFIG_PATH}
 # Get All module sources
 MODULE_SRCS=$(foreach f,$(shell find engine/modules -name "*.cpp"),${notdir ${basename $f}})
 
-SRCS+=apple_platform \
-     geometry transform camera angular sdf \
+SRCS+=geometry transform camera angular sdf \
      render primitives \
      json json_file \
      utils profiling \
      resources_manager \
-     render_platform \
      imgui imgui_draw imgui_widgets imgui_tables imgui_demo ImGuizmo \
      viscoelastic viscoelastic_sim \
      ${MODULE_SRCS} \
+     render_platform \
 
 OBJS=$(foreach f,${SRCS},$(OBJS_PATH)/$(basename $f).o)
 
-VPATH=${shell find engine -type d| grep -v objs | grep -v common} osx experiments tools
+VPATH=${shell find engine -type d| grep -v objs | grep -v common | grep -v x64 | grep -v render/ } osx experiments tools
 
+ifeq (${PLATFORM}, LINUX)
+VPATH+=engine/render/null
+endif
+
+#$(info VPATH is ${VPATH})
 #$(info OBJS is ${OBJS})
 
 tools : cooker

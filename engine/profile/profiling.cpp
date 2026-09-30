@@ -7,6 +7,9 @@
 
 #if IN_PLATFORM_WINDOWS
 #include <windows.h>
+#elif IN_PLATFORM_LINUX
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
 
 namespace Profiling {
@@ -64,6 +67,8 @@ namespace Profiling {
 
 #if IN_PLATFORM_WINDOWS
     thread_id = GetCurrentThreadId();
+#elif IN_PLATFORM_LINUX
+    thread_id = static_cast<uint64_t>(syscall(SYS_gettid));
 #else
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
@@ -163,10 +168,10 @@ namespace Profiling {
 
         if (e->isBegin()) {
           fprintf(f, "{\"name\":\"%s\", \"cat\":\"c++\"", e->name);
-          fprintf(f, ",\"ph\":\"B\",\"ts\": %lld, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
+          fprintf(f, ",\"ph\":\"B\",\"ts\": %lu, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
         }
         else {
-          fprintf(f, "{\"ph\":\"E\",\"ts\": %lld, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
+          fprintf(f, "{\"ph\":\"E\",\"ts\": %lu, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
         }
       }
       if (dc->used)

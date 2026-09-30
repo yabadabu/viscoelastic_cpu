@@ -22,6 +22,8 @@ struct FlyController : public CameraController {
     else if (pitch < -max_pitch) pitch = -max_pitch;
   }
   void updateCamera(CCamera* camera, float dt) override {
+    if( !camera )
+      return;
     VEC3 pos = camera->getPosition();
     VEC3 left = camera->getLeft();
     VEC3 front = camera->getFront();

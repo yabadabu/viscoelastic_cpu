@@ -8,6 +8,10 @@
 #include "metal/render_platform.h"
 #endif
 
+#ifdef IN_PLATFORM_LINUX
+#include "null/render_platform.h"
+#endif
+
 #include "resources/resource.h"
 #include "vertex_declarations.h"
 

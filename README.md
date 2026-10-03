@@ -259,15 +259,32 @@ with:
 python benchmarks/plot_results.py
 ```
 
-By default each graph uses the most recent compatible run. Thread scaling does
-this independently per CPU and shows the selected commit in each panel, so
-older measurements are not hidden merely because another machine was tested at
-a newer commit. Use `--commit <commit>`, `--scene <scene>`, or
-`--particles-k 64` to select a stricter result set.
+By default each graph uses the most recent compatible run independently per CPU
+and shows a concise CPU model plus the selected commit in each panel. Hostnames
+remain in the CSV for provenance, and are added to a panel only when two
+machines use the same CPU model. Older measurements are therefore not hidden
+merely because another machine was tested at a newer documentation commit.
+Thread-scaling panels use independent thread-count and update-time ranges so
+each CPU's scaling curve fills its panel. Their update times are divided by that
+machine's 32K/1-thread time (`measured time / T(32K, 1 thread)`). This removes
+absolute CPU speed while preserving the thread-scaling curve, making saturation
+behavior directly comparable across processors. The additional log-log chart
+plots the same measurements against dashed ideal `1 / threads` lines. Ideal
+parallel scaling is straight in this view, so bends away from the dashed lines
+make scheduling, synchronization, and memory limits easier to locate. The
+efficiency chart uses the standard parallel-efficiency ratio
+`T(particles, 1) / (T(particles, threads) * threads)`. Its dashed 100% line is
+ideal linear scaling, while lower values show the useful speedup retained per
+worker. Use `--commit <commit>`,
+`--scene <scene>`, or `--particles-k 64` to select a stricter result set.
 
 <img src="results/benchmark_update_time.svg" width="1000"/>
 
 <img src="results/benchmark_thread_scaling.svg" width="1000"/>
+
+<img src="results/benchmark_thread_scaling_log.svg" width="1000"/>
+
+<img src="results/benchmark_thread_efficiency.svg" width="1000"/>
 
 ## Results
 

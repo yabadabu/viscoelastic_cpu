@@ -346,24 +346,6 @@ Several tests were tested and reverted because no clear benefit was found:
 - More threads does not mean better performance
 - Multithreading pays off when enough independent work is pushed
 
-## Update 
-
-I got access to a new computer, an AMD Ryzen 9 9900X 12-Core Processor, 4400 Mhz, 12 Core(s), 24 Logical Processor(s).
-For comparison, using 24 threads
-
-```
-3960X  |   Ryzen9 9900X
-1.296  ->  0.660  Spatial Hash
-0.034  ->  0.016  Velocities update
-0.066  ->  0.030  Predict Positions
-3.042  ->  1.353  Relaxation
-0.229  ->  0.230  Collisions
-0.076  ->  0.035  Velocities from positions
-0.828  ->  0.300  Render
-4.908  ->  2.440  Total update
-```
-Using 12 threads, the render, collisions improve. Something to study in the future.
-
 ## Future Improvements
 
 - The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)

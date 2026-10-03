@@ -340,16 +340,19 @@ Several tests were tested and reverted because no clear benefit was found:
 
 - Subdivide the world in R/2 x R/2 x R/2 to be able to discard more cells searching for neighbours, hence more particles from the relaxation calculation, but the x2 in the 3 axis made the cost of computing the ranges explode from 0.070ms to 0.9ms and the wins didn't compensate. But it served to use R x R x R/2 and gain 0.5ms ( at that time from 5.7ms to 5.2ms )
 
+- All the prefetching experiments have yield zero net results
+
 ## Conclusions
 
 - Memory access pattern is key
 - More threads does not mean better performance
-- Multithreading pays off when enough independent work is pushed
+- Multithreading pays off when enough independent work is pushed up to a limit
 
 ## Future Improvements
 
 - The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)
 - We can always start the simulation of the next frame while doing the rendering and waiting for the GPU.
 - Testing with different data alignments
+- Test with an Apple M-CPU
 - Move it to GPU
 

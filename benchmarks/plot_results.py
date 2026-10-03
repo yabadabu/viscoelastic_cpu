@@ -93,6 +93,22 @@ def latest_run(
     return candidates[-1] if candidates else None
 
 
+def latest_commit_per_machine(
+    rows: list[dict[str, object]], run_type: str, scene: str
+) -> dict[str, str]:
+    predicate = (
+        is_particle_scaling_run
+        if run_type == "particle"
+        else is_thread_scaling_run
+    )
+    commits: dict[str, str] = {}
+    for run in group_runs(rows):
+        if not predicate(run) or str(run[-1]["scene"]) != scene:
+            continue
+        commits[str(run[-1]["machine"])] = str(run[-1]["commit"])
+    return commits
+
+
 def text(x: float, y: float, value: str, **attributes: object) -> str:
     attrs = " ".join(f'{key.replace("_", "-")}="{item}"' for key, item in attributes.items())
     return f'<text x="{x:.1f}" y="{y:.1f}" {attrs}>{html.escape(value)}</text>'
@@ -141,11 +157,16 @@ def render_chart(rows: list[dict[str, object]], commit: str, scene: str) -> str:
     particle_max = max(particle_counts)
     particle_range = max(1, particle_max - particle_min)
 
+    subtitle = (
+        f"scene: {scene} · commit: {commit}"
+        if commit is not None
+        else f"scene: {scene} · latest compatible run per CPU"
+    )
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         '<rect width="100%" height="100%" fill="#101418"/>',
         text(width / 2, 34, "Simulation update time", fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 26, "font-family": "sans-serif"}),
-        text(width / 2, 61, f"scene: {scene} · commit: {commit}", fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}),
+        text(width / 2, 61, subtitle, fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}),
     ]
 
     legend_width = len(THREAD_COUNTS) * 150
@@ -203,11 +224,11 @@ def render_chart(rows: list[dict[str, object]], commit: str, scene: str) -> str:
 
 
 def available_thread_scaling_particles(
-    rows: list[dict[str, object]], commit: str
+    rows: list[dict[str, object]], commit: str | None
 ) -> list[int]:
     threads_by_particle: dict[int, set[int]] = {}
     for row in rows:
-        if row["commit"] != commit:
+        if commit is not None and row["commit"] != commit:
             continue
         particles = int(row["particles"])
         threads_by_particle.setdefault(particles, set()).add(int(row["threads"]))
@@ -220,18 +241,18 @@ def available_thread_scaling_particles(
 
 def render_thread_chart(
     rows: list[dict[str, object]],
-    commit: str,
+    commit: str | None,
     scene: str,
     requested_particle_counts: set[int] | None = None,
 ) -> str:
     selected = [
         row
         for row in rows
-        if row["commit"] == commit
+        if commit is None or row["commit"] == commit
     ]
     if not selected:
         return placeholder(
-            f"No thread-scaling results for commit {commit}"
+            "No matching thread-scaling results"
         )
 
     threads_by_particle: dict[int, set[int]] = {}
@@ -262,6 +283,14 @@ def render_thread_chart(
         )] = float(row["average_ms"])
 
     machines = sorted({key[0] for key in points})
+    machine_commits = {
+        machine: str(next(
+            row["commit"]
+            for row in reversed(selected)
+            if str(row["machine"]) == machine
+        ))
+        for machine in machines
+    }
     thread_counts = sorted({key[2] for key in points})
     if len(thread_counts) < 2:
         return placeholder("Not enough thread-scaling points to plot")
@@ -285,11 +314,16 @@ def render_thread_chart(
     thread_range = max(1, thread_max - thread_min)
     tick_step = max(1, math.ceil(thread_max / 12))
 
+    subtitle = (
+        f"scene: {scene} · commit: {commit}"
+        if commit is not None
+        else f"scene: {scene} · latest compatible run per CPU"
+    )
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         '<rect width="100%" height="100%" fill="#101418"/>',
         text(width / 2, 34, "Thread scaling by particle count", fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 26, "font-family": "sans-serif"}),
-        text(width / 2, 61, f"scene: {scene} · commit: {commit}", fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}),
+        text(width / 2, 61, subtitle, fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}),
     ]
 
     legend_width = len(particle_counts) * 115
@@ -303,7 +337,7 @@ def render_thread_chart(
     for machine_index, machine in enumerate(machines):
         x0 = margin_left + machine_index * (panel_width + panel_gap)
         svg.append(f'<rect x="{x0:.1f}" y="{margin_top}" width="{panel_width:.1f}" height="{plot_height}" fill="#171d23" stroke="#45515e"/>')
-        svg.append(text(x0 + panel_width / 2, margin_top - 13, machine, fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 18, "font-family": "sans-serif"}))
+        svg.append(text(x0 + panel_width / 2, margin_top - 13, f"{machine} · {machine_commits[machine]}", fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 18, "font-family": "sans-serif"}))
 
         for tick in range(6):
             value = y_max * tick / 5
@@ -393,16 +427,26 @@ def main() -> None:
         if latest_thread_run
         else "large_cage"
     )
-    thread_commit = args.commit or (
-        str(latest_thread_run[-1]["commit"])
-        if latest_thread_run
-        else "unknown"
-    )
-    thread_rows = [
-        row
-        for row in rows_for_run_type(all_rows, "thread")
-        if row["scene"] == thread_scene
-    ]
+    all_thread_rows = rows_for_run_type(all_rows, "thread")
+    if args.commit is not None:
+        thread_commit: str | None = args.commit
+        thread_rows = [
+            row
+            for row in all_thread_rows
+            if row["scene"] == thread_scene
+            and row["commit"] == thread_commit
+        ]
+    else:
+        thread_commit = None
+        latest_commits = latest_commit_per_machine(
+            all_rows, "thread", thread_scene
+        )
+        thread_rows = [
+            row
+            for row in all_thread_rows
+            if row["scene"] == thread_scene
+            and row["commit"] == latest_commits.get(str(row["machine"]))
+        ]
     requested_thread_particles = (
         {args.particles_k * 1024}
         if args.particles_k is not None

@@ -259,9 +259,11 @@ with:
 python benchmarks/plot_results.py
 ```
 
-By default each graph uses the most recent compatible run, so particle and
-thread sweeps may use different scenes. Use `--commit <commit>`,
-`--scene <scene>`, or `--particles-k 64` to select a different result set.
+By default each graph uses the most recent compatible run. Thread scaling does
+this independently per CPU and shows the selected commit in each panel, so
+older measurements are not hidden merely because another machine was tested at
+a newer commit. Use `--commit <commit>`, `--scene <scene>`, or
+`--particles-k 64` to select a stricter result set.
 
 <img src="results/benchmark_update_time.svg" width="1000"/>
 

@@ -860,6 +860,185 @@ def render_thread_efficiency_chart(
     return "\n".join(svg)
 
 
+def render_machine_comparison_chart(
+    rows: list[dict[str, object]],
+    commit: str | None,
+    scene: str,
+    requested_particle_counts: set[int] | None = None,
+) -> str:
+    selected = [
+        row
+        for row in rows
+        if commit is None or row["commit"] == commit
+    ]
+    if not selected:
+        return placeholder("No matching thread-scaling results")
+
+    threads_by_particle: dict[int, set[int]] = {}
+    for row in selected:
+        particles = int(row["particles"])
+        threads_by_particle.setdefault(particles, set()).add(int(row["threads"]))
+    particle_counts = sorted(
+        particles
+        for particles, thread_counts in threads_by_particle.items()
+        if len(thread_counts) > 2
+        and (
+            requested_particle_counts is None
+            or particles in requested_particle_counts
+        )
+    )
+    if not particle_counts:
+        return placeholder("No complete thread-scaling particle sets to plot")
+
+    # Later files replace earlier runs for the same machine/scenario point.
+    points: dict[tuple[str, int, int], float] = {}
+    for row in selected:
+        particles = int(row["particles"])
+        if particles not in particle_counts:
+            continue
+        points[(
+            str(row["machine"]),
+            particles,
+            int(row["threads"]),
+        )] = float(row["average_ms"])
+
+    machines = sorted({key[0] for key in points})
+    if not machines:
+        return placeholder("No machine-comparison points to plot")
+    cpu_labels = cpu_labels_by_machine(selected, machines)
+    machines.sort(key=lambda machine: cpu_labels[machine])
+    machine_commits = {
+        machine: str(next(
+            row["commit"]
+            for row in reversed(selected)
+            if str(row["machine"]) == machine
+        ))
+        for machine in machines
+    }
+
+    all_thread_counts = sorted({key[2] for key in points})
+    thread_min = min(all_thread_counts)
+    thread_max = max(all_thread_counts)
+    log_x_min = math.log2(thread_min)
+    log_x_range = max(1.0, math.log2(thread_max) - log_x_min)
+
+    width = 1400
+    height = 650
+    margin_left = 90
+    margin_right = 38
+    margin_top = 165
+    margin_bottom = 82
+    panel_gap = 55
+    panel_width = (
+        width - margin_left - margin_right
+        - panel_gap * (len(particle_counts) - 1)
+    ) / len(particle_counts)
+    plot_height = height - margin_top - margin_bottom
+    bottom = margin_top + plot_height
+
+    subtitle = (
+        f"scene: {scene} · commit: {commit}"
+        if commit is not None
+        else f"scene: {scene} · latest compatible run per CPU"
+    )
+    svg = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="#101418"/>',
+        text(width / 2, 34, "CPU comparison by particle load", fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 26, "font-family": "sans-serif"}),
+        text(width / 2, 61, subtitle, fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}),
+    ]
+
+    legend_width = width - 120
+    legend_item_width = legend_width / len(machines)
+    legend_x = 60
+    for machine_index, machine in enumerate(machines):
+        color = COLORS[machine_index % len(COLORS)]
+        x = legend_x + machine_index * legend_item_width
+        svg.append(f'<line x1="{x:.1f}" y1="91" x2="{x + 25:.1f}" y2="91" stroke="{color}" stroke-width="2.5"/>')
+        svg.append(text(x + 33, 96, cpu_labels[machine], fill="#d8dee9", **{"font-size": 13, "font-family": "sans-serif"}))
+        svg.append(text(x + 33, 113, machine_commits[machine], fill="#8995a3", **{"font-size": 11, "font-family": "sans-serif"}))
+
+    x_ticks: list[int] = []
+    power = 1
+    while power <= thread_max:
+        if power >= thread_min:
+            x_ticks.append(power)
+        power *= 2
+    if thread_max not in x_ticks:
+        x_ticks.append(thread_max)
+
+    for particle_index, particles in enumerate(particle_counts):
+        x0 = margin_left + particle_index * (panel_width + panel_gap)
+        panel_values = [
+            value
+            for (machine, point_particles, threads), value in points.items()
+            if point_particles == particles
+        ]
+        max_value = max(panel_values)
+        raw_step = max_value * 1.05 / 6
+        magnitude = 10 ** math.floor(math.log10(raw_step))
+        residual = raw_step / magnitude
+        if residual <= 1:
+            tick_step = magnitude
+        elif residual <= 2:
+            tick_step = 2 * magnitude
+        elif residual <= 5:
+            tick_step = 5 * magnitude
+        else:
+            tick_step = 10 * magnitude
+        y_max = math.ceil(max_value * 1.05 / tick_step) * tick_step
+        y_tick_count = round(y_max / tick_step)
+
+        def x_position(threads: int) -> float:
+            return x0 + panel_width * (
+                math.log2(threads) - log_x_min
+            ) / log_x_range
+
+        def y_position(value: float) -> float:
+            return bottom - plot_height * value / y_max
+
+        svg.append(f'<rect x="{x0:.1f}" y="{margin_top}" width="{panel_width:.1f}" height="{plot_height}" fill="#171d23" stroke="#45515e"/>')
+        svg.append(text(x0 + panel_width / 2, margin_top - 13, f"{particles // 1024}K particles", fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 16, "font-family": "sans-serif"}))
+
+        decimals = 0 if tick_step >= 1 else 1
+        for tick in range(y_tick_count + 1):
+            value = tick * tick_step
+            y = y_position(value)
+            svg.append(f'<line x1="{x0:.1f}" y1="{y:.1f}" x2="{x0 + panel_width:.1f}" y2="{y:.1f}" stroke="#2b3540"/>')
+            svg.append(text(x0 - 8, y + 5, f"{value:.{decimals}f}", fill="#aeb8c4", **{"text-anchor": "end", "font-size": 12, "font-family": "sans-serif"}))
+
+        for threads in x_ticks:
+            x = x_position(threads)
+            svg.append(f'<line x1="{x:.1f}" y1="{margin_top}" x2="{x:.1f}" y2="{bottom:.1f}" stroke="#252e37" stroke-width="0.6"/>')
+            svg.append(f'<line x1="{x:.1f}" y1="{bottom:.1f}" x2="{x:.1f}" y2="{bottom + 5:.1f}" stroke="#aeb8c4"/>')
+            svg.append(text(x, bottom + 24, str(threads), fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 12, "font-family": "sans-serif"}))
+
+        for machine_index, machine in enumerate(machines):
+            color = COLORS[machine_index % len(COLORS)]
+            machine_points = sorted(
+                (threads, points[(machine, particles, threads)])
+                for threads in all_thread_counts
+                if (machine, particles, threads) in points
+            )
+            coordinates = [
+                (x_position(threads), y_position(value))
+                for threads, value in machine_points
+            ]
+            if len(coordinates) > 1:
+                joined = " ".join(
+                    f"{x:.1f},{y:.1f}" for x, y in coordinates
+                )
+                svg.append(f'<polyline points="{joined}" fill="none" stroke="{color}" stroke-width="2.5"/>')
+            for x, y in coordinates:
+                svg.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.5" fill="{color}"/>')
+
+    svg.append(text(width / 2, height - 22, "Worker threads (log₂ scale)", fill="#d8dee9", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}))
+    svg.append(text(20, margin_top + plot_height / 2, "Average update time (ms)", fill="#d8dee9", transform=f"rotate(-90 20 {margin_top + plot_height / 2:.1f})", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}))
+
+    svg.append("</svg>")
+    return "\n".join(svg)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, default=Path("benchmarks/results"))
@@ -878,6 +1057,11 @@ def main() -> None:
         "--thread-efficiency-output",
         type=Path,
         default=Path("results/benchmark_thread_efficiency.svg"),
+    )
+    parser.add_argument(
+        "--machine-comparison-output",
+        type=Path,
+        default=Path("results/benchmark_machine_comparison.svg"),
     )
     parser.add_argument("--scene")
     parser.add_argument("--commit")
@@ -1001,6 +1185,23 @@ def main() -> None:
         encoding="utf-8",
     )
     print(f"Wrote {args.thread_efficiency_output}")
+
+    machine_comparison_chart = (
+        render_machine_comparison_chart(
+            thread_rows,
+            thread_commit,
+            thread_scene,
+            requested_thread_particles,
+        )
+        if thread_rows and available_thread_particles
+        else placeholder("Run the thread-scaling benchmark to generate this chart")
+    )
+    args.machine_comparison_output.parent.mkdir(parents=True, exist_ok=True)
+    args.machine_comparison_output.write_text(
+        machine_comparison_chart,
+        encoding="utf-8",
+    )
+    print(f"Wrote {args.machine_comparison_output}")
 
 
 if __name__ == "__main__":

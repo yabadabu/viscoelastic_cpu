@@ -275,7 +275,10 @@ make scheduling, synchronization, and memory limits easier to locate. The
 efficiency chart uses the standard parallel-efficiency ratio
 `T(particles, 1) / (T(particles, threads) * threads)`. Its dashed 100% line is
 ideal linear scaling, while lower values show the useful speedup retained per
-worker. Use `--commit <commit>`,
+worker. The machine-comparison chart transposes the thread sweep into one panel
+per particle load and overlays absolute update times for every CPU. Its shared
+logarithmic thread axis permits direct comparisons at equal worker counts while
+still showing each machine's full tested range. Use `--commit <commit>`,
 `--scene <scene>`, or `--particles-k 64` to select a stricter result set.
 
 <img src="results/benchmark_update_time.svg" width="1000"/>
@@ -285,6 +288,8 @@ worker. Use `--commit <commit>`,
 <img src="results/benchmark_thread_scaling_log.svg" width="1000"/>
 
 <img src="results/benchmark_thread_efficiency.svg" width="1000"/>
+
+<img src="results/benchmark_machine_comparison.svg" width="1000"/>
 
 ## Results
 

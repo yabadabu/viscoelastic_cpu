@@ -231,6 +231,38 @@ Ideally, instead of giving just one thread, we better give a range of cells of e
  
 Remember that the spatial index we are using allows us to sort the cells by any criteria we want, and the particles in each cell are stored in continuous buffer.
 
+## Automated performance benchmark
+
+The **Performance Benchmark** panel provides two repeatable sweeps. Particle
+scaling runs from 8K to 128K particles in 8K increments using both 12 and 24
+worker threads. Thread scaling holds the particle count fixed (64K by default)
+and runs from one worker through every logical processor reported by the
+machine. A combined thread sweep runs the same test at 32K, 64K, and 128K so
+the graph can use one particle-count curve per color and one CPU per panel.
+Platforms is the default scene. Each scenario uses 300 warm-up frames followed
+by 300 measured frames. The application keeps its normal rendering and
+refresh-rate cadence, while the CSV records only the average wall-clock time of
+the complete simulation update. Use **Preview initial spawn** to inspect the
+deterministic particle cloud before any simulation update is applied.
+
+Each run creates a machine- and commit-labelled CSV under
+`benchmarks/results/`. One local run is enough to graph the 12- and 24-thread
+results for this computer. Results from other computers can be copied into the
+same directory later if a machine comparison is wanted. Regenerate the chart
+with:
+
+```sh
+python benchmarks/plot_results.py
+```
+
+By default each graph uses the most recent compatible run, so particle and
+thread sweeps may use different scenes. Use `--commit <commit>`,
+`--scene <scene>`, or `--particles-k 64` to select a different result set.
+
+<img src="results/benchmark_update_time.svg" width="1000"/>
+
+<img src="results/benchmark_thread_scaling.svg" width="1000"/>
+
 ## Results
 
 For 32K particles, using 12 CPUs in a Ryzen Threadripper 3960X with 24-Cores, times in msecs
@@ -343,13 +375,13 @@ The submitting thread currently waits for the workers but does not execute jobs 
 
 Several tests were tested and reverted because no clear benefit was found:
 
-- In the relaxation stage, which takes most of the time, using 19 neighbourgs cells (exclusing the 8 corners) instead of all 27. Based on some audit this was removing just ~4% of the particles but the simulation didn't reach a stable point. The savings where approx from 4.9ms to 4.3ms for 64K particles and 12 workers
+- In the relaxation stage, which takes most of the time, using 19 neighbourgs cells (exclusing the 8 corners) instead of all 27. Based on some audit this was removing just ~4% of the particles but the simulation didn't reach a stable point. At that time the savings where approx from 4.9ms to 4.3ms for 64K particles and 12 workers
 
 - I audited if I could discard blocks of 8-particles if the distance in the .z were already greater than the interference radius. And the number of particles we were going to discard with this early test was very very small, like 8%
 
 - Make the relaxation jobs oriented to handle the full xy-column, not to a range of cells (which are already z-ordered), aiming to get more cache coherence, but there was no clear win.
 
-- Subdivide the world in R/2 x R/2 x R/2 to be able to discard more cells, hence more particles from the relaxation calculation, but the x2 in the 3 axis made the cost of computing the ranges explode from 0.070ms to 0.9ms and the wins didn't compensate. But it served to use R x R x R/2 and gain 0.5ms ( from 5.7ms to 5.2ms )
+- Subdivide the world in R/2 x R/2 x R/2 to be able to discard more cells searching for neighbours, hence more particles from the relaxation calculation, but the x2 in the 3 axis made the cost of computing the ranges explode from 0.070ms to 0.9ms and the wins didn't compensate. But it served to use R x R x R/2 and gain 0.5ms ( at that time from 5.7ms to 5.2ms )
 
 ## Conclusions
 

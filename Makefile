@@ -71,13 +71,14 @@ SRCS+=apple_platform \
      utils profiling \
      resources_manager \
      render_platform \
+     benchmark_runner \
      imgui imgui_draw imgui_widgets imgui_tables imgui_demo ImGuizmo \
      viscoelastic viscoelastic_sim \
      ${MODULE_SRCS} \
 
 OBJS=$(foreach f,${SRCS},$(OBJS_PATH)/$(basename $f).o)
 
-VPATH=${shell find engine -type d| grep -v objs | grep -v common} osx experiments tools
+VPATH=${shell find engine -type d| grep -v objs | grep -v common} osx experiments tools benchmarks
 
 #$(info OBJS is ${OBJS})
 

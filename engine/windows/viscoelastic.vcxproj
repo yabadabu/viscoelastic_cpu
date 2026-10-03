@@ -103,6 +103,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\benchmarks\benchmark_runner.cpp" />
     <ClCompile Include="..\..\viscoelastic_sim.cpp" />
     <ClCompile Include="..\utils\utils.cpp" />
     <ClCompile Include="..\formats\json\json.cpp" />
@@ -172,6 +173,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\benchmarks\benchmark_runner.h" />
     <ClInclude Include="..\..\cpu_spatial_subdivision.h" />
     <ClInclude Include="..\..\particles_vec.h" />
     <ClInclude Include="..\..\thread_pool.h" />

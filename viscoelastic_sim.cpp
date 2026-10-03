@@ -1,7 +1,7 @@
 #include "platform.h"
 #include "viscoelastic_sim.h"
 #include <immintrin.h>
-#include <bit>
+//#include <bit>
 
 // 0.171ms -> 0.026ms
 //for (int i = 0; i < num_particles; ++i) {
@@ -437,8 +437,8 @@ inline void collect_neighbors_block(
 
   const int available = max_nears - num_nears;
   int accepted_bits = mask_bits;
-  //int accepted_count = __popcnt((unsigned int)accepted_bits);
-  int accepted_count = std::popcount((unsigned int)accepted_bits);
+  int accepted_count = __popcnt((unsigned int)accepted_bits);
+  //int accepted_count = std::popcount((unsigned int)accepted_bits);
 
   // Preserve the original lowest-lane-first behavior at the neighbour cap.
   if (accepted_count > available) {

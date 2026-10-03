@@ -245,6 +245,10 @@ refresh-rate cadence, while the CSV records only the average wall-clock time of
 the complete simulation update. Use **Preview initial spawn** to inspect the
 deterministic particle cloud before any simulation update is applied.
 
+The particle-scaling chart overlays the 12- and 24-thread curves using distinct
+colors, with a separate panel for each CPU. The thread-scaling chart uses one
+color per particle count and likewise separates CPUs into panels.
+
 Each run creates a machine- and commit-labelled CSV under
 `benchmarks/results/`. One local run is enough to graph the 12- and 24-thread
 results for this computer. Results from other computers can be copied into the

@@ -126,12 +126,14 @@ def render_chart(rows: list[dict[str, object]], commit: str, scene: str) -> str:
 
     width = 1400
     height = 620
-    margin_left = 78
-    margin_right = 30
-    margin_top = 105
+    margin_left = 82
+    margin_right = 38
+    margin_top = 135
     margin_bottom = 78
-    panel_gap = 72
-    panel_width = (width - margin_left - margin_right - panel_gap) / 2
+    panel_gap = 55
+    panel_width = (
+        width - margin_left - margin_right - panel_gap * (len(machines) - 1)
+    ) / len(machines)
     panel_height = height - margin_top - margin_bottom
     max_ms = max(points.values())
     y_max = max(1.0, max_ms * 1.1)
@@ -146,18 +148,26 @@ def render_chart(rows: list[dict[str, object]], commit: str, scene: str) -> str:
         text(width / 2, 61, f"scene: {scene} · commit: {commit}", fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}),
     ]
 
-    for panel_index, threads in enumerate(THREAD_COUNTS):
-        x0 = margin_left + panel_index * (panel_width + panel_gap)
-        y0 = margin_top
-        bottom = y0 + panel_height
-        svg.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{panel_width:.1f}" height="{panel_height:.1f}" fill="#171d23" stroke="#45515e"/>')
-        svg.append(text(x0 + panel_width / 2, y0 - 15, f"{threads} worker threads", fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 19, "font-family": "sans-serif"}))
+    legend_width = len(THREAD_COUNTS) * 150
+    legend_x = (width - legend_width) / 2
+    for thread_index, threads in enumerate(THREAD_COUNTS):
+        color = COLORS[thread_index]
+        x = legend_x + thread_index * 150
+        svg.append(f'<line x1="{x:.1f}" y1="88" x2="{x + 25:.1f}" y2="88" stroke="{color}" stroke-width="3"/>')
+        svg.append(text(x + 33, 93, f"{threads} threads", fill="#d8dee9", **{"font-size": 13, "font-family": "sans-serif"}))
+
+    for machine_index, machine in enumerate(machines):
+        x0 = margin_left + machine_index * (panel_width + panel_gap)
+        bottom = margin_top + panel_height
+        svg.append(f'<rect x="{x0:.1f}" y="{margin_top}" width="{panel_width:.1f}" height="{panel_height}" fill="#171d23" stroke="#45515e"/>')
+        svg.append(text(x0 + panel_width / 2, margin_top - 13, machine, fill="#f2f4f8", **{"text-anchor": "middle", "font-size": 18, "font-family": "sans-serif"}))
 
         for tick in range(6):
             value = y_max * tick / 5
             y = bottom - panel_height * tick / 5
             svg.append(f'<line x1="{x0:.1f}" y1="{y:.1f}" x2="{x0 + panel_width:.1f}" y2="{y:.1f}" stroke="#2b3540"/>')
-            svg.append(text(x0 - 10, y + 5, f"{value:.1f}", fill="#aeb8c4", **{"text-anchor": "end", "font-size": 13, "font-family": "sans-serif"}))
+            if machine_index == 0:
+                svg.append(text(x0 - 10, y + 5, f"{value:.1f}", fill="#aeb8c4", **{"text-anchor": "end", "font-size": 13, "font-family": "sans-serif"}))
 
         for particles in particle_counts:
             x = x0 + panel_width * (particles - particle_min) / particle_range
@@ -165,9 +175,9 @@ def render_chart(rows: list[dict[str, object]], commit: str, scene: str) -> str:
                 svg.append(f'<line x1="{x:.1f}" y1="{bottom:.1f}" x2="{x:.1f}" y2="{bottom + 5:.1f}" stroke="#aeb8c4"/>')
                 svg.append(text(x, bottom + 24, f"{particles // 1024}K", fill="#aeb8c4", **{"text-anchor": "middle", "font-size": 12, "font-family": "sans-serif"}))
 
-        for machine_index, machine in enumerate(machines):
-            color = COLORS[machine_index % len(COLORS)]
-            machine_points = [
+        for thread_index, threads in enumerate(THREAD_COUNTS):
+            color = COLORS[thread_index]
+            thread_points = [
                 (particles, points[(machine, threads, particles)])
                 for particles in particle_counts
                 if (machine, threads, particles) in points
@@ -177,7 +187,7 @@ def render_chart(rows: list[dict[str, object]], commit: str, scene: str) -> str:
                     x0 + panel_width * (particles - particle_min) / particle_range,
                     bottom - panel_height * value / y_max,
                 )
-                for particles, value in machine_points
+                for particles, value in thread_points
             ]
             if len(coordinates) > 1:
                 joined = " ".join(f"{x:.1f},{y:.1f}" for x, y in coordinates)
@@ -185,16 +195,8 @@ def render_chart(rows: list[dict[str, object]], commit: str, scene: str) -> str:
             for x, y in coordinates:
                 svg.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{color}"/>')
 
-        svg.append(text(x0 + panel_width / 2, height - 22, "Particles", fill="#d8dee9", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}))
-
+    svg.append(text(width / 2, height - 22, "Particles", fill="#d8dee9", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}))
     svg.append(text(20, margin_top + panel_height / 2, "Average update (ms)", fill="#d8dee9", transform=f"rotate(-90 20 {margin_top + panel_height / 2:.1f})", **{"text-anchor": "middle", "font-size": 15, "font-family": "sans-serif"}))
-
-    legend_x = width - margin_right
-    for index, machine in enumerate(reversed(machines)):
-        color = COLORS[(len(machines) - 1 - index) % len(COLORS)]
-        y = 25 + index * 21
-        svg.append(f'<line x1="{legend_x - 210:.1f}" y1="{y:.1f}" x2="{legend_x - 185:.1f}" y2="{y:.1f}" stroke="{color}" stroke-width="3"/>')
-        svg.append(text(legend_x - 177, y + 5, machine, fill="#d8dee9", **{"font-size": 13, "font-family": "sans-serif"}))
 
     svg.append("</svg>")
     return "\n".join(svg)

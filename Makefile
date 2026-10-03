@@ -83,6 +83,8 @@ SRCS+=geometry transform camera angular sdf \
      json json_file \
      utils profiling \
      resources_manager \
+     render_platform \
+     benchmark_runner \
      imgui imgui_draw imgui_widgets imgui_tables imgui_demo ImGuizmo \
      viscoelastic viscoelastic_sim \
      ${MODULE_SRCS} \
@@ -90,7 +92,7 @@ SRCS+=geometry transform camera angular sdf \
 
 OBJS=$(foreach f,${SRCS},$(OBJS_PATH)/$(basename $f).o)
 
-VPATH=${shell find engine -type d| grep -v objs | grep -v common | grep -v x64 | grep -v render/ } osx experiments tools
+VPATH=${shell find engine -type d| grep -v objs | grep -v common | grep -v x64 | grep -v render/ } osx experiments tools benchmarks
 
 ifeq (${PLATFORM}, LINUX)
 VPATH+=engine/render/null

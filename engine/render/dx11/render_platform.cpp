@@ -13,7 +13,7 @@
 
 #define SAFE_RELEASE(x) if( x ) x->Release(), x = nullptr
 
-#if defined(_DEBUG) || defined(ENABLE_PROFILING)
+#if defined(_DEBUG) || ( defined(ENABLE_PROFILING) && ENABLE_PROFILING )
 #define setDbgName(obj,name) (obj)->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT) strlen( name ), name )
 #else
 #define setDbgName(obj,name) do { } while(false)

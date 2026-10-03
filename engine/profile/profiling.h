@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(ENABLE_PROFILING)
+#if defined(ENABLE_PROFILING) && ENABLE_PROFILING
 
 namespace Profiling {
 

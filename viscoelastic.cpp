@@ -2,6 +2,7 @@
 #include "render/render.h"
 #include "render/debug_texts.h"
 #include "viscoelastic_sim.h"
+#include "benchmarks/benchmark_runner.h"
 
 extern VEC2 mouse_cursor;
 
@@ -95,6 +96,11 @@ struct ViscoelasticModule : public Module {
   };
 
   Emitter                  emitter;
+
+  BenchmarkRunner          benchmark;
+  char                     benchmark_machine_name[128] = {};
+  int                      benchmark_scene = (int)BenchmarkScene::Platforms;
+  int                      benchmark_thread_scaling_particles_k = 64;
 
   bool                     paused = false;
   bool                     auto_pause = false;
@@ -426,10 +432,12 @@ struct ViscoelasticModule : public Module {
   int       debug_particle = -1;
 
   ViscoelasticModule() {
+    snprintf(benchmark_machine_name, sizeof(benchmark_machine_name), "%s",
+      benchmark.detectedMachineName().c_str());
     sim.init();
     sim.in_2d = true;
     emitter.transform.setPosition(VEC3(0.0f, 3.0f, 1.0f));
-    sdfLargeCage();
+    sdfPlatforms();
     config3D_N( 64 * 1024 );
   }
 
@@ -437,7 +445,7 @@ struct ViscoelasticModule : public Module {
     sim.sdf.prims.clear();
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3::zero, VEC3::axis_y));
     sim.sdf.prims.back().name = "Floor";
-    sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 6, 0), -VEC3::axis_y));
+    sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 8, 0), -VEC3::axis_y));
     sim.sdf.prims.back().name = "Roof";
     const float sz = 2.5f;
     sim.sdf.prims.push_back(SDF::Primitive::makePlane(VEC3(0, 0, sz), -VEC3::axis_z));
@@ -476,15 +484,34 @@ struct ViscoelasticModule : public Module {
   void sdfPlatforms() {
     sim.in_2d = false;
     sdfLargeCage();
+    sim.sdf.prims[4].transform.position.x = 9.0;
+    sim.sdf.prims[4].transformHasChanged();
     emitter.transform.setPosition(VEC3(0.0f, 5.7f, -1.5f));
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 2.5f, -2.5f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(4.0f, 2.5f, -2.5f), VEC3(10.0f, 2.0f, 12.0f) * 0.2f));
     sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(20.0f)));
     sim.sdf.prims.back().transformHasChanged();
-    sim.sdf.prims.back().name = "Floating Upper Box";
-    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(1.0f, 4.5f, 1.0f), VEC3(10.0f, 2.0f, 10.0f) * 0.2f));
+    sim.sdf.prims.back().name = "Floating Lower Box";
+    sim.sdf.prims.push_back(SDF::Primitive::makeBox(VEC3(4.0f, 4.5f, 1.0f), VEC3(10.0f, 2.0f, 12.0f) * 0.2f));
     sim.sdf.prims.back().transform.setRotation(QUAT::createFromAxisAngle(VEC3::axis_x, deg2rad(-20.0f)));
     sim.sdf.prims.back().transformHasChanged();
-    sim.sdf.prims.back().name = "Floating Lower Box ";
+    sim.sdf.prims.back().name = "Floating Upper Box ";
+  }
+
+  void setupSDFs(BenchmarkScene scene) {
+    switch (scene) {
+    case BenchmarkScene::LargeCage:
+      sdfLargeCage();
+      break;
+    case BenchmarkScene::Platforms:
+      sdfPlatforms();
+      break;
+    case BenchmarkScene::InsideBox:
+      sdfInsideCage();
+      break;
+    case BenchmarkScene::InsideSphere:
+      sdfInsideSphere();
+      break;
+    }
   }
 
   void load() override {
@@ -499,7 +526,7 @@ struct ViscoelasticModule : public Module {
       if (sim.in_2d)
         sim.addParticle(VEC3(0.0f, seq.between(200.0, 1000.0f), seq.between(-500.0, 500.0f)), VEC3(0, 0, 0), particle_type );
       else
-        sim.addParticle(VEC3(seq.between(200.0, 2000.0f), seq.between(100.0, 1000.0f), seq.between(-500.0, 500.0f)), VEC3(0, 0, 0), particle_type);
+        sim.addParticle(VEC3(seq.between(50.0, 850.0f), seq.between(50.0, 900.0f), seq.between(-500.0, 250.0f)), VEC3(0, 0, 0), particle_type);
     }
     updateParticleTypes();
   }
@@ -622,11 +649,134 @@ struct ViscoelasticModule : public Module {
     num_particles_m2 = num_particles / 4;
     sim.using_parallel = true;
     sim.num_particles = 0;
-    sim.sdf.prims[3].transform.setPosition(VEC3(0, 0, -5.0));
-    sim.sdf.prims[3].transformHasChanged();
+    if (sim.sdf.prims.size() > 3) {
+      sim.sdf.prims[3].transform.setPosition(VEC3(0, 0, -5.0));
+      sim.sdf.prims[3].transformHasChanged();
+    }
     sim.in_2d = false;
     addParticles(num_particles);
     updateParticleTypes();
+  }
+
+  void renderBenchmarkMenu() {
+    if (!ImGui::TreeNode("Performance Benchmark..."))
+      return;
+
+    ImGui::Text("CPU: %s", benchmark.cpuName().c_str());
+    ImGui::Text("Git commit: %s", benchmark.gitCommit().c_str());
+    ImGui::Text("%d warm-up + %d measured frames per scenario", benchmark.warmup_frames, benchmark.measured_frames);
+#if !defined(NDEBUG)
+    ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f),
+      "Warning: use the Release build for comparable results");
+#endif
+    if (std::thread::hardware_concurrency() < 24) {
+      ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f),
+        "Warning: this machine reports fewer than 24 logical processors");
+    }
+
+    if (!benchmark.isRunning()) {
+      ImGui::InputText("Machine", benchmark_machine_name,
+        sizeof(benchmark_machine_name));
+      const char* scenes[] = {
+        "Large Cage", "Platforms", "Inside Box", "Inside Sphere"
+      };
+      ImGui::Combo("SDF Scene", &benchmark_scene, scenes,
+        (int)(sizeof(scenes) / sizeof(scenes[0])));
+
+      ImGui::SeparatorText("Particle scaling");
+      ImGui::Text("8K to 128K particles; 12 and 24 worker threads");
+      if (ImGui::SmallButton("Run particle scaling")) {
+        const BenchmarkScene scene = (BenchmarkScene)benchmark_scene;
+        if (benchmark.start(
+            makeDefaultBenchmarkScenarios(scene),
+            benchmark_machine_name)) {
+          auto_pause = false;
+          paused = false;
+        }
+      }
+
+      ImGui::SeparatorText("Thread scaling");
+      ImGui::DragInt("Fixed Particles (K)",
+        &benchmark_thread_scaling_particles_k, 1.0f, 8, 128);
+      ImGui::TextDisabled("Initial spawn: X 2..20, Y 1..10, Z -5..5");
+      const unsigned int hardware_threads =
+        std::thread::hardware_concurrency();
+      const int max_worker_threads = hardware_threads > 0
+        ? (int)hardware_threads
+        : 1;
+      ImGui::Text("Worker threads: 1 to %d", max_worker_threads);
+      if (ImGui::SmallButton("Run thread scaling")) {
+        const BenchmarkScene scene = (BenchmarkScene)benchmark_scene;
+        const int particle_count =
+          benchmark_thread_scaling_particles_k * 1024;
+        if (benchmark.start(
+            makeThreadScalingBenchmarkScenarios(
+              particle_count, max_worker_threads, scene),
+            benchmark_machine_name)) {
+          auto_pause = false;
+          paused = false;
+        }
+      }
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Preview initial spawn")) {
+        const BenchmarkScene scene = (BenchmarkScene)benchmark_scene;
+        setupSDFs(scene);
+        config3D_N(benchmark_thread_scaling_particles_k * 1024);
+        auto_pause = false;
+        paused = true;
+      }
+
+      ImGui::Text("Compare particle counts:");
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Run 32K / 64K / 128K thread scaling")) {
+        const BenchmarkScene scene = (BenchmarkScene)benchmark_scene;
+        const std::vector<int> particle_counts = {
+          32 * 1024, 64 * 1024, 128 * 1024
+        };
+        if (benchmark.start(
+            makeThreadScalingBenchmarkScenarios(
+              particle_counts, max_worker_threads, scene),
+            benchmark_machine_name)) {
+          auto_pause = false;
+          paused = false;
+        }
+      }
+    }
+    else {
+      const BenchmarkScenario& scenario = benchmark.currentScenario();
+      ImGui::Text("Scenario %d / %d: %dK particles, %d threads, %s",
+        (int)benchmark.currentScenarioIndex() + 1,
+        (int)benchmark.scenarioCount(),
+        scenario.particle_count / 1024,
+        scenario.worker_threads,
+        benchmarkSceneName(scenario.scene));
+      ImGui::Text("%s: %d / %d frames",
+        benchmark.currentPhaseName(),
+        benchmark.currentPhaseFrame(),
+        benchmark.currentPhaseFrameCount());
+      const float progress = benchmark.currentPhaseFrameCount() > 0
+        ? (float)benchmark.currentPhaseFrame() /
+          (float)benchmark.currentPhaseFrameCount()
+        : 0.0f;
+      ImGui::ProgressBar(progress, ImVec2(-FLT_MIN, 0.0f));
+      if (ImGui::SmallButton("Cancel benchmark"))
+        benchmark.cancel();
+    }
+
+    if (!benchmark.statusMessage().empty())
+      ImGui::TextWrapped("%s", benchmark.statusMessage().c_str());
+    if (!benchmark.outputPath().empty())
+      ImGui::TextWrapped("CSV: %s", benchmark.outputPath().c_str());
+    const auto& completed = benchmark.completedResults();
+    if (!completed.empty()) {
+      const BenchmarkResult& latest = completed.back();
+      ImGui::Text("Latest: %dK / %d threads = %.3f ms",
+        latest.scenario.particle_count / 1024,
+        latest.scenario.worker_threads,
+        latest.average_update_ms);
+    }
+
+    ImGui::TreePop();
   }
 
   void renderInMenu() override {
@@ -689,6 +839,7 @@ struct ViscoelasticModule : public Module {
     }
 
     renderUpdateTimeGraph();
+    renderBenchmarkMenu();
     renderRelaxationAudit();
 
     if (ImGui::TreeNode("Simulation Params...")) {
@@ -852,19 +1003,28 @@ struct ViscoelasticModule : public Module {
   }
 
   void update() override {
-    if (!paused) {
+    if (benchmark.needsScenarioSetup()) {
+      const BenchmarkScenario& scenario = benchmark.currentScenario();
+      setupSDFs(scenario.scene);
+      config3D_N(scenario.particle_count);
+      sim.setNumThreads(scenario.worker_threads);
+      benchmark.markScenarioReady();
+    }
+
+    if (benchmark.isRunning() || !paused) {
       VEC3 gdir = getVectorFromYaw(deg2rad(gravity_direction));
       sim.mat.gravity = VEC3(0, gdir.x, gdir.z) * gravity_amount;
       TTimer update_timer;
       sim.update(delta_time);
       const double update_seconds = update_timer.elapsed();
+      benchmark.recordUpdate(update_seconds * 1000.0);
       if (!sim.relaxation_audit.completed_this_update)
         recordUpdateTime(update_seconds);
       debug_particle = sim.debug_particle;
 
       emitter.emit(sim);
     }
-    if (auto_pause)
+    if (auto_pause && !benchmark.isRunning())
       paused = true;
 
     if (CCamera* camera = Render::getCurrentRenderCamera()) {

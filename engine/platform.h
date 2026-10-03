@@ -35,7 +35,9 @@
 #endif
 
 // ----------------------------------------
+#ifndef ENABLE_PROFILING
 #define ENABLE_PROFILING 1
+#endif
 
 // ----------------------------------------
 #define IMGUI_DEFINE_MATH_OPERATORS

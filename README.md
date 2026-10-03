@@ -24,11 +24,11 @@ From a shell in the root of the repository, type:
 
 ## Recent Improvements
 
-- Replaced the original scheduler with a persistent phase dispatcher as described in the Thread Pool. Workers stay active throughout the simulation update and sleep during rendering. That reduced a lot the time to start small parallel jobs.
+- Replaced the original scheduler with a persistent phase dispatcher as described in the Thread Pool section. Workers stay active throughout the simulation update and sleep during rendering. That reduced a lot the time to start parallel jobs.
 
 - Made job counts configurable independently of the number of worker threads, improving load balancing on heterogeneous CPUs. In my laptop some jobs of the same type clearly takes close to double time compared to the same jobs in another thread.
 
-- Overlapped particle preparation—forces, velocity integration and predicted positions—with neighbor-range caching.
+- Overlapped particle preparation—forces, velocity integration and predicted positions with neighbor-range caching.
 
 - Added the bounded parallel XY-column spatial index. Private histograms, a sparse occupied-column prefix, and independent Z sorting avoid the serial hash construction in normal scenes.
 
@@ -71,6 +71,28 @@ Example measured improvements:
 - On a modern 20-thread system with 64K particles, total update time decreased from approximately 5.2 ms on the original branch to 2.6 ms.
 - On a 24-core Threadripper 3960X, spatial-index construction decreased from approximately 3.0 ms to 0.6 ms, while total update time decreased from 6.1 ms to 3.9 ms using 24 worker threads
 
+For comparison, this is the distribution of 12-Threads on the Threadripper with 32K one year ago (4.9ms)
+
+![CPU Profile](results/sim00.profile.png)
+
+And with the lastest changes:
+
+![CPU Profile](results/sim01.profile.png)
+
+For 32K particles, using 12 Threads in a Ryzen Threadripper 3960X with 24-Cores, times in msecs
+
+```
+Before ->   Now
+ 1.296 -> 0.412 Spatial Hash
+ 0.034 -> 0.158 Velocities update
+ 0.066 -> 0.100 Predict Positions
+ 3.042 -> 1.526 Relaxation
+ 0.229 -> 0.111 Collisions
+ 0.076 -> 0.056 Velocities from positions
+ 0.828 -> 0.550 rendering   
+ 4.908 -> 2.203 Total update
+```
+
 ## Particles
 
 The simulation requires to store for each particle:
@@ -85,7 +107,7 @@ We will store each information in a separate linear buffer, using a SoA (Structu
 ## Spatial Index
 
 The objective is to be able to quickly find, for each particle, all the nearby particles in a radius R, and have all the particles in each cell in a continuous region of memory. We also want to store the cells in the order we are going to process during the simulation.
-
+    
 For this we are going to split the 3D space in a regular grid of cells of fixed size. Each cell has 26 neighbours in 3D space.
 We will identify each cell uniquely by its own 3D integer coordinates:
 
@@ -267,100 +289,7 @@ thread sweeps may use different scenes. Use `--commit <commit>`,
 
 <img src="results/benchmark_thread_scaling.svg" width="1000"/>
 
-## Results
-
-For 32K particles, using 12 CPUs in a Ryzen Threadripper 3960X with 24-Cores, times in msecs
-
-```
-1.296 Spatial Hash
-0.034 Velocities update
-0.066 Predict Positions
-3.042 Relaxation
-0.229 Collisions
-0.076 Velocities from positions
-0.828 Render
-4.908 Total update
-```
-
-And the thread utilizations during a single frame.
-
-![CPU Profile](results/sim00.profile.png)
-
-You can check the details openning the file `results/capture.json` using the `chrome://tracing/` url from Chrome. Or capture new traces using the `Profile Capture` button from the imgui
-
-This is the tiem for the Relaxation stage as we increase the number of threads for the 32K particles simulation
-
-<table>
-  <tr>
-<td>
-
-<img src="results/time_vs_threads.png" width="800"/>
-
-</td>
-    <td>
-  
-| # Threads  | Relaxation Time (msecs)  |
-|------------|-------------------------|
-|         1  | 23.53                 |
-|         2  | 12.25                 |
-|         3  |  8.41                 |
-|         4  |  5.82                 |
-|         6  |  4.71                 |
-|         8  |  3.86                 |
-|        10  |  3.32                 |
-|        12  |  2.95                 |
-|        16  |  2.35                 |
-|        20  |  2.12                 |
-|        24  |  1.85                 |
-
-</td>
-  </tr>
-</table>
-
-And this is the time in msecs with 12 threads as we increase the number of particles. Good point is that is scales linearly with the number of particles!
-
-<table>
-  <tr>
-<td>
-
-<img src="results/time_vs_num_particles.png" width="800"/>
-
-</td>
-    <td>
-	    
-| # Particles | Relaxation Time  | Total Time  |
-|-------------|-------------------------|--------------------|
-|         1K  |  2.45                | 0.560           |
-|         2K  |  2.36                | 0.670           |
-|         4K  |  3.10                | 0.760           |
-|         8K  |  8.20                | 1.490           |
-|        12K  | 1.123                | 1.989           |
-|        16K  | 1.432                | 2.612           |
-|        20K  | 2.021                | 3.123           |
-|        24K  | 2.180                | 3.650           |
-|        28K  | 2.627                | 4.328           |
-|        32K  | 2.950                | 4.810           |
-|        36K  | 3.415                | 5.417           |
-|        40K  | 3.970                | 5.980           |
-|        44K  | 4.013                | 6.326           |
-|        48K  | 4.578                | 7.125           |
-|        52K  | 5.215                | 7.982           |
-|        56K  | 5.726                | 8.523           |
-|        60K  | 5.928                | 8.902           |
-|        64K  | 5.272                | 9.523           |
-
-</td>
-  </tr>
-</table>
-
-Finally, with 64K particles, increasing the number of threads brings some nice improvement, but using all threads does not.
-
-| Num Threads | Total Time(ms) |
-|-------------|-----------|
-|         12  | 9.52 |
-|         24  | 6.93 |
-|         32  | 6.12 |
-|         48  | 7.12 |
+## Images
 
 ![Particle Cells in 2D](results/sim01.png)
 ![Particle Cells in 2D](results/sim02.png)
@@ -416,6 +345,5 @@ Using 12 threads, the render, collisions improve. Something to study in the futu
 - The simulation is not fully viscoelastic as described in the original paper (https://dl.acm.org/doi/10.1145/1073368.1073400)
 - We can always start the simulation of the next frame while doing the rendering and waiting for the GPU.
 - Testing with different data alignments
-- Test other CPU's
 - Move it to GPU
 

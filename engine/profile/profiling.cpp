@@ -168,10 +168,10 @@ namespace Profiling {
 
         if (e->isBegin()) {
           fprintf(f, "{\"name\":\"%s\", \"cat\":\"c++\"", e->name);
-          fprintf(f, ",\"ph\":\"B\",\"ts\": %lu, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
+          fprintf(f, ",\"ph\":\"B\",\"ts\": %llu, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
         }
         else {
-          fprintf(f, "{\"ph\":\"E\",\"ts\": %lu, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
+          fprintf(f, "{\"ph\":\"E\",\"ts\": %llu, \"pid\":%d, \"tid\" : %d }\n", event_ticks, pid, dc->thread_id);
         }
       }
       if (dc->used)

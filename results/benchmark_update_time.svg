@@ -1,108 +1,77 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="620" viewBox="0 0 1400 620">
 <rect width="100%" height="100%" fill="#101418"/>
 <text x="700.0" y="34.0" fill="#f2f4f8" text-anchor="middle" font-size="26" font-family="sans-serif">Simulation update time</text>
-<text x="700.0" y="61.0" fill="#aeb8c4" text-anchor="middle" font-size="15" font-family="sans-serif">scene: platforms · commit: b2c2fb8e4b9b</text>
-<rect x="78.0" y="105.0" width="610.0" height="437.0" fill="#171d23" stroke="#45515e"/>
-<text x="383.0" y="90.0" fill="#f2f4f8" text-anchor="middle" font-size="19" font-family="sans-serif">12 worker threads</text>
-<line x1="78.0" y1="542.0" x2="688.0" y2="542.0" stroke="#2b3540"/>
-<text x="68.0" y="547.0" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">0.0</text>
-<line x1="78.0" y1="454.6" x2="688.0" y2="454.6" stroke="#2b3540"/>
-<text x="68.0" y="459.6" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">1.7</text>
-<line x1="78.0" y1="367.2" x2="688.0" y2="367.2" stroke="#2b3540"/>
-<text x="68.0" y="372.2" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">3.4</text>
-<line x1="78.0" y1="279.8" x2="688.0" y2="279.8" stroke="#2b3540"/>
-<text x="68.0" y="284.8" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">5.1</text>
-<line x1="78.0" y1="192.4" x2="688.0" y2="192.4" stroke="#2b3540"/>
-<text x="68.0" y="197.4" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">6.9</text>
-<line x1="78.0" y1="105.0" x2="688.0" y2="105.0" stroke="#2b3540"/>
-<text x="68.0" y="110.0" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">8.6</text>
-<line x1="78.0" y1="542.0" x2="78.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="78.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">8K</text>
-<line x1="118.7" y1="542.0" x2="118.7" y2="547.0" stroke="#aeb8c4"/>
-<text x="118.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">16K</text>
-<line x1="200.0" y1="542.0" x2="200.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="200.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">32K</text>
-<line x1="281.3" y1="542.0" x2="281.3" y2="547.0" stroke="#aeb8c4"/>
-<text x="281.3" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">48K</text>
-<line x1="362.7" y1="542.0" x2="362.7" y2="547.0" stroke="#aeb8c4"/>
-<text x="362.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">64K</text>
-<line x1="444.0" y1="542.0" x2="444.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="444.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">80K</text>
-<line x1="525.3" y1="542.0" x2="525.3" y2="547.0" stroke="#aeb8c4"/>
-<text x="525.3" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">96K</text>
-<line x1="606.7" y1="542.0" x2="606.7" y2="547.0" stroke="#aeb8c4"/>
-<text x="606.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">112K</text>
-<line x1="688.0" y1="542.0" x2="688.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="688.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">128K</text>
-<polyline points="78.0,518.0 118.7,498.1 159.3,480.0 200.0,460.2 240.7,440.0 281.3,419.1 322.0,389.2 362.7,363.4 403.3,336.0 444.0,309.5 484.7,279.8 525.3,252.7 566.0,225.4 606.7,198.9 647.3,171.9 688.0,144.7" fill="none" stroke="#4e79a7" stroke-width="3"/>
-<circle cx="78.0" cy="518.0" r="4" fill="#4e79a7"/>
-<circle cx="118.7" cy="498.1" r="4" fill="#4e79a7"/>
-<circle cx="159.3" cy="480.0" r="4" fill="#4e79a7"/>
-<circle cx="200.0" cy="460.2" r="4" fill="#4e79a7"/>
-<circle cx="240.7" cy="440.0" r="4" fill="#4e79a7"/>
-<circle cx="281.3" cy="419.1" r="4" fill="#4e79a7"/>
-<circle cx="322.0" cy="389.2" r="4" fill="#4e79a7"/>
-<circle cx="362.7" cy="363.4" r="4" fill="#4e79a7"/>
-<circle cx="403.3" cy="336.0" r="4" fill="#4e79a7"/>
-<circle cx="444.0" cy="309.5" r="4" fill="#4e79a7"/>
-<circle cx="484.7" cy="279.8" r="4" fill="#4e79a7"/>
-<circle cx="525.3" cy="252.7" r="4" fill="#4e79a7"/>
-<circle cx="566.0" cy="225.4" r="4" fill="#4e79a7"/>
-<circle cx="606.7" cy="198.9" r="4" fill="#4e79a7"/>
-<circle cx="647.3" cy="171.9" r="4" fill="#4e79a7"/>
-<circle cx="688.0" cy="144.7" r="4" fill="#4e79a7"/>
-<text x="383.0" y="598.0" fill="#d8dee9" text-anchor="middle" font-size="15" font-family="sans-serif">Particles</text>
-<rect x="760.0" y="105.0" width="610.0" height="437.0" fill="#171d23" stroke="#45515e"/>
-<text x="1065.0" y="90.0" fill="#f2f4f8" text-anchor="middle" font-size="19" font-family="sans-serif">24 worker threads</text>
-<line x1="760.0" y1="542.0" x2="1370.0" y2="542.0" stroke="#2b3540"/>
-<text x="750.0" y="547.0" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">0.0</text>
-<line x1="760.0" y1="454.6" x2="1370.0" y2="454.6" stroke="#2b3540"/>
-<text x="750.0" y="459.6" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">1.7</text>
-<line x1="760.0" y1="367.2" x2="1370.0" y2="367.2" stroke="#2b3540"/>
-<text x="750.0" y="372.2" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">3.4</text>
-<line x1="760.0" y1="279.8" x2="1370.0" y2="279.8" stroke="#2b3540"/>
-<text x="750.0" y="284.8" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">5.1</text>
-<line x1="760.0" y1="192.4" x2="1370.0" y2="192.4" stroke="#2b3540"/>
-<text x="750.0" y="197.4" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">6.9</text>
-<line x1="760.0" y1="105.0" x2="1370.0" y2="105.0" stroke="#2b3540"/>
-<text x="750.0" y="110.0" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">8.6</text>
-<line x1="760.0" y1="542.0" x2="760.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="760.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">8K</text>
-<line x1="800.7" y1="542.0" x2="800.7" y2="547.0" stroke="#aeb8c4"/>
-<text x="800.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">16K</text>
-<line x1="882.0" y1="542.0" x2="882.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="882.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">32K</text>
-<line x1="963.3" y1="542.0" x2="963.3" y2="547.0" stroke="#aeb8c4"/>
-<text x="963.3" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">48K</text>
-<line x1="1044.7" y1="542.0" x2="1044.7" y2="547.0" stroke="#aeb8c4"/>
-<text x="1044.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">64K</text>
-<line x1="1126.0" y1="542.0" x2="1126.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="1126.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">80K</text>
-<line x1="1207.3" y1="542.0" x2="1207.3" y2="547.0" stroke="#aeb8c4"/>
-<text x="1207.3" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">96K</text>
-<line x1="1288.7" y1="542.0" x2="1288.7" y2="547.0" stroke="#aeb8c4"/>
-<text x="1288.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">112K</text>
-<line x1="1370.0" y1="542.0" x2="1370.0" y2="547.0" stroke="#aeb8c4"/>
-<text x="1370.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">128K</text>
-<polyline points="760.0,497.9 800.7,480.6 841.3,467.2 882.0,451.7 922.7,434.7 963.3,415.4 1004.0,391.3 1044.7,371.7 1085.3,351.5 1126.0,328.9 1166.7,309.4 1207.3,287.1 1248.0,268.1 1288.7,248.0 1329.3,226.0 1370.0,201.1" fill="none" stroke="#4e79a7" stroke-width="3"/>
-<circle cx="760.0" cy="497.9" r="4" fill="#4e79a7"/>
-<circle cx="800.7" cy="480.6" r="4" fill="#4e79a7"/>
-<circle cx="841.3" cy="467.2" r="4" fill="#4e79a7"/>
-<circle cx="882.0" cy="451.7" r="4" fill="#4e79a7"/>
-<circle cx="922.7" cy="434.7" r="4" fill="#4e79a7"/>
-<circle cx="963.3" cy="415.4" r="4" fill="#4e79a7"/>
-<circle cx="1004.0" cy="391.3" r="4" fill="#4e79a7"/>
-<circle cx="1044.7" cy="371.7" r="4" fill="#4e79a7"/>
-<circle cx="1085.3" cy="351.5" r="4" fill="#4e79a7"/>
-<circle cx="1126.0" cy="328.9" r="4" fill="#4e79a7"/>
-<circle cx="1166.7" cy="309.4" r="4" fill="#4e79a7"/>
-<circle cx="1207.3" cy="287.1" r="4" fill="#4e79a7"/>
-<circle cx="1248.0" cy="268.1" r="4" fill="#4e79a7"/>
-<circle cx="1288.7" cy="248.0" r="4" fill="#4e79a7"/>
-<circle cx="1329.3" cy="226.0" r="4" fill="#4e79a7"/>
-<circle cx="1370.0" cy="201.1" r="4" fill="#4e79a7"/>
-<text x="1065.0" y="598.0" fill="#d8dee9" text-anchor="middle" font-size="15" font-family="sans-serif">Particles</text>
-<text x="20.0" y="323.5" fill="#d8dee9" transform="rotate(-90 20 323.5)" text-anchor="middle" font-size="15" font-family="sans-serif">Average update (ms)</text>
-<line x1="1160.0" y1="25.0" x2="1185.0" y2="25.0" stroke="#4e79a7" stroke-width="3"/>
-<text x="1193.0" y="30.0" fill="#d8dee9" font-size="13" font-family="sans-serif">CROSSHAIR-JOHN</text>
+<text x="700.0" y="61.0" fill="#aeb8c4" text-anchor="middle" font-size="15" font-family="sans-serif">scene: platforms · commit: c6128016e08b</text>
+<line x1="550.0" y1="88" x2="575.0" y2="88" stroke="#4e79a7" stroke-width="3"/>
+<text x="583.0" y="93.0" fill="#d8dee9" font-size="13" font-family="sans-serif">12 threads</text>
+<line x1="700.0" y1="88" x2="725.0" y2="88" stroke="#f28e2b" stroke-width="3"/>
+<text x="733.0" y="93.0" fill="#d8dee9" font-size="13" font-family="sans-serif">24 threads</text>
+<rect x="82.0" y="135" width="1280.0" height="407" fill="#171d23" stroke="#45515e"/>
+<text x="722.0" y="122.0" fill="#f2f4f8" text-anchor="middle" font-size="18" font-family="sans-serif">CROSSHAIR-JOHN</text>
+<line x1="82.0" y1="542.0" x2="1362.0" y2="542.0" stroke="#2b3540"/>
+<text x="72.0" y="547.0" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">0.0</text>
+<line x1="82.0" y1="460.6" x2="1362.0" y2="460.6" stroke="#2b3540"/>
+<text x="72.0" y="465.6" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">1.7</text>
+<line x1="82.0" y1="379.2" x2="1362.0" y2="379.2" stroke="#2b3540"/>
+<text x="72.0" y="384.2" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">3.4</text>
+<line x1="82.0" y1="297.8" x2="1362.0" y2="297.8" stroke="#2b3540"/>
+<text x="72.0" y="302.8" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">5.1</text>
+<line x1="82.0" y1="216.4" x2="1362.0" y2="216.4" stroke="#2b3540"/>
+<text x="72.0" y="221.4" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">6.8</text>
+<line x1="82.0" y1="135.0" x2="1362.0" y2="135.0" stroke="#2b3540"/>
+<text x="72.0" y="140.0" fill="#aeb8c4" text-anchor="end" font-size="13" font-family="sans-serif">8.5</text>
+<line x1="82.0" y1="542.0" x2="82.0" y2="547.0" stroke="#aeb8c4"/>
+<text x="82.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">8K</text>
+<line x1="167.3" y1="542.0" x2="167.3" y2="547.0" stroke="#aeb8c4"/>
+<text x="167.3" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">16K</text>
+<line x1="338.0" y1="542.0" x2="338.0" y2="547.0" stroke="#aeb8c4"/>
+<text x="338.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">32K</text>
+<line x1="508.7" y1="542.0" x2="508.7" y2="547.0" stroke="#aeb8c4"/>
+<text x="508.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">48K</text>
+<line x1="679.3" y1="542.0" x2="679.3" y2="547.0" stroke="#aeb8c4"/>
+<text x="679.3" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">64K</text>
+<line x1="850.0" y1="542.0" x2="850.0" y2="547.0" stroke="#aeb8c4"/>
+<text x="850.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">80K</text>
+<line x1="1020.7" y1="542.0" x2="1020.7" y2="547.0" stroke="#aeb8c4"/>
+<text x="1020.7" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">96K</text>
+<line x1="1191.3" y1="542.0" x2="1191.3" y2="547.0" stroke="#aeb8c4"/>
+<text x="1191.3" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">112K</text>
+<line x1="1362.0" y1="542.0" x2="1362.0" y2="547.0" stroke="#aeb8c4"/>
+<text x="1362.0" y="566.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">128K</text>
+<polyline points="82.0,518.8 167.3,501.9 252.7,482.5 338.0,465.9 423.3,444.2 508.7,425.7 594.0,400.8 679.3,370.9 764.7,350.7 850.0,326.8 935.3,299.0 1020.7,276.5 1106.0,253.2 1191.3,225.9 1276.7,195.1 1362.0,172.0" fill="none" stroke="#4e79a7" stroke-width="3"/>
+<circle cx="82.0" cy="518.8" r="4" fill="#4e79a7"/>
+<circle cx="167.3" cy="501.9" r="4" fill="#4e79a7"/>
+<circle cx="252.7" cy="482.5" r="4" fill="#4e79a7"/>
+<circle cx="338.0" cy="465.9" r="4" fill="#4e79a7"/>
+<circle cx="423.3" cy="444.2" r="4" fill="#4e79a7"/>
+<circle cx="508.7" cy="425.7" r="4" fill="#4e79a7"/>
+<circle cx="594.0" cy="400.8" r="4" fill="#4e79a7"/>
+<circle cx="679.3" cy="370.9" r="4" fill="#4e79a7"/>
+<circle cx="764.7" cy="350.7" r="4" fill="#4e79a7"/>
+<circle cx="850.0" cy="326.8" r="4" fill="#4e79a7"/>
+<circle cx="935.3" cy="299.0" r="4" fill="#4e79a7"/>
+<circle cx="1020.7" cy="276.5" r="4" fill="#4e79a7"/>
+<circle cx="1106.0" cy="253.2" r="4" fill="#4e79a7"/>
+<circle cx="1191.3" cy="225.9" r="4" fill="#4e79a7"/>
+<circle cx="1276.7" cy="195.1" r="4" fill="#4e79a7"/>
+<circle cx="1362.0" cy="172.0" r="4" fill="#4e79a7"/>
+<polyline points="82.0,501.5 167.3,487.4 252.7,468.3 338.0,455.2 423.3,440.8 508.7,421.7 594.0,393.9 679.3,376.4 764.7,357.1 850.0,340.1 935.3,315.3 1020.7,296.9 1106.0,283.3 1191.3,255.5 1276.7,231.1 1362.0,215.7" fill="none" stroke="#f28e2b" stroke-width="3"/>
+<circle cx="82.0" cy="501.5" r="4" fill="#f28e2b"/>
+<circle cx="167.3" cy="487.4" r="4" fill="#f28e2b"/>
+<circle cx="252.7" cy="468.3" r="4" fill="#f28e2b"/>
+<circle cx="338.0" cy="455.2" r="4" fill="#f28e2b"/>
+<circle cx="423.3" cy="440.8" r="4" fill="#f28e2b"/>
+<circle cx="508.7" cy="421.7" r="4" fill="#f28e2b"/>
+<circle cx="594.0" cy="393.9" r="4" fill="#f28e2b"/>
+<circle cx="679.3" cy="376.4" r="4" fill="#f28e2b"/>
+<circle cx="764.7" cy="357.1" r="4" fill="#f28e2b"/>
+<circle cx="850.0" cy="340.1" r="4" fill="#f28e2b"/>
+<circle cx="935.3" cy="315.3" r="4" fill="#f28e2b"/>
+<circle cx="1020.7" cy="296.9" r="4" fill="#f28e2b"/>
+<circle cx="1106.0" cy="283.3" r="4" fill="#f28e2b"/>
+<circle cx="1191.3" cy="255.5" r="4" fill="#f28e2b"/>
+<circle cx="1276.7" cy="231.1" r="4" fill="#f28e2b"/>
+<circle cx="1362.0" cy="215.7" r="4" fill="#f28e2b"/>
+<text x="700.0" y="598.0" fill="#d8dee9" text-anchor="middle" font-size="15" font-family="sans-serif">Particles</text>
+<text x="20.0" y="338.5" fill="#d8dee9" transform="rotate(-90 20 338.5)" text-anchor="middle" font-size="15" font-family="sans-serif">Average update (ms)</text>
 </svg>

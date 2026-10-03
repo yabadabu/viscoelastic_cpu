@@ -75,7 +75,7 @@ For comparison, this is the distribution of 12-Threads on the Threadripper with 
 
 ![CPU Profile](results/sim00.profile.png)
 
-And with the lastest changes:
+And with the lastest changes, time scale is different, but we can see the cpu's have better utilization:
 
 ![CPU Profile](results/sim01.profile.png)
 

@@ -1,0 +1,411 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760">
+<rect width="100%" height="100%" fill="#101418"/>
+<text x="700.0" y="34.0" fill="#f2f4f8" text-anchor="middle" font-size="26" font-family="sans-serif">Thread scaling on logarithmic axes</text>
+<text x="700.0" y="61.0" fill="#aeb8c4" text-anchor="middle" font-size="15" font-family="sans-serif">scene: platforms · latest compatible run per CPU</text>
+<line x1="432.5" y1="88" x2="457.5" y2="88" stroke="#4e79a7" stroke-width="2.5"/>
+<text x="465.5" y="93.0" fill="#d8dee9" font-size="13" font-family="sans-serif">32K</text>
+<line x1="547.5" y1="88" x2="572.5" y2="88" stroke="#f28e2b" stroke-width="2.5"/>
+<text x="580.5" y="93.0" fill="#d8dee9" font-size="13" font-family="sans-serif">64K</text>
+<line x1="662.5" y1="88" x2="687.5" y2="88" stroke="#59a14f" stroke-width="2.5"/>
+<text x="695.5" y="93.0" fill="#d8dee9" font-size="13" font-family="sans-serif">128K</text>
+<line x1="782.5" y1="88" x2="812.5" y2="88" stroke="#aeb8c4" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="820.5" y="93.0" fill="#d8dee9" font-size="13" font-family="sans-serif">ideal 1 / threads</text>
+<defs><clipPath id="log-panel-0"><rect x="90.0" y="135" width="387.3" height="543"/></clipPath></defs>
+<rect x="90.0" y="135" width="387.3" height="543" fill="#171d23" stroke="#45515e"/>
+<text x="283.7" y="107.0" fill="#f2f4f8" text-anchor="middle" font-size="16" font-family="sans-serif">12th Gen Intel Core i7-12650H</text>
+<text x="283.7" y="125.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">b2c2fb8e4b9b</text>
+<line x1="90.0" y1="678.0" x2="477.3" y2="678.0" stroke="#2b3540" stroke-width="1"/>
+<text x="82.0" y="683.0" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.0625</text>
+<line x1="90.0" y1="600.4" x2="477.3" y2="600.4" stroke="#2b3540" stroke-width="1"/>
+<text x="82.0" y="605.4" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.125</text>
+<line x1="90.0" y1="522.9" x2="477.3" y2="522.9" stroke="#2b3540" stroke-width="1"/>
+<text x="82.0" y="527.9" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.25</text>
+<line x1="90.0" y1="445.3" x2="477.3" y2="445.3" stroke="#2b3540" stroke-width="1"/>
+<text x="82.0" y="450.3" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.5</text>
+<line x1="90.0" y1="367.7" x2="477.3" y2="367.7" stroke="#667482" stroke-width="1.5"/>
+<text x="82.0" y="372.7" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">1</text>
+<line x1="90.0" y1="290.1" x2="477.3" y2="290.1" stroke="#2b3540" stroke-width="1"/>
+<text x="82.0" y="295.1" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">2</text>
+<line x1="90.0" y1="212.6" x2="477.3" y2="212.6" stroke="#2b3540" stroke-width="1"/>
+<text x="82.0" y="217.6" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">4</text>
+<line x1="90.0" y1="135.0" x2="477.3" y2="135.0" stroke="#2b3540" stroke-width="1"/>
+<text x="82.0" y="140.0" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">8</text>
+<line x1="90.0" y1="135" x2="90.0" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="90.0" y1="678.0" x2="90.0" y2="683.0" stroke="#aeb8c4"/>
+<text x="90.0" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">1</text>
+<line x1="186.8" y1="135" x2="186.8" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="186.8" y1="678.0" x2="186.8" y2="683.0" stroke="#aeb8c4"/>
+<text x="186.8" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">2</text>
+<line x1="283.7" y1="135" x2="283.7" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="283.7" y1="678.0" x2="283.7" y2="683.0" stroke="#aeb8c4"/>
+<text x="283.7" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">4</text>
+<line x1="380.5" y1="135" x2="380.5" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="380.5" y1="678.0" x2="380.5" y2="683.0" stroke="#aeb8c4"/>
+<text x="380.5" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">8</text>
+<line x1="477.3" y1="135" x2="477.3" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="477.3" y1="678.0" x2="477.3" y2="683.0" stroke="#aeb8c4"/>
+<text x="477.3" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">16</text>
+<polyline points="90.0,367.7 477.3,678.0" fill="none" stroke="#4e79a7" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-0)"/>
+<polyline points="90.0,367.7 186.8,434.0 243.5,470.0 283.7,498.2 314.8,518.1 340.3,526.2 361.8,535.3 380.5,543.7 397.0,552.0 411.7,558.9 425.0,566.2 437.1,570.7 448.3,574.1 458.7,574.3 468.3,574.0 477.3,566.3" fill="none" stroke="#4e79a7" stroke-width="2.5" clip-path="url(#log-panel-0)"/>
+<circle cx="90.0" cy="367.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="186.8" cy="434.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="243.5" cy="470.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="283.7" cy="498.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="314.8" cy="518.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="340.3" cy="526.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="361.8" cy="535.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="380.5" cy="543.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="397.0" cy="552.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="411.7" cy="558.9" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="425.0" cy="566.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="437.1" cy="570.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="448.3" cy="574.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="458.7" cy="574.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="468.3" cy="574.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<circle cx="477.3" cy="566.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-0)"/>
+<polyline points="90.0,290.1 477.3,600.4" fill="none" stroke="#f28e2b" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-0)"/>
+<polyline points="90.0,278.1 186.8,347.6 243.5,383.7 283.7,410.5 314.8,429.1 340.3,439.1 361.8,449.0 380.5,458.7 397.0,466.2 411.7,472.6 425.0,465.8 437.1,474.3 448.3,484.4 458.7,483.2 468.3,492.9 477.3,489.0" fill="none" stroke="#f28e2b" stroke-width="2.5" clip-path="url(#log-panel-0)"/>
+<circle cx="90.0" cy="278.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="186.8" cy="347.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="243.5" cy="383.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="283.7" cy="410.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="314.8" cy="429.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="340.3" cy="439.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="361.8" cy="449.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="380.5" cy="458.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="397.0" cy="466.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="411.7" cy="472.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="425.0" cy="465.8" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="437.1" cy="474.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="448.3" cy="484.4" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="458.7" cy="483.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="468.3" cy="492.9" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<circle cx="477.3" cy="489.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-0)"/>
+<polyline points="90.0,212.6 477.3,522.9" fill="none" stroke="#59a14f" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-0)"/>
+<polyline points="90.0,193.3 186.8,265.0 243.5,303.5 283.7,329.4 314.8,349.3 340.3,358.6 361.8,367.9 380.5,369.1 397.0,375.4 411.7,381.1 425.0,386.7 437.1,390.7 448.3,397.2 458.7,403.9 468.3,407.8 477.3,407.4" fill="none" stroke="#59a14f" stroke-width="2.5" clip-path="url(#log-panel-0)"/>
+<circle cx="90.0" cy="193.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="186.8" cy="265.0" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="243.5" cy="303.5" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="283.7" cy="329.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="314.8" cy="349.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="340.3" cy="358.6" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="361.8" cy="367.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="380.5" cy="369.1" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="397.0" cy="375.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="411.7" cy="381.1" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="425.0" cy="386.7" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="437.1" cy="390.7" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="448.3" cy="397.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="458.7" cy="403.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="468.3" cy="407.8" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<circle cx="477.3" cy="407.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-0)"/>
+<defs><clipPath id="log-panel-1"><rect x="532.3" y="135" width="387.3" height="543"/></clipPath></defs>
+<rect x="532.3" y="135" width="387.3" height="543" fill="#171d23" stroke="#45515e"/>
+<text x="726.0" y="107.0" fill="#f2f4f8" text-anchor="middle" font-size="16" font-family="sans-serif">AMD Ryzen 9 9900X</text>
+<text x="726.0" y="125.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">c6128016e08b</text>
+<line x1="532.3" y1="678.0" x2="919.7" y2="678.0" stroke="#2b3540" stroke-width="1"/>
+<text x="524.3" y="683.0" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.0625</text>
+<line x1="532.3" y1="600.4" x2="919.7" y2="600.4" stroke="#2b3540" stroke-width="1"/>
+<text x="524.3" y="605.4" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.125</text>
+<line x1="532.3" y1="522.9" x2="919.7" y2="522.9" stroke="#2b3540" stroke-width="1"/>
+<text x="524.3" y="527.9" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.25</text>
+<line x1="532.3" y1="445.3" x2="919.7" y2="445.3" stroke="#2b3540" stroke-width="1"/>
+<text x="524.3" y="450.3" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.5</text>
+<line x1="532.3" y1="367.7" x2="919.7" y2="367.7" stroke="#667482" stroke-width="1.5"/>
+<text x="524.3" y="372.7" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">1</text>
+<line x1="532.3" y1="290.1" x2="919.7" y2="290.1" stroke="#2b3540" stroke-width="1"/>
+<text x="524.3" y="295.1" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">2</text>
+<line x1="532.3" y1="212.6" x2="919.7" y2="212.6" stroke="#2b3540" stroke-width="1"/>
+<text x="524.3" y="217.6" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">4</text>
+<line x1="532.3" y1="135.0" x2="919.7" y2="135.0" stroke="#2b3540" stroke-width="1"/>
+<text x="524.3" y="140.0" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">8</text>
+<line x1="532.3" y1="135" x2="532.3" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="532.3" y1="678.0" x2="532.3" y2="683.0" stroke="#aeb8c4"/>
+<text x="532.3" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">1</text>
+<line x1="616.8" y1="135" x2="616.8" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="616.8" y1="678.0" x2="616.8" y2="683.0" stroke="#aeb8c4"/>
+<text x="616.8" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">2</text>
+<line x1="701.3" y1="135" x2="701.3" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="701.3" y1="678.0" x2="701.3" y2="683.0" stroke="#aeb8c4"/>
+<text x="701.3" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">4</text>
+<line x1="785.8" y1="135" x2="785.8" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="785.8" y1="678.0" x2="785.8" y2="683.0" stroke="#aeb8c4"/>
+<text x="785.8" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">8</text>
+<line x1="870.2" y1="135" x2="870.2" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="870.2" y1="678.0" x2="870.2" y2="683.0" stroke="#aeb8c4"/>
+<text x="870.2" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">16</text>
+<line x1="919.7" y1="135" x2="919.7" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="919.7" y1="678.0" x2="919.7" y2="683.0" stroke="#aeb8c4"/>
+<text x="919.7" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">24</text>
+<polyline points="532.3,367.7 919.7,723.4" fill="none" stroke="#4e79a7" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-1)"/>
+<polyline points="532.3,367.7 616.8,438.2 666.2,479.4 701.3,505.5 728.5,522.7 750.7,535.3 769.5,548.2 785.8,554.5 800.1,564.8 813.0,573.0 824.6,579.9 835.2,584.5 844.9,589.6 854.0,590.2 862.4,590.6 870.2,593.4 877.6,595.1 884.6,597.8 891.2,599.7 897.4,602.9 903.4,603.2 909.1,602.6 914.5,600.0 919.7,593.5" fill="none" stroke="#4e79a7" stroke-width="2.5" clip-path="url(#log-panel-1)"/>
+<circle cx="532.3" cy="367.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="616.8" cy="438.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="666.2" cy="479.4" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="701.3" cy="505.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="728.5" cy="522.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="750.7" cy="535.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="769.5" cy="548.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="785.8" cy="554.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="800.1" cy="564.8" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="813.0" cy="573.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="824.6" cy="579.9" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="835.2" cy="584.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="844.9" cy="589.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="854.0" cy="590.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="862.4" cy="590.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="870.2" cy="593.4" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="877.6" cy="595.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="884.6" cy="597.8" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="891.2" cy="599.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="897.4" cy="602.9" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="903.4" cy="603.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="909.1" cy="602.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="914.5" cy="600.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<circle cx="919.7" cy="593.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-1)"/>
+<polyline points="532.3,290.1 919.7,645.8" fill="none" stroke="#f28e2b" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-1)"/>
+<polyline points="532.3,274.2 616.8,349.1 666.2,391.0 701.3,415.4 728.5,437.4 750.7,454.7 769.5,467.1 785.8,480.5 800.1,492.0 813.0,496.3 824.6,500.8 835.2,507.9 844.9,514.6 854.0,516.8 862.4,522.0 870.2,525.6 877.6,528.3 884.6,531.3 891.2,533.2 897.4,534.9 903.4,535.1 909.1,536.0 914.5,536.2 919.7,532.3" fill="none" stroke="#f28e2b" stroke-width="2.5" clip-path="url(#log-panel-1)"/>
+<circle cx="532.3" cy="274.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="616.8" cy="349.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="666.2" cy="391.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="701.3" cy="415.4" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="728.5" cy="437.4" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="750.7" cy="454.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="769.5" cy="467.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="785.8" cy="480.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="800.1" cy="492.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="813.0" cy="496.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="824.6" cy="500.8" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="835.2" cy="507.9" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="844.9" cy="514.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="854.0" cy="516.8" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="862.4" cy="522.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="870.2" cy="525.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="877.6" cy="528.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="884.6" cy="531.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="891.2" cy="533.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="897.4" cy="534.9" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="903.4" cy="535.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="909.1" cy="536.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="914.5" cy="536.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<circle cx="919.7" cy="532.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-1)"/>
+<polyline points="532.3,212.6 919.7,568.2" fill="none" stroke="#59a14f" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-1)"/>
+<polyline points="532.3,192.4 616.8,266.9 666.2,309.0 701.3,336.9 728.5,356.9 750.7,376.3 769.5,390.2 785.8,402.5 800.1,412.4 813.0,420.8 824.6,426.1 835.2,430.2 844.9,435.4 854.0,438.4 862.4,441.0 870.2,444.3 877.6,448.5 884.6,452.3 891.2,453.6 897.4,457.2 903.4,459.3 909.1,462.9 914.5,463.4 919.7,463.2" fill="none" stroke="#59a14f" stroke-width="2.5" clip-path="url(#log-panel-1)"/>
+<circle cx="532.3" cy="192.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="616.8" cy="266.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="666.2" cy="309.0" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="701.3" cy="336.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="728.5" cy="356.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="750.7" cy="376.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="769.5" cy="390.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="785.8" cy="402.5" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="800.1" cy="412.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="813.0" cy="420.8" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="824.6" cy="426.1" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="835.2" cy="430.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="844.9" cy="435.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="854.0" cy="438.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="862.4" cy="441.0" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="870.2" cy="444.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="877.6" cy="448.5" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="884.6" cy="452.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="891.2" cy="453.6" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="897.4" cy="457.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="903.4" cy="459.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="909.1" cy="462.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="914.5" cy="463.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<circle cx="919.7" cy="463.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-1)"/>
+<defs><clipPath id="log-panel-2"><rect x="974.7" y="135" width="387.3" height="543"/></clipPath></defs>
+<rect x="974.7" y="135" width="387.3" height="543" fill="#171d23" stroke="#45515e"/>
+<text x="1168.3" y="107.0" fill="#f2f4f8" text-anchor="middle" font-size="16" font-family="sans-serif">AMD Ryzen Threadripper 3960X</text>
+<text x="1168.3" y="125.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">d48ded4ecb53</text>
+<line x1="974.7" y1="678.0" x2="1362.0" y2="678.0" stroke="#2b3540" stroke-width="1"/>
+<text x="966.7" y="683.0" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.0625</text>
+<line x1="974.7" y1="600.4" x2="1362.0" y2="600.4" stroke="#2b3540" stroke-width="1"/>
+<text x="966.7" y="605.4" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.125</text>
+<line x1="974.7" y1="522.9" x2="1362.0" y2="522.9" stroke="#2b3540" stroke-width="1"/>
+<text x="966.7" y="527.9" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.25</text>
+<line x1="974.7" y1="445.3" x2="1362.0" y2="445.3" stroke="#2b3540" stroke-width="1"/>
+<text x="966.7" y="450.3" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">0.5</text>
+<line x1="974.7" y1="367.7" x2="1362.0" y2="367.7" stroke="#667482" stroke-width="1.5"/>
+<text x="966.7" y="372.7" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">1</text>
+<line x1="974.7" y1="290.1" x2="1362.0" y2="290.1" stroke="#2b3540" stroke-width="1"/>
+<text x="966.7" y="295.1" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">2</text>
+<line x1="974.7" y1="212.6" x2="1362.0" y2="212.6" stroke="#2b3540" stroke-width="1"/>
+<text x="966.7" y="217.6" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">4</text>
+<line x1="974.7" y1="135.0" x2="1362.0" y2="135.0" stroke="#2b3540" stroke-width="1"/>
+<text x="966.7" y="140.0" fill="#aeb8c4" text-anchor="end" font-size="12" font-family="sans-serif">8</text>
+<line x1="974.7" y1="135" x2="974.7" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="974.7" y1="678.0" x2="974.7" y2="683.0" stroke="#aeb8c4"/>
+<text x="974.7" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">1</text>
+<line x1="1044.0" y1="135" x2="1044.0" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="1044.0" y1="678.0" x2="1044.0" y2="683.0" stroke="#aeb8c4"/>
+<text x="1044.0" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">2</text>
+<line x1="1113.4" y1="135" x2="1113.4" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="1113.4" y1="678.0" x2="1113.4" y2="683.0" stroke="#aeb8c4"/>
+<text x="1113.4" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">4</text>
+<line x1="1182.7" y1="135" x2="1182.7" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="1182.7" y1="678.0" x2="1182.7" y2="683.0" stroke="#aeb8c4"/>
+<text x="1182.7" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">8</text>
+<line x1="1252.1" y1="135" x2="1252.1" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="1252.1" y1="678.0" x2="1252.1" y2="683.0" stroke="#aeb8c4"/>
+<text x="1252.1" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">16</text>
+<line x1="1321.4" y1="135" x2="1321.4" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="1321.4" y1="678.0" x2="1321.4" y2="683.0" stroke="#aeb8c4"/>
+<text x="1321.4" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">32</text>
+<line x1="1362.0" y1="135" x2="1362.0" y2="678.0" stroke="#252e37" stroke-width="0.6"/>
+<line x1="1362.0" y1="678.0" x2="1362.0" y2="683.0" stroke="#aeb8c4"/>
+<text x="1362.0" y="702.0" fill="#aeb8c4" text-anchor="middle" font-size="12" font-family="sans-serif">48</text>
+<polyline points="974.7,367.7 1362.0,800.9" fill="none" stroke="#4e79a7" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-2)"/>
+<polyline points="974.7,367.7 1044.0,405.8 1084.6,447.6 1113.4,471.7 1135.7,484.6 1153.9,496.8 1169.4,511.7 1182.7,521.9 1194.5,531.3 1205.1,543.1 1214.6,549.3 1223.3,554.7 1231.3,562.3 1238.7,566.9 1245.6,573.5 1252.1,577.1 1258.1,581.9 1263.9,585.0 1269.3,589.3 1274.4,592.1 1279.3,596.3 1283.9,598.3 1288.4,600.6 1292.6,602.4 1296.7,605.5 1300.7,607.0 1304.4,609.3 1308.1,610.6 1311.6,611.7 1315.0,613.1 1318.3,613.4 1321.4,614.3 1324.5,615.0 1327.5,615.2 1330.4,615.7 1333.2,616.1 1336.0,615.8 1338.6,616.5 1341.2,617.5 1343.8,602.6 1346.2,604.2 1348.6,606.5 1351.0,613.2 1353.3,609.8 1355.5,616.5 1357.7,613.7 1359.9,615.1 1362.0,610.6" fill="none" stroke="#4e79a7" stroke-width="2.5" clip-path="url(#log-panel-2)"/>
+<circle cx="974.7" cy="367.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1044.0" cy="405.8" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1084.6" cy="447.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1113.4" cy="471.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1135.7" cy="484.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1153.9" cy="496.8" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1169.4" cy="511.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1182.7" cy="521.9" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1194.5" cy="531.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1205.1" cy="543.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1214.6" cy="549.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1223.3" cy="554.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1231.3" cy="562.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1238.7" cy="566.9" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1245.6" cy="573.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1252.1" cy="577.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1258.1" cy="581.9" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1263.9" cy="585.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1269.3" cy="589.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1274.4" cy="592.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1279.3" cy="596.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1283.9" cy="598.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1288.4" cy="600.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1292.6" cy="602.4" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1296.7" cy="605.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1300.7" cy="607.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1304.4" cy="609.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1308.1" cy="610.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1311.6" cy="611.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1315.0" cy="613.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1318.3" cy="613.4" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1321.4" cy="614.3" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1324.5" cy="615.0" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1327.5" cy="615.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1330.4" cy="615.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1333.2" cy="616.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1336.0" cy="615.8" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1338.6" cy="616.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1341.2" cy="617.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1343.8" cy="602.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1346.2" cy="604.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1348.6" cy="606.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1351.0" cy="613.2" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1353.3" cy="609.8" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1355.5" cy="616.5" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1357.7" cy="613.7" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1359.9" cy="615.1" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<circle cx="1362.0" cy="610.6" r="2.5" fill="#4e79a7" clip-path="url(#log-panel-2)"/>
+<polyline points="974.7,290.1 1362.0,723.4" fill="none" stroke="#f28e2b" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-2)"/>
+<polyline points="974.7,263.4 1044.0,330.2 1084.6,369.5 1113.4,387.1 1135.7,401.6 1153.9,415.7 1169.4,429.5 1182.7,441.5 1194.5,453.2 1205.1,461.2 1214.6,467.6 1223.3,474.3 1231.3,482.0 1238.7,486.9 1245.6,493.7 1252.1,498.2 1258.1,502.4 1263.9,505.6 1269.3,510.3 1274.4,513.0 1279.3,517.3 1283.9,520.0 1288.4,522.6 1292.6,524.5 1296.7,527.5 1300.7,529.9 1304.4,532.3 1308.1,534.4 1311.6,536.1 1315.0,537.3 1318.3,538.1 1321.4,539.5 1324.5,540.9 1327.5,541.7 1330.4,542.7 1333.2,543.5 1336.0,544.4 1338.6,544.5 1341.2,545.3 1343.8,545.7 1346.2,545.9 1348.6,546.7 1351.0,546.5 1353.3,546.2 1355.5,546.2 1357.7,546.2 1359.9,545.7 1362.0,543.8" fill="none" stroke="#f28e2b" stroke-width="2.5" clip-path="url(#log-panel-2)"/>
+<circle cx="974.7" cy="263.4" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1044.0" cy="330.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1084.6" cy="369.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1113.4" cy="387.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1135.7" cy="401.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1153.9" cy="415.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1169.4" cy="429.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1182.7" cy="441.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1194.5" cy="453.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1205.1" cy="461.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1214.6" cy="467.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1223.3" cy="474.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1231.3" cy="482.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1238.7" cy="486.9" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1245.6" cy="493.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1252.1" cy="498.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1258.1" cy="502.4" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1263.9" cy="505.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1269.3" cy="510.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1274.4" cy="513.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1279.3" cy="517.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1283.9" cy="520.0" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1288.4" cy="522.6" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1292.6" cy="524.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1296.7" cy="527.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1300.7" cy="529.9" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1304.4" cy="532.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1308.1" cy="534.4" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1311.6" cy="536.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1315.0" cy="537.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1318.3" cy="538.1" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1321.4" cy="539.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1324.5" cy="540.9" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1327.5" cy="541.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1330.4" cy="542.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1333.2" cy="543.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1336.0" cy="544.4" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1338.6" cy="544.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1341.2" cy="545.3" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1343.8" cy="545.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1346.2" cy="545.9" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1348.6" cy="546.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1351.0" cy="546.5" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1353.3" cy="546.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1355.5" cy="546.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1357.7" cy="546.2" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1359.9" cy="545.7" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<circle cx="1362.0" cy="543.8" r="2.5" fill="#f28e2b" clip-path="url(#log-panel-2)"/>
+<polyline points="974.7,212.6 1362.0,645.8" fill="none" stroke="#59a14f" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 5" clip-path="url(#log-panel-2)"/>
+<polyline points="974.7,182.7 1044.0,242.0 1084.6,290.3 1113.4,311.7 1135.7,330.3 1153.9,343.5 1169.4,357.1 1182.7,366.9 1194.5,376.4 1205.1,384.2 1214.6,388.8 1223.3,396.1 1231.3,403.4 1238.7,408.8 1245.6,414.7 1252.1,419.4 1258.1,421.2 1263.9,424.5 1269.3,428.8 1274.4,431.0 1279.3,434.9 1283.9,437.5 1288.4,440.6 1292.6,442.9 1296.7,445.9 1300.7,448.2 1304.4,450.9 1308.1,452.6 1311.6,453.9 1315.0,455.5 1318.3,456.6 1321.4,457.4 1324.5,458.2 1327.5,459.3 1330.4,459.8 1333.2,460.6 1336.0,461.3 1338.6,461.9 1341.2,462.4 1343.8,462.7 1346.2,463.2 1348.6,463.4 1351.0,463.7 1353.3,463.8 1355.5,464.1 1357.7,464.1 1359.9,464.0 1362.0,463.0" fill="none" stroke="#59a14f" stroke-width="2.5" clip-path="url(#log-panel-2)"/>
+<circle cx="974.7" cy="182.7" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1044.0" cy="242.0" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1084.6" cy="290.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1113.4" cy="311.7" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1135.7" cy="330.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1153.9" cy="343.5" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1169.4" cy="357.1" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1182.7" cy="366.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1194.5" cy="376.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1205.1" cy="384.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1214.6" cy="388.8" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1223.3" cy="396.1" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1231.3" cy="403.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1238.7" cy="408.8" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1245.6" cy="414.7" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1252.1" cy="419.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1258.1" cy="421.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1263.9" cy="424.5" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1269.3" cy="428.8" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1274.4" cy="431.0" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1279.3" cy="434.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1283.9" cy="437.5" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1288.4" cy="440.6" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1292.6" cy="442.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1296.7" cy="445.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1300.7" cy="448.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1304.4" cy="450.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1308.1" cy="452.6" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1311.6" cy="453.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1315.0" cy="455.5" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1318.3" cy="456.6" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1321.4" cy="457.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1324.5" cy="458.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1327.5" cy="459.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1330.4" cy="459.8" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1333.2" cy="460.6" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1336.0" cy="461.3" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1338.6" cy="461.9" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1341.2" cy="462.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1343.8" cy="462.7" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1346.2" cy="463.2" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1348.6" cy="463.4" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1351.0" cy="463.7" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1353.3" cy="463.8" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1355.5" cy="464.1" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1357.7" cy="464.1" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1359.9" cy="464.0" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<circle cx="1362.0" cy="463.0" r="2.5" fill="#59a14f" clip-path="url(#log-panel-2)"/>
+<text x="700.0" y="738.0" fill="#d8dee9" text-anchor="middle" font-size="15" font-family="sans-serif">Worker threads (log₂ scale)</text>
+<text x="20.0" y="406.5" fill="#d8dee9" transform="rotate(-90 20 406.5)" text-anchor="middle" font-size="15" font-family="sans-serif">Relative update time (log₂ scale)</text>
+</svg>

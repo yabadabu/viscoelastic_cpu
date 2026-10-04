@@ -831,6 +831,7 @@ struct ViscoelasticModule : public Module {
       ImGui::Text("  %1.6lf pressure gather", sim.times[ViscoelasticSim::eSection::RelaxationGather]);
       ImGui::Text("%1.6lf collisions", sim.times[ViscoelasticSim::eSection::Collisions]);
       ImGui::Text("%1.6lf velocities_from_positions", sim.times[ViscoelasticSim::eSection::VelocitiesFromPositions]);
+      ImGui::Text("%1.6lf viscosity", sim.times[ViscoelasticSim::eSection::Viscosity]);
       ImGui::Text("%1.6lf render", sim.times[ViscoelasticSim::eSection::Render]);
       ImGui::Text("%1.6lf Total update (BW: %1.0f Mb/s)", sim.times[ViscoelasticSim::eSection::Update], (2.0f * buffer_size_mbs / sim.times[ViscoelasticSim::eSection::Update]));
       ImGui::Text("# Hash Collisions: %d (%1.2f%%)", sim.spatial_hash.num_collisions, (sim.spatial_hash.num_collisions * 100.0 / sim.num_particles));
@@ -847,6 +848,8 @@ struct ViscoelasticModule : public Module {
       ImGui::DragFloat("Rest Density", &sim.mat.rest_density, 0.1f);
       ImGui::DragFloat("Stiffness", &sim.mat.stiffness, 0.01f, 0.1f, 2.0f);
       ImGui::DragFloat("NearStiffness", &sim.mat.near_stiffness, 0.01f, 0.0f, 2.0f);
+      ImGui::DragFloat("Viscosity", &sim.mat.viscosity, 0.01f, 0.0f, 5.0f);
+      ImGui::DragInt("Viscosity Iterations", &sim.viscosity_iterations, 0.02f, 1, 8);
       ImGui::DragFloat("Friction", &sim.friction, 0.005f, 0.0f, 1.0f);
 
       ImGui::DragFloat("Delta Time", &delta_time, 0.005f, 0.0f, 1.0f);

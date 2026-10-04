@@ -21,6 +21,7 @@ struct ViscoelasticSim {
     RelaxationPressure,
     RelaxationGather,
     VelocitiesFromPositions,
+    Viscosity,
     Collisions,
     Render,
     Update,
@@ -32,6 +33,7 @@ struct ViscoelasticSim {
     float       rest_density = 4.0f;
     float       stiffness = 0.5f;
     float       near_stiffness = 0.5f;
+    float       viscosity = 0.0f;
     float       kernel_radius = 20;
     float       point_size = 5.0f;
     float       dt = 1.0f;
@@ -53,7 +55,7 @@ struct ViscoelasticSim {
   CPUSpatialSubdivision   spatial_hash;
 
   SDF::sdFunc             sdf;
-  float                   friction = 2.0f;
+  float                   friction = 0.0f;
   int                     num_particles = 0;
   int                     max_particles = 128 * 1024;
   float                   max_speed = 5.0;
@@ -81,6 +83,7 @@ struct ViscoelasticSim {
   int prediction_jobs_per_thread = 3;
   int relaxation_jobs_per_thread = 12;
   int relaxation_reduce_jobs_per_thread = 4;
+  int viscosity_iterations = 1;
   float spatial_xy_bound_world_min = -20.0f;
   float spatial_xy_bound_world_max = 20.0f;
   bool overlap_cache_and_prediction = true;
@@ -186,6 +189,8 @@ struct ViscoelasticSim {
   void updateSpatialHash();
   bool assignCellsBoundedXY();
   void resolveCollisions(float dt, int start, int end);
+  void applyViscosityRange(float blend, int start, int end);
+  void applyViscosity(float dt);
   void computePressureRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos);
   void applyPressureGatherRange(const CPUSpatialSubdivision::CellRange& range, const ParticlesVec& __restrict ppos, ParticlesVec* __restrict out_positions);
   void updateStep(float dt);

@@ -220,6 +220,14 @@ The bounded directory is dense in XY, even though only occupied columns are proc
 The huge cost goes to the apply viscosity, where for each particle we need to find the influence of all nearby particles.
 For the viscositySolve to work, we make a copy of the positions of each particle, and accumulate the expected changes of each particle in a separate buffer, this way the we could run each particle in parallel without locking mechanisms
 
+The velocity-viscosity pass reuses the neighbour IDs and counts produced by
+double-density relaxation. For each particle it computes a distance-weighted
+average of neighbour velocities, blends toward that average, and writes into a
+separate velocity buffer. One or more Jacobi iterations can therefore diffuse
+surface drag through several particle layers without damping the shared motion
+of a coherently falling group. The exponential viscosity mapping keeps the
+result approximately stable when substep or iteration counts change.
+
 The code can perform substeps simulations but with just one step, the simulation is pretty stable.
 
 ## Collisions

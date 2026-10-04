@@ -532,8 +532,103 @@ void ViscoelasticSim::resolveCollisions(float dt, int start, int end) {
     if (d < 0.0f) {
       VEC3 grad = sdf.evalGradCompact(pq);
       particles_pos.add(i, grad * d * boundaryMul);
+      particles_prev_pos.add(i, (particles_pos.get(i) - particles_prev_pos.get(i) ) * friction);
     }
   }
+}
+
+void ViscoelasticSim::applyViscosityRange(
+  float blend,
+  int start,
+  int end
+) {
+  constexpr int max_nears = 64;
+  const float radius_sq = mat.kernel_radius * mat.kernel_radius;
+  const float inv_radius_sq = radius_sq > 0.0f ? 1.0f / radius_sq : 0.0f;
+
+  for (int i = start; i < end; ++i) {
+    const float velocity_x = particles_vels.x[i];
+    const float velocity_y = particles_vels.y[i];
+    const float velocity_z = particles_vels.z[i];
+    const float position_x = particles_pos.x[i];
+    const float position_y = particles_pos.y[i];
+    const float position_z = particles_pos.z[i];
+    const int num_nears = relaxation_neighbour_counts[i];
+    const int* neighbour_ids =
+      &relaxation_neighbour_ids[(size_t)i * max_nears];
+
+    float weight_sum = 0.0f;
+    float average_x = 0.0f;
+    float average_y = 0.0f;
+    float average_z = 0.0f;
+    for (int neighbour_idx = 0; neighbour_idx < num_nears; ++neighbour_idx) {
+      const int neighbour_id = neighbour_ids[neighbour_idx];
+      const float dx = particles_pos.x[neighbour_id] - position_x;
+      const float dy = particles_pos.y[neighbour_id] - position_y;
+      const float dz = particles_pos.z[neighbour_id] - position_z;
+      const float distance_sq = dx * dx + dy * dy + dz * dz;
+      const float closeness_sq = std::max(
+        0.0f,
+        1.0f - distance_sq * inv_radius_sq);
+      const float weight = closeness_sq * closeness_sq;
+      weight_sum += weight;
+      average_x += particles_vels.x[neighbour_id] * weight;
+      average_y += particles_vels.y[neighbour_id] * weight;
+      average_z += particles_vels.z[neighbour_id] * weight;
+    }
+
+    if (weight_sum > 1e-6f) {
+      const float inv_weight_sum = 1.0f / weight_sum;
+      average_x *= inv_weight_sum;
+      average_y *= inv_weight_sum;
+      average_z *= inv_weight_sum;
+      aux_particles_vels.x[i] =
+        velocity_x + (average_x - velocity_x) * blend;
+      aux_particles_vels.y[i] =
+        velocity_y + (average_y - velocity_y) * blend;
+      aux_particles_vels.z[i] =
+        velocity_z + (average_z - velocity_z) * blend;
+    }
+    else {
+      aux_particles_vels.x[i] = velocity_x;
+      aux_particles_vels.y[i] = velocity_y;
+      aux_particles_vels.z[i] = velocity_z;
+    }
+  }
+}
+
+void ViscoelasticSim::applyViscosity(float dt) {
+  const int iterations = std::max(1, viscosity_iterations);
+  const float iteration_dt = dt / (float)iterations;
+  // A normalized Jacobi average is stable for a blend of at most one half.
+  // The exponential mapping keeps the effect approximately independent of
+  // the configured substep and viscosity-iteration counts.
+  const float blend = std::min(
+    0.5f,
+    1.0f - expf(-mat.viscosity * iteration_dt));
+
+  for (int iteration = 0; iteration < iterations; ++iteration) {
+    runInParallel(
+      num_particles,
+      num_threads * relaxation_jobs_per_thread,
+      [&](int start, int end, int job_id) {
+        applyViscosityRange(blend, start, end);
+      });
+    particles_vels.swap(aux_particles_vels);
+  }
+
+  // Keep the position-Verlet representation consistent with the smoothed
+  // velocity. The next prediction pass consumes particles_vels directly, but
+  // maintaining this invariant also makes subsequent position-derived reads
+  // and debugging agree with the viscosity result.
+  runInParallel(num_particles, num_threads * prediction_jobs_per_thread,
+    [&](int start, int end, int job_id) {
+      for (int i = start; i < end; ++i) {
+        particles_prev_pos.x[i] = particles_pos.x[i] - particles_vels.x[i] * dt;
+        particles_prev_pos.y[i] = particles_pos.y[i] - particles_vels.y[i] * dt;
+        particles_prev_pos.z[i] = particles_pos.z[i] - particles_vels.z[i] * dt;
+      }
+    });
 }
 
 void ViscoelasticSim::computePressureRange(float dt, const CPUSpatialSubdivision::CellRange& range, const CPUSpatialSubdivision::NearRanges& near_ranges, const ParticlesVec& __restrict ppos) {
@@ -1734,6 +1829,16 @@ void ViscoelasticSim::updateStep(float dt) {
       simd_update_velocities_clamped(particles_vels, particles_pos, particles_prev_pos, inv_dt, max_speed, start, end);
       });
     saveTime(eSection::VelocitiesFromPositions, tm);
+  }
+
+  if (mat.viscosity > 0.0f && viscosity_iterations > 0) {
+    TTimer tm;
+    PROFILE_SCOPED_NAMED("viscosity");
+    applyViscosity(dt);
+    saveTime(eSection::Viscosity, tm);
+  }
+  else {
+    times[eSection::Viscosity] = 0.0;
   }
 
 }

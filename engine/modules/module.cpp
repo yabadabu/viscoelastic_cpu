@@ -54,7 +54,7 @@ void Modules::load() {
     Module* m = modules_registered[i];
     PROFILE_SCOPED_NAMED(m->getName());
     dbg("Loading module %s\n", m->getName());
-    modules_registered[i]->setLoaded(true);
+    m->setLoaded(true);
   }
 }
 
@@ -65,7 +65,7 @@ void Modules::unload() {
     assert(nmodules_registered - 1 - i >= 0);
     Module* m = modules_registered[nmodules_registered - 1 - i];
     dbg("Unloading module %s\n", m->getName());
-    modules_registered[i]->setLoaded(false);
+    m->setLoaded(false);
   }
   dbg("Modules::unload completed\n");
 }

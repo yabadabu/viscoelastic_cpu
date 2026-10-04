@@ -582,12 +582,9 @@ void ViscoelasticSim::applyViscosityRange(
       average_x *= inv_weight_sum;
       average_y *= inv_weight_sum;
       average_z *= inv_weight_sum;
-      aux_particles_vels.x[i] =
-        velocity_x + (average_x - velocity_x) * blend;
-      aux_particles_vels.y[i] =
-        velocity_y + (average_y - velocity_y) * blend;
-      aux_particles_vels.z[i] =
-        velocity_z + (average_z - velocity_z) * blend;
+      aux_particles_vels.x[i] = velocity_x + (average_x - velocity_x) * blend;
+      aux_particles_vels.y[i] = velocity_y + (average_y - velocity_y) * blend;
+      aux_particles_vels.z[i] = velocity_z + (average_z - velocity_z) * blend;
     }
     else {
       aux_particles_vels.x[i] = velocity_x;

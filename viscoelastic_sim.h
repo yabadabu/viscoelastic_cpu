@@ -90,8 +90,12 @@ struct ViscoelasticSim {
   int spatial_cell_mode = SpatialCellsKernelRadius;
   ThreadPool* pool = nullptr;
   std::vector<ParticlesVec> relaxation_worker_deltas;
-  std::vector<float> relaxation_pressures;
-  std::vector<float> relaxation_near_pressures;
+  struct RelaxationPressurePair {
+    float pressure;
+    float near_pressure;
+  };
+  static_assert(sizeof(RelaxationPressurePair) == 2 * sizeof(float));
+  std::vector<RelaxationPressurePair> relaxation_pressures;
   std::vector<int> relaxation_neighbour_ids;
   std::vector<uint8_t> relaxation_neighbour_counts;
   std::vector<CPUSpatialSubdivision::NearRanges> relaxation_near_ranges;

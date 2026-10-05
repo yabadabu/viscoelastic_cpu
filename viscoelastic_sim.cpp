@@ -109,8 +109,7 @@ static const SIMDCompressPermutationTable simd_compress_permutations;
 
 inline void apply_pressure_gather_simd(
   const ParticlesVec& positions,
-  const std::vector<float>& pressures,
-  const std::vector<float>& near_pressures,
+  const std::vector<ViscoelasticSim::RelaxationPressurePair>& pressures,
   const int* nears_ids,
   int num_nears,
   int idx,
@@ -121,14 +120,18 @@ inline void apply_pressure_gather_simd(
   int i = 0;
   //PROFILE_SCOPED_NAMED("displace");
 
-  const __m256 p = _mm256_set1_ps(pressures[idx]);
-  const __m256 np = _mm256_set1_ps(near_pressures[idx]);
+  const __m256 p = _mm256_set1_ps(pressures[idx].pressure);
+  const __m256 np = _mm256_set1_ps(pressures[idx].near_pressure);
   const __m256 half = _mm256_set1_ps(0.5f);
   const __m256 one = _mm256_set1_ps(1.0f);
   const __m256 radius_inv = _mm256_set1_ps(kernel_radius_inv);
+  const __m256 radius_inv_half =
+    _mm256_set1_ps(kernel_radius_inv * 0.5f);
   const __m256 pi_x = _mm256_set1_ps(positions.x[idx]);
   const __m256 pi_y = _mm256_set1_ps(positions.y[idx]);
   const __m256 pi_z = _mm256_set1_ps(positions.z[idx]);
+  const float* pressure_values =
+    reinterpret_cast<const float*>(pressures.data());
 
   __m256 accum_dx = _mm256_setzero_ps();
   __m256 accum_dy = _mm256_setzero_ps();
@@ -149,24 +152,26 @@ inline void apply_pressure_gather_simd(
     const __m256 r = _mm256_add_ps(
       _mm256_sqrt_ps(distance_sq), _mm256_set1_ps(1e-5f));
     const __m256 inv_r = _mm256_div_ps(one, r);
-    const __m256 c = _mm256_sub_ps(one, _mm256_mul_ps(r, radius_inv));
-    dx = _mm256_mul_ps(dx, inv_r);
-    dy = _mm256_mul_ps(dy, inv_r);
-    dz = _mm256_mul_ps(dz, inv_r);
+    const __m256 c = _mm256_fnmadd_ps(r, radius_inv, one);
+    const __m256 c_half = _mm256_fnmadd_ps(r, radius_inv_half, half);
 
     const __m256 neighbour_p =
-      _mm256_i32gather_ps(pressures.data(), ids, sizeof(float));
+      _mm256_i32gather_ps(
+        pressure_values, ids,
+        sizeof(ViscoelasticSim::RelaxationPressurePair));
     const __m256 neighbour_np =
-      _mm256_i32gather_ps(near_pressures.data(), ids, sizeof(float));
+      _mm256_i32gather_ps(
+        pressure_values + 1, ids,
+        sizeof(ViscoelasticSim::RelaxationPressurePair));
     __m256 amt = _mm256_add_ps(
       _mm256_add_ps(p, neighbour_p),
       _mm256_mul_ps(_mm256_add_ps(np, neighbour_np), c));
-    amt = _mm256_mul_ps(amt, c);
-    amt = _mm256_mul_ps(amt, half);
+    amt = _mm256_mul_ps(amt, c_half);
+    const __m256 displacement_scale = _mm256_mul_ps(inv_r, amt);
 
-    __m256 dx_final = _mm256_mul_ps(dx, amt);
-    __m256 dy_final = _mm256_mul_ps(dy, amt);
-    __m256 dz_final = _mm256_mul_ps(dz, amt);
+    __m256 dx_final = _mm256_mul_ps(dx, displacement_scale);
+    __m256 dy_final = _mm256_mul_ps(dy, displacement_scale);
+    __m256 dz_final = _mm256_mul_ps(dz, displacement_scale);
 
     accum_dx = _mm256_add_ps(accum_dx, dx_final);
     accum_dy = _mm256_add_ps(accum_dy, dy_final);
@@ -188,12 +193,14 @@ inline void apply_pressure_gather_simd(
     const float inv_r = 1.0f / r;
     const float closeness = 1.0f - r * kernel_radius_inv;
     float amount = (
-      pressures[idx] + pressures[neighbour_id] +
-      (near_pressures[idx] + near_pressures[neighbour_id]) * closeness
+      pressures[idx].pressure + pressures[neighbour_id].pressure +
+      (pressures[idx].near_pressure + pressures[neighbour_id].near_pressure) *
+      closeness
       ) * closeness * 0.5f;
-    acc_x -= dx * inv_r * amount;
-    acc_y -= dy * inv_r * amount;
-    acc_z -= dz * inv_r * amount;
+    const float displacement_scale = inv_r * amount;
+    acc_x -= dx * displacement_scale;
+    acc_y -= dy * displacement_scale;
+    acc_z -= dz * displacement_scale;
   }
 
   out_positions->add(idx, acc_x, acc_y, acc_z);
@@ -497,7 +504,6 @@ void ViscoelasticSim::init() {
   particles_vels.resize(max_particles);
   particles_frozen_pos.resize(max_particles);
   relaxation_pressures.resize(max_particles);
-  relaxation_near_pressures.resize(max_particles);
   relaxation_neighbour_ids.resize((size_t)max_particles * 64);
   relaxation_neighbour_counts.resize(max_particles);
   particles_type = new u8[max_particles];
@@ -676,8 +682,7 @@ void ViscoelasticSim::computePressureRange(float dt, const CPUSpatialSubdivision
     pressure = std::min(1.0f, pressure);
     near_pressure = std::min(1.0f, near_pressure);
 
-    relaxation_pressures[i] = pressure;
-    relaxation_near_pressures[i] = near_pressure;
+    relaxation_pressures[i] = { pressure, near_pressure };
     relaxation_neighbour_counts[i] = (uint8_t)num_nears;
   }
 }
@@ -693,7 +698,7 @@ void ViscoelasticSim::applyPressureGatherRange(const CPUSpatialSubdivision::Cell
       &relaxation_neighbour_ids[(size_t)i * max_nears];
     apply_pressure_gather_simd(
       ppos,
-      relaxation_pressures, relaxation_near_pressures,
+      relaxation_pressures,
       nears_ids,
       num_nears,
       i,

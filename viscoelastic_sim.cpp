@@ -169,13 +169,9 @@ inline void apply_pressure_gather_simd(
     amt = _mm256_mul_ps(amt, c_half);
     const __m256 displacement_scale = _mm256_mul_ps(inv_r, amt);
 
-    __m256 dx_final = _mm256_mul_ps(dx, displacement_scale);
-    __m256 dy_final = _mm256_mul_ps(dy, displacement_scale);
-    __m256 dz_final = _mm256_mul_ps(dz, displacement_scale);
-
-    accum_dx = _mm256_add_ps(accum_dx, dx_final);
-    accum_dy = _mm256_add_ps(accum_dy, dy_final);
-    accum_dz = _mm256_add_ps(accum_dz, dz_final);
+    accum_dx = _mm256_fmadd_ps(dx, displacement_scale, accum_dx);
+    accum_dy = _mm256_fmadd_ps(dy, displacement_scale, accum_dy);
+    accum_dz = _mm256_fmadd_ps(dz, displacement_scale, accum_dz);
 
   }
 

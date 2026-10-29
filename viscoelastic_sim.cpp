@@ -199,59 +199,6 @@ inline void apply_pressure_gather_simd(
   out_positions->add(idx, acc_x, acc_y, acc_z);
 }
 
-// A worker-private touched map at 64-particle granularity was tested here.
-// It skipped roughly 55% of worker/range reads, but tracking and selecting the
-// ranges produced no measurable end-to-end gain at 32K or 64K particles. Keep
-// the dense streaming reduction: it is simpler and performs at least as well.
-void simd_apply_relaxation_deltas(
-  ParticlesVec& positions,
-  std::vector<ParticlesVec>& worker_deltas,
-  int start,
-  int end
-) {
-  constexpr int step = 8;
-  int i = start;
-  const __m256 zero = _mm256_setzero_ps();
-
-  for (; i + step <= end; i += step) {
-    __m256 px = _mm256_loadu_ps(&positions.x[i]);
-    __m256 py = _mm256_loadu_ps(&positions.y[i]);
-    __m256 pz = _mm256_loadu_ps(&positions.z[i]);
-
-    for (ParticlesVec& deltas : worker_deltas) {
-      const __m256 dx = _mm256_loadu_ps(&deltas.x[i]);
-      const __m256 dy = _mm256_loadu_ps(&deltas.y[i]);
-      const __m256 dz = _mm256_loadu_ps(&deltas.z[i]);
-      px = _mm256_add_ps(px, dx);
-      py = _mm256_add_ps(py, dy);
-      pz = _mm256_add_ps(pz, dz);
-
-      _mm256_storeu_ps(&deltas.x[i], zero);
-      _mm256_storeu_ps(&deltas.y[i], zero);
-      _mm256_storeu_ps(&deltas.z[i], zero);
-    }
-
-    _mm256_storeu_ps(&positions.x[i], px);
-    _mm256_storeu_ps(&positions.y[i], py);
-    _mm256_storeu_ps(&positions.z[i], pz);
-  }
-
-  for (; i < end; ++i) {
-    float dx = 0.0f;
-    float dy = 0.0f;
-    float dz = 0.0f;
-    for (ParticlesVec& deltas : worker_deltas) {
-      dx += deltas.x[i];
-      dy += deltas.y[i];
-      dz += deltas.z[i];
-      deltas.x[i] = 0.0f;
-      deltas.y[i] = 0.0f;
-      deltas.z[i] = 0.0f;
-    }
-    positions.add(i, dx, dy, dz);
-  }
-}
-
 void simd_prepare_particles(
   ParticlesVec& pos,
   ParticlesVec& prev,
@@ -1822,7 +1769,7 @@ void ViscoelasticSim::updateStep(float dt) {
     TTimer tm;
     PROFILE_SCOPED_NAMED("velocities_from_positions");
     float inv_dt = 1.0f / dt;
-    runInParallel(num_particles, 4, [&](int start, int end, int job_id) {
+    runInParallel(num_particles,g4, [&](int start, int end, int job_id) {
       simd_update_velocities_clamped(particles_vels, particles_pos, particles_prev_pos, inv_dt, max_speed, start, end);
       });
     saveTime(eSection::VelocitiesFromPositions, tm);

@@ -1769,7 +1769,7 @@ void ViscoelasticSim::updateStep(float dt) {
     TTimer tm;
     PROFILE_SCOPED_NAMED("velocities_from_positions");
     float inv_dt = 1.0f / dt;
-    runInParallel(num_particles, 4, [&](int start, int end, int job_id) {
+    runInParallel(num_particles,g4, [&](int start, int end, int job_id) {
       simd_update_velocities_clamped(particles_vels, particles_pos, particles_prev_pos, inv_dt, max_speed, start, end);
       });
     saveTime(eSection::VelocitiesFromPositions, tm);

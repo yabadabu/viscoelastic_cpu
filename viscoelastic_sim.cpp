@@ -452,7 +452,6 @@ void ViscoelasticSim::init() {
   particles_type = new u8[max_particles];
 
   aux_particles_pos.resize(max_particles);
-  aux_particles_prev_pos.resize(max_particles);
   aux_particles_vels.resize(max_particles);
   aux_particles_type = new u8[max_particles];
 }
@@ -934,9 +933,6 @@ bool ViscoelasticSim::assignCellsBoundedXY() {
           const uint32_t destination = particle_offset + idx_in_cell;
           particles_pos.set(destination, aux_particles_pos.get(particle_id));
           particles_vels.set(destination, aux_particles_vels.get(particle_id));
-          particles_prev_pos.set(
-            destination,
-            aux_particles_prev_pos.get(particle_id));
           particles_type[destination] = aux_particles_type[particle_id];
           if ((int)particle_id == source_debug_particle)
             reordered_debug_particle.store(
@@ -976,11 +972,11 @@ void ViscoelasticSim::updateSpatialHash() {
     cells_per_kernel_radius_xy,
     cells_per_kernel_radius_z);
 
-  // We are going to reorder the particles, by moving the
-  // from the old order to the new order
+  // Reorder positions, velocities and types. Particle preparation overwrites
+  // every previous position from the reordered current position before any
+  // simulation stage reads it, so previous positions need no reordering.
   particles_pos.swap(aux_particles_pos);
   particles_vels.swap(aux_particles_vels);
-  particles_prev_pos.swap(aux_particles_prev_pos);
   std::swap(particles_type, aux_particles_type);
 
   const bool used_bounded_xy = assignCellsBoundedXY();
@@ -1015,7 +1011,6 @@ void ViscoelasticSim::updateSpatialHash() {
         assert(j >= 0 && j < max_particles);
         particles_pos.set(i, aux_particles_pos.get(j));
         particles_vels.set(i, aux_particles_vels.get(j));
-        particles_prev_pos.set(i, aux_particles_prev_pos.get(j));
         particles_type[i] = aux_particles_type[j];
         });
       });
@@ -1770,7 +1765,7 @@ void ViscoelasticSim::updateStep(float dt) {
     TTimer tm;
     PROFILE_SCOPED_NAMED("velocities_from_positions");
     float inv_dt = 1.0f / dt;
-    runInParallel(num_particles,g4, [&](int start, int end, int job_id) {
+    runInParallel(num_particles, 4, [&](int start, int end, int job_id) {
       simd_update_velocities_clamped(particles_vels, particles_pos, particles_prev_pos, inv_dt, max_speed, start, end);
       });
     saveTime(eSection::VelocitiesFromPositions, tm);

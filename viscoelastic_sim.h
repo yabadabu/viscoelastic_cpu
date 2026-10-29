@@ -47,7 +47,6 @@ struct ViscoelasticSim {
   unsigned char* particles_type = nullptr;
 
   ParticlesVec   aux_particles_pos;
-  ParticlesVec   aux_particles_prev_pos;
   ParticlesVec   aux_particles_vels;
   unsigned char* aux_particles_type = nullptr;
 
